@@ -3,9 +3,11 @@ import type { WidgetConfig, WidgetId } from "../lib/config";
 import { Coach } from "./Coach";
 import { Delta } from "./Delta";
 import { Dynamics } from "./Dynamics";
+import { Flags } from "./Flags";
 import { Fuel } from "./Fuel";
 import { Inputs } from "./Inputs";
 import { Instruments } from "./Instruments";
+import { LapLog } from "./LapLog";
 import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Session } from "./Session";
@@ -25,6 +27,8 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   session: Session,
   inputs: Inputs,
   delta: Delta,
+  laplog: LapLog,
+  flags: Flags,
   fuel: Fuel,
   spotter: Spotter,
   radar: Radar,

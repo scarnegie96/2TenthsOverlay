@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CoachPayload, Cue, Deltas, FieldPayload, LapFlag, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
+  CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
   TickPayload, TiresPayload,
 } from "./types";
 
@@ -59,6 +59,7 @@ class Mock {
   private lapStart = Array.from({ length: N }, () => 0);
   private sides = new Map<number, number>();
   private fuel = 31.4;
+  private lapLog: LapRecord[] = [];
   private dyn = { speed: 0, time: 0, longG: 0, balance: null as number | null };
   private started = false;
   private reference: ReferencePayload = {
@@ -79,6 +80,18 @@ class Mock {
     // Give a few drivers a fresh personal best / class best so the colors show.
     this.last[2] = this.best[2];
     this.last[PLAYER] = this.best[PLAYER];
+    // Some laps already driven, with an out lap, a spin and a personal best.
+    const b = this.best[PLAYER];
+    const now = Math.floor(Date.now() / 1000);
+    const seed: [number | null, Partial<LapRecord>][] = [
+      [b + 21.6, { pit: true }], [b + 0.82, {}], [b + 0.31, {}], [b + 3.9, { offTrack: true, incidents: 2 }],
+      [b + 0.46, {}], [b, { personalBest: true }], [b + 0.24, {}],
+    ];
+    this.lapLog = seed.map(([time, extra], i) => ({
+      lap: i + 1, time, clean: !extra.pit && !extra.offTrack, pit: false, offTrack: false, incidents: 0,
+      fuelUsed: extra.pit ? null : 2.7 + rand(i + 40) * 0.12, trackTemp: 31.9 - i * 0.1, airTemp: 22.8,
+      personalBest: false, at: now - (seed.length - i) * 95, ...extra,
+    }));
     this.best[9] = Math.min(...this.best.slice(5, 15)) - 0.1;
     this.last[9] = this.best[9];
   }
@@ -224,6 +237,13 @@ class Mock {
       if (Math.floor(this.progress[i]) > before) {
         const lap = this.t - this.lapStart[i];
         if (this.lapStart[i] > 0) {
+          if (i === PLAYER) {
+            this.lapLog.push({
+              lap: this.lapLog.length + 1, time: lap, clean: true, pit: false, offTrack: false, incidents: 0,
+              fuelUsed: 2.74, trackTemp: 31.4, airTemp: 22.8, personalBest: lap < this.best[i],
+              at: Math.floor(Date.now() / 1000),
+            });
+          }
           this.last[i] = lap;
           this.best[i] = Math.min(this.best[i], lap);
         }
@@ -505,7 +525,7 @@ class Mock {
     return {
       clock: {
         sessionType: "Race", timeRemain: null, lapsRemain: 30 - Math.floor(this.progress[order[0]]), totalLaps: 30,
-        flags: 0, trackTemp: 31.4, airTemp: 22.8, strengthOfField: classes[1].strengthOfField, classes,
+        flags: this.flags(), trackTemp: 31.4, airTemp: 22.8, strengthOfField: classes[1].strengthOfField, classes,
         timeOfDay: 14 * 3600 + (performance.now() / 1000) % 3600, skies: 1, trackWetness: 1, declaredWet: false,
         windSpeed: 3.4, windDir: 5.5, humidity: 0.56, incidents: 2, incidentLimit: 17, fastRepairsUsed: 0,
         fastRepairsLimit: 1,
@@ -517,8 +537,34 @@ class Mock {
         toFinish: lapsToGo * perLap - this.fuel, samples: 5,
       },
       tires,
+      lapLog: {
+        laps: this.lapLog.slice(-100),
+        sessionBest: Math.min(...this.lapLog.filter((l) => l.clean && l.time != null).map((l) => l.time!)),
+        personalBest: { time: this.best[PLAYER] - 0.183, at: Math.floor(Date.now() / 1000) - 86400 * 12 },
+        saving: false,
+      },
     };
   }
+
+  /** A local yellow and a blue flag now and then, like the Rust demo; F cycles through every flag. */
+  private flags(): number {
+    if (flagPreview != null) return flagPreview;
+    const t = this.t % 70;
+    if (t >= 20 && t < 27) return 0x4 | 0x8 | 0x100;
+    if (t >= 50 && t < 55) return 0x4 | 0x20;
+    return 0x4;
+  }
+}
+
+/** Browser preview: press F on the overlay to step through flags. */
+let flagPreview: number | null = null;
+const PREVIEW_FLAGS = [0x8000 | 0x4000, 0x100 | 0x8, 0x20, 0x40, 0x2, 0x1, 0x10, 0x10000, 0x100000, 0x80000, 0x20000, 0x200, 0x4];
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", (e) => {
+    if (e.key.toLowerCase() !== "f" || e.ctrlKey || e.metaKey) return;
+    const i = flagPreview == null ? 0 : PREVIEW_FLAGS.indexOf(flagPreview) + 1;
+    flagPreview = i < PREVIEW_FLAGS.length ? PREVIEW_FLAGS[i] : null;
+  });
 }
 
 export const mock = new Mock();

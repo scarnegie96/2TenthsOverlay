@@ -6,6 +6,7 @@
 //! * `session` – when the session info changes
 //! * `status`  – when the connection changes
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -13,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use crate::demo::DemoSource;
 use crate::engine::Engine;
+use crate::laps::LapStore;
 use crate::model::*;
 use crate::reference::ReferenceLap;
 
@@ -31,6 +33,8 @@ pub struct RunnerControl {
     /// Imported comparison lap. Bump `reference_rev` after changing it.
     pub reference: Arc<Mutex<Option<ReferenceLap>>>,
     pub reference_rev: Arc<AtomicU64>,
+    /// Folder for saved laps from iRacing (never the demo). None to not save.
+    pub laps_dir: Option<PathBuf>,
 }
 
 impl RunnerControl {
@@ -99,11 +103,13 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
         if source.is_none() {
             if want_demo {
                 source = Some(Source::Demo(Box::default()));
+                engine.set_lap_store(None);
             } else {
                 #[cfg(windows)]
                 {
                     source = crate::irsdk::Irsdk::open().map(Source::Iracing);
                 }
+                engine.set_lap_store(control.laps_dir.clone().filter(|_| source.is_some()).map(|dir| LapStore { dir }));
                 if source.is_none() {
                     report(SourceKind::None, false, "Waiting for iRacing");
                     thread::sleep(RECONNECT_INTERVAL);

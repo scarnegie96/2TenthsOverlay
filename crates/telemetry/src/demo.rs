@@ -360,6 +360,13 @@ impl DemoSource {
             warn |= w::REV_LIMITER;
         }
         f.engine_warnings = warn;
+        // A local yellow and a blue flag now and then, for the Flags widget.
+        use crate::model::session_flags as fl;
+        f.session_flags = match self.t % 70.0 {
+            t if (20.0..27.0).contains(&t) => fl::GREEN | fl::YELLOW | fl::YELLOW_WAVING,
+            t if (50.0..55.0).contains(&t) => fl::GREEN | fl::BLUE,
+            _ => fl::GREEN,
+        };
         f.lap = f.car_lap[PLAYER];
         f.lap_completed = f.car_lap_completed[PLAYER];
         f.lap_dist_pct = pct;

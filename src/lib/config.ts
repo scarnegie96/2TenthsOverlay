@@ -2,8 +2,8 @@ import type { Units } from "./format";
 import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
-  | "relative" | "standings" | "session" | "inputs" | "delta" | "coach" | "dynamics" | "instruments" | "fuel" | "radar" | "tires"
-  | "spotter";
+  | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
+  | "radar" | "tires" | "flags" | "spotter";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -47,7 +47,8 @@ export interface AppConfig {
 export type OptionSpec =
   | { key: string; label: string; type: "toggle"; default: boolean; help?: string }
   | { key: string; label: string; type: "number"; default: number; min: number; max: number; step?: number; suffix?: string; help?: string }
-  | { key: string; label: string; type: "select"; default: string; choices: { value: string; label: string }[] };
+  | { key: string; label: string; type: "select"; default: string; choices: { value: string; label: string }[] }
+  | { key: string; label: string; type: "text"; default: string; maxLength?: number; help?: string };
 
 export interface WidgetMeta {
   id: WidgetId;
@@ -155,6 +156,26 @@ export const WIDGETS: WidgetMeta[] = [
     ],
   },
   {
+    id: "laplog",
+    name: "Lap log",
+    description: "Every lap this session with its gap to your best and the track temperature. Your personal best for each car and track is saved between sessions.",
+    x: 1090, y: 560, enabled: true,
+    options: [
+      { key: "rows", label: "Laps shown", type: "number", default: 8, min: 3, max: 30 },
+      {
+        key: "compareTo", label: "Gap to", type: "select", default: "session",
+        choices: [
+          { value: "session", label: "Session best" },
+          { value: "personal", label: "Personal best (all time)" },
+        ],
+      },
+      { key: "showDelta", label: "Show gap column", type: "toggle", default: true },
+      { key: "showTemp", label: "Show track temperature", type: "toggle", default: true },
+      { key: "showFuel", label: "Show fuel used", type: "toggle", default: false },
+      { key: "showPersonalBest", label: "Show personal best", type: "toggle", default: true, help: "In the header, next to the session best" },
+    ],
+  },
+  {
     id: "coach",
     name: "Coach",
     description: "Live coaching against your imported reference lap: brake points, pressure, apex speed, throttle, gear and line.",
@@ -221,6 +242,31 @@ export const WIDGETS: WidgetMeta[] = [
     x: 1580, y: 120, enabled: true,
     options: [
       { key: "showPressure", label: "Show cold pressure", type: "toggle", default: true },
+    ],
+  },
+  {
+    id: "flags",
+    name: "Flags",
+    description: "A trackside LED flag board with the flag that's out, and a line of text you can change for each flag.",
+    x: 1240, y: 270, enabled: true,
+    options: [
+      { key: "showCaption", label: "Show text under the board", type: "toggle", default: true },
+      { key: "greenSeconds", label: "Show green for", type: "number", default: 5, min: 0, max: 30, suffix: "s", help: "After a start or restart; the board then goes dark" },
+      { key: "scBoard", label: "Safety car board", type: "text", default: "SC", maxLength: 3, help: "Up to 3 letters or numbers, lit on the board under full-course cautions" },
+      { key: "textYellow", label: "Yellow", type: "text", default: "Accident ahead", maxLength: 28 },
+      { key: "textCaution", label: "Full-course caution", type: "text", default: "Safety car", maxLength: 28 },
+      { key: "textDebris", label: "Debris", type: "text", default: "Debris on track", maxLength: 28 },
+      { key: "textBlue", label: "Blue", type: "text", default: "Faster car behind", maxLength: 28 },
+      { key: "textWhite", label: "White", type: "text", default: "Last lap", maxLength: 28 },
+      { key: "textCheckered", label: "Chequered", type: "text", default: "Finish", maxLength: 28 },
+      { key: "textGreen", label: "Green", type: "text", default: "Green flag", maxLength: 28 },
+      { key: "textOneToGreen", label: "One lap to green", type: "text", default: "Green next lap", maxLength: 28 },
+      { key: "textRed", label: "Red", type: "text", default: "Session stopped", maxLength: 28 },
+      { key: "textBlack", label: "Black", type: "text", default: "Penalty: pit now", maxLength: 28 },
+      { key: "textRepair", label: "Meatball", type: "text", default: "Damage: pit for repairs", maxLength: 28 },
+      { key: "textWarning", label: "Black and white", type: "text", default: "Warning", maxLength: 28 },
+      { key: "textDisqualified", label: "Disqualified", type: "text", default: "Disqualified", maxLength: 28 },
+      { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Shows the dark board when there's no flag" },
     ],
   },
   {

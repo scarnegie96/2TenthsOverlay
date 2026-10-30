@@ -439,6 +439,13 @@ function OptionField({ spec, value, onChange }: { spec: OptionSpec; value: unkno
           <Select value={String(value)} choices={spec.choices} onChange={onChange} />
         </Field>
       );
+    case "text":
+      return (
+        <Field label={spec.label} help={spec.help}>
+          <input className="text-input" type="text" value={String(value ?? "")} maxLength={spec.maxLength}
+            placeholder={spec.default} onChange={(e) => onChange(e.target.value)} />
+        </Field>
+      );
   }
 }
 

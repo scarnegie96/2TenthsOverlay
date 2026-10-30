@@ -158,6 +158,18 @@
   background: var(--panel-raised);
 }
 
+.text-input {
+  height: 32px;
+  width: 240px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-raised);
+}
+.text-input::placeholder {
+  color: var(--ink-3);
+}
+
 kbd {
   display: inline-block;
   min-width: 26px;

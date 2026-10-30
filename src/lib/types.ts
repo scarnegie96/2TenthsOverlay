@@ -309,6 +309,37 @@ export interface FieldPayload {
   standings: StandingRow[];
   fuel: FuelPayload;
   tires: TiresPayload;
+  lapLog: LapLogPayload;
+}
+
+export interface LapRecord {
+  lap: number;
+  /** null when the lap couldn't be timed. */
+  time: number | null;
+  /** On track the whole way, off pit road, no new incidents. */
+  clean: boolean;
+  /** An in or out lap. */
+  pit: boolean;
+  offTrack: boolean;
+  incidents: number;
+  /** Litres. */
+  fuelUsed: number | null;
+  trackTemp: number;
+  airTemp: number;
+  /** Beat the saved personal best when it was set. */
+  personalBest: boolean;
+  /** Unix seconds. */
+  at: number;
+}
+
+export interface LapLogPayload {
+  /** This session's laps, oldest first. */
+  laps: LapRecord[];
+  sessionBest: number | null;
+  /** All-time for this car and track. */
+  personalBest: { time: number; at: number } | null;
+  /** Laps are being saved to disk (not in the demo). */
+  saving: boolean;
 }
 
 export interface Snapshot {

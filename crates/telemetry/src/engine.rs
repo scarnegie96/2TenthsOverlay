@@ -5,6 +5,7 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::model::*;
 use crate::coach::Coach;
+use crate::laps::{LapLog, LapStore};
 use crate::reference::ReferenceLap;
 use crate::session::{DriverInfo, SessionInfo};
 
@@ -16,6 +17,9 @@ pub struct Engine {
     session: Option<SessionInfo>,
     fuel: FuelTracker,
     sectors: SectorTracker,
+    laps: LapLog,
+    /// Where to save laps; None in the demo.
+    lap_store: Option<LapStore>,
     /// Lane each nearby car was given last frame, so cars don't jump sides.
     radar_sides: HashMap<i32, i32>,
     /// Imported comparison lap, if any.
@@ -31,17 +35,33 @@ impl Engine {
 
     pub fn set_session(&mut self, info: SessionInfo) {
         self.session = Some(info);
+        self.configure_laps();
+    }
+
+    pub fn set_lap_store(&mut self, store: Option<LapStore>) {
+        self.lap_store = store;
+        self.configure_laps();
+    }
+
+    fn configure_laps(&mut self) {
+        let (track, car) = self
+            .session
+            .as_ref()
+            .map(|s| (s.track_key.clone(), s.player().map(|p| p.car_path.clone()).unwrap_or_default()))
+            .unwrap_or_default();
+        self.laps.configure(self.lap_store.clone(), &track, &car);
     }
 
     pub fn session(&self) -> Option<&SessionInfo> {
         self.session.as_ref()
     }
 
-    /// Clears everything learned from the current session. Keeps the reference lap.
+    /// Clears everything learned from the current session. Keeps the reference lap and lap store.
     pub fn reset(&mut self) {
         let reference = self.reference.take();
         let coach = reference.as_ref().map(Coach::new);
-        *self = Self { reference, coach, ..Self::default() };
+        let lap_store = self.lap_store.take();
+        *self = Self { reference, coach, lap_store, ..Self::default() };
     }
 
     pub fn set_reference(&mut self, reference: Option<ReferenceLap>) {
@@ -116,6 +136,7 @@ impl Engine {
         self.fuel.update(f);
         let starts = self.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]);
         self.sectors.update(f, starts);
+        self.laps.update(f);
         let reference_delta = self.reference_delta(f);
         let coach = match (&self.reference, &mut self.coach) {
             (Some(r), Some(c)) if reference_delta.is_some() => {
@@ -279,6 +300,7 @@ impl Engine {
             standings: self.standings(f, session),
             fuel: self.fuel.payload(f, session, self.is_race(f.session_num)),
             tires: self.tires(f, session),
+            lap_log: self.laps.payload(),
         }
     }
 

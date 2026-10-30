@@ -15,6 +15,14 @@ pub mod track_surface {
 }
 
 /// `CarLeftRight` values (irsdk_CarLeftRight).
+/// `SessionFlags` bits (irsdk_Flags). The Flags widget decodes the rest.
+pub mod session_flags {
+    pub const GREEN: u32 = 0x0004;
+    pub const YELLOW: u32 = 0x0008;
+    pub const BLUE: u32 = 0x0020;
+    pub const YELLOW_WAVING: u32 = 0x0100;
+}
+
 pub mod car_left_right {
     pub const OFF: i32 = 0;
     pub const CLEAR: i32 = 1;
@@ -463,4 +471,5 @@ pub struct FieldPayload {
     pub standings: Vec<StandingRow>,
     pub fuel: FuelPayload,
     pub tires: TiresPayload,
+    pub lap_log: crate::laps::LapLogPayload,
 }

@@ -17,6 +17,7 @@ pub mod demo;
 pub mod dynamics;
 pub mod engine;
 pub mod ibt;
+pub mod laps;
 pub mod instruments;
 pub mod lapfile;
 pub mod model;
@@ -29,6 +30,7 @@ pub mod vars;
 pub mod irsdk;
 
 pub use engine::Engine;
+pub use laps::{LapLogPayload, LapRecord, LapStore, PersonalBest};
 pub use model::*;
 pub use runner::{spawn, RunnerControl, Sink};
 pub use session::SessionInfo;

@@ -325,7 +325,10 @@ pub fn run() {
                 control.set_reference(Some(reference));
             }
 
-            telemetry::spawn(TauriSink { app: handle, latest: latest.clone() }, control.clone());
+            // Lap log and personal bests, one file per car and track.
+            let mut runner = control.clone();
+            runner.laps_dir = handle.path().app_data_dir().ok().map(|d| d.join("laps"));
+            telemetry::spawn(TauriSink { app: handle, latest: latest.clone() }, runner);
             Ok(())
         })
         .on_window_event(|window, event| {
