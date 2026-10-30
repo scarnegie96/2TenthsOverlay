@@ -50,6 +50,9 @@ pub struct SessionInfo {
     pub fuel_max_ltr: f32,
     pub est_lap_time: f32,
     pub shift_rpm: f32,
+    /// Where the shift lights are all lit / start blinking (0 when not given).
+    pub last_rpm: f32,
+    pub blink_rpm: f32,
     pub redline_rpm: f32,
     pub drivers: Vec<DriverInfo>,
     pub sessions: Vec<SessionDef>,
@@ -175,6 +178,8 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
         fuel_max_ltr: float(&driver_info["DriverCarFuelMaxLtr"]).unwrap_or(0.0) as f32,
         est_lap_time: float(&driver_info["DriverCarEstLapTime"]).unwrap_or(0.0) as f32,
         shift_rpm: float(&driver_info["DriverCarSLShiftRPM"]).unwrap_or(0.0) as f32,
+        last_rpm: float(&driver_info["DriverCarSLLastRPM"]).unwrap_or(0.0) as f32,
+        blink_rpm: float(&driver_info["DriverCarSLBlinkRPM"]).unwrap_or(0.0) as f32,
         redline_rpm: float(&driver_info["DriverCarRedLine"]).unwrap_or(0.0) as f32,
         drivers,
         sessions,

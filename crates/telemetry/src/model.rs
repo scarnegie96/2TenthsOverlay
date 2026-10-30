@@ -89,6 +89,11 @@ pub struct RawFrame {
     pub fuel_level: f32,
     pub fuel_level_pct: f32,
 
+    /// Shift-light RPMs for the current gear (PlayerCarSLLastRPM / PlayerCarSLBlinkRPM).
+    /// None when not published or zero.
+    pub sl_last_rpm: Option<f32>,
+    pub sl_blink_rpm: Option<f32>,
+
     pub car_left_right: i32,
     pub incidents: i32,
     /// PlayerCarTeamIncidentCount: what the incident limit counts in team events.
@@ -230,6 +235,8 @@ pub struct TickPayload {
     /// m/s
     pub speed: f32,
     pub rpm: f32,
+    /// When to shift up in the current gear: where the car's shift lights blink.
+    pub shift_rpm: Option<f32>,
     pub gear: i32,
     pub throttle: f32,
     pub brake: f32,

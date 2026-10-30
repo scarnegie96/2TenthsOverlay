@@ -131,6 +131,7 @@ impl Engine {
             on_pit_road: f.on_pit_road,
             speed: f.speed,
             rpm: f.rpm,
+            shift_rpm: self.shift_rpm(f),
             gear: f.gear,
             throttle: f.throttle,
             brake: f.brake,
@@ -150,6 +151,18 @@ impl Engine {
             dynamics: self.dynamics.update(f),
             instruments: crate::instruments::build(f, mean(&self.fuel.per_lap)),
         }
+    }
+
+    /// The RPM to shift up at. iRacing's "shift" RPM is where the lights start
+    /// filling and is early for most cars, so prefer where they blink (or are
+    /// all lit), live for the current gear, then the session's fixed values.
+    fn shift_rpm(&self, f: &RawFrame) -> Option<f32> {
+        let s = self.session.as_ref();
+        f.sl_blink_rpm
+            .or(f.sl_last_rpm)
+            .or_else(|| s.map(|s| s.blink_rpm).filter(|&r| r > 0.0))
+            .or_else(|| s.map(|s| s.last_rpm).filter(|&r| r > 0.0))
+            .or_else(|| s.map(|s| s.shift_rpm).filter(|&r| r > 0.0))
     }
 
     fn reference_delta(&self, f: &RawFrame) -> Option<f32> {
@@ -777,6 +790,18 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(strength_of_field(&s, None), Some(2000));
+    }
+
+    #[test]
+    fn shift_rpm_prefers_live_blink_then_session_values() {
+        let mut e = Engine::new();
+        e.set_session(SessionInfo { shift_rpm: 7000.0, last_rpm: 7600.0, ..Default::default() });
+        let mut f = RawFrame::with_capacity();
+        assert_eq!(e.shift_rpm(&f), Some(7600.0));
+        f.sl_last_rpm = Some(7700.0);
+        assert_eq!(e.shift_rpm(&f), Some(7700.0));
+        f.sl_blink_rpm = Some(7800.0);
+        assert_eq!(e.shift_rpm(&f), Some(7800.0));
     }
 
     #[test]

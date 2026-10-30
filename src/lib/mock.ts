@@ -276,7 +276,7 @@ class Mock {
     const near = this.nearby(pct);
     const t: TickPayload = {
       sessionTime: this.t, isOnTrack: true, onPitRoad: false, speed,
-      rpm: 4200 + ((speed % 13) / 13) * 4300, gear: g,
+      rpm: 4200 + ((speed % 13) / 13) * 4300, shiftRpm: 8400, gear: g,
       throttle: braking ? 0 : ahead > f + 0.005 || f > 0.98 ? 1 : 0.45 + Math.sin(this.t * 3) * 0.08,
       brake: braking ? Math.min(1, 0.6 + (f - ahead) * 8) : 0,
       clutch: 0, steering: Math.sin(pct * 40) * (1 - f) * 2,

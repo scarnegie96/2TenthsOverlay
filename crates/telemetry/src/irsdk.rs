@@ -266,6 +266,8 @@ impl Irsdk {
         f.velocity_y = self.f32("VelocityY");
 
         let opt = |name: &str| self.num(name, 0).map(|v| v as f32);
+        f.sl_last_rpm = opt("PlayerCarSLLastRPM").filter(|&r| r > 0.0);
+        f.sl_blink_rpm = opt("PlayerCarSLBlinkRPM").filter(|&r| r > 0.0);
         f.engine_warnings = self.num("EngineWarnings", 0).unwrap_or(0.0) as u32;
         f.oil_temp = opt("OilTemp");
         f.oil_press = opt("OilPress");

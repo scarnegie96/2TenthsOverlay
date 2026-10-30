@@ -20,7 +20,7 @@ type Source = "ours" | "reference";
 export function Inputs({ config }: { config: WidgetConfig }) {
   const tick = useLive((s) => s.tick);
   const units = useLive((s) => s.config.general.units);
-  const shiftRpm = useLive((s) => s.session?.shiftRpm ?? 0);
+  const shiftRpm = opt(config, "shiftLight", true) ? tick?.shiftRpm ?? null : null;
   const showClutch = opt(config, "showClutch", true);
   const showSteering = opt(config, "showSteering", true);
   const showTrace = opt(config, "showTrace", true);
@@ -61,7 +61,7 @@ export function Inputs({ config }: { config: WidgetConfig }) {
           throttle={tick?.throttle ?? 0}
           brake={tick?.brake ?? 0}
           clutch={tick?.clutch ?? 0}
-          shift={shiftRpm > 0 && (tick?.rpm ?? 0) >= shiftRpm}
+          shift={shiftRpm != null && (tick?.rpm ?? 0) >= shiftRpm}
         />
       </Panel>
     </div>

@@ -426,6 +426,8 @@ DriverInfo:
  DriverCarFuelMaxLtr: 120.000
  DriverCarEstLapTime: 92.1000
  DriverCarSLShiftRPM: 8100.000
+ DriverCarSLLastRPM: 8300.000
+ DriverCarSLBlinkRPM: 8400.000
  DriverCarRedLine: 8600.000
  DriverTires:
  - TireIndex: 0

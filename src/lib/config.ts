@@ -116,6 +116,7 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showTrace", label: "Show trace", type: "toggle", default: true },
       { key: "showSteering", label: "Show steering wheel", type: "toggle", default: true },
       { key: "showClutch", label: "Show clutch", type: "toggle", default: true },
+      { key: "shiftLight", label: "Gear turns red to shift", type: "toggle", default: true, help: "At the RPM where the car's own shift lights blink. Off keeps the gear yellow" },
       { key: "showGhost", label: "Show reference inputs", type: "toggle", default: true, help: "A slimmer strip on top with the imported reference lap's gear, speed, pedals and (for .ibt laps) wheel" },
     ],
   },

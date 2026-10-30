@@ -73,6 +73,8 @@ export interface TickPayload {
   onPitRoad: boolean;
   speed: number; // m/s
   rpm: number;
+  /** Shift up at this RPM in the current gear (where the car's lights blink). */
+  shiftRpm: number | null;
   gear: number; // -1 reverse, 0 neutral
   throttle: number;
   brake: number;
