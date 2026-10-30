@@ -212,12 +212,35 @@
 
 /* Column labels above the standings. */
 .row-head {
-  height: 20px;
+  height: 30px;
   font-size: 12px;
   color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
 }
 .row-head > span {
   text-align: right;
+}
+.row-head > .row-head-title {
+  grid-column: 1 / span 4;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding-left: 4px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.row-head-title b {
+  color: var(--ink);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.standings .rows {
+  padding-top: 0;
 }
 
 .class-group + .class-group {

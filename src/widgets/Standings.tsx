@@ -69,16 +69,17 @@ export function Standings({ config }: { config: WidgetConfig }) {
     .join(" ");
 
   return (
-    <Panel className="standings" title={session?.trackName || "Standings"} aside={sessionAside(field?.clock)}>
+    <Panel className="standings">
       {all.length === 0 ? (
         <Empty>Standings appear when a session is running.</Empty>
       ) : (
         <div className="rows" style={{ "--cols": cols } as React.CSSProperties}>
+          {/* One header row: track and lap on the left, column labels on the right. */}
           <div className="row row-head">
-            <span />
-            <span />
-            <span />
-            <span />
+            <span className="row-head-title">
+              <b>{session?.trackName || "Standings"}</b>
+              {sessionAside(field?.clock)}
+            </span>
             {showIR && <span>iR</span>}
             <span>{gapMode === "interval" ? "Int" : "Gap"}</span>
             {showLast && <span>Last</span>}
