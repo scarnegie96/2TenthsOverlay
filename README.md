@@ -10,11 +10,12 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 | Widget | What it shows |
 | --- | --- |
-| **Relative** | Cars around you on track with gaps, class, iRating, license and last lap. Cars lapping you or being lapped are colored. |
-| **Standings** | The field grouped by class with SoF, gaps, iRating, last and best laps. |
+| **Relative** | Cars around you on track with gaps, class, iRating, license and last lap. Cars lapping you or being lapped are colored. Your class's SoF is in the header. |
+| **Standings** | The field grouped by class with gaps, iRating, last and best laps. SoF per class, or for the whole field in single-class races. |
+| **Session** | Track and length, field size and SoF per class, time of day, air and track temperature, sky, track wetness, wind and humidity, your incidents against the limit and fast repairs left (off by default). |
 | **Delta** | A horizontal trace of your lap against a comparison lap, rising where you're faster and dipping where you're slower, with per-sector gains and losses. |
 | **Coach** | One live cue at a time from an imported reference lap: brake in 50 m, brake now, brake harder or lighter, carry more speed, throttle now, shift down, turn in more. |
-| **Inputs** | Gear, speed, wheel angle, throttle/brake/clutch % and a scrolling input trace. With a reference lap loaded, a slimmer strip above shows the reference's inputs. |
+| **Inputs** | Gear, speed, wheel angle, throttle/brake/clutch % and a scrolling input trace. The gear turns red at the shift point. With a reference lap loaded, a slimmer strip above shows the reference's inputs. |
 | **Car dynamics** | g-meter with your grip envelope, top/side/rear views of slip, pitch and roll, and a live understeer/oversteer bar. |
 | **Instruments** | Warning lights for every iRacing engine warning plus low fuel, engine gauges, and a brake bias dial that flashes when you adjust it. |
 | **Fuel** | Fuel per lap (average of the last 5 green laps), laps in the tank, laps to go and how much to add to finish. |
@@ -46,6 +47,13 @@ A reference is only used when its track and layout match the session.
   tank before there's a per-lap figure.
 - Gauges a car doesn't model read "–", and so does brake bias on cars without
   an adjustable bias.
+- SoF uses iRacing's formula over every entry in the class, including cars
+  that aren't on track, so Relative, Standings and Session always agree.
+- The shift point is where the car's own shift lights start blinking in the
+  current gear (or are all lit, for cars without a blink point). Turn off
+  **Inputs → Gear turns red to shift** to keep the gear yellow.
+- In team events, the Session panel counts the team's incidents, since that's
+  what the limit applies to.
 
 ## Install and run (Windows)
 
