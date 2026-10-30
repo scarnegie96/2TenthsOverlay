@@ -11,9 +11,12 @@
 //!  demo::DemoSource (fake race) ─────────────────┘
 //! ```
 
+pub mod blap;
+pub mod coach;
 pub mod demo;
 pub mod engine;
 pub mod ibt;
+pub mod lapfile;
 pub mod model;
 pub mod reference;
 pub mod runner;

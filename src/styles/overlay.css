@@ -395,6 +395,64 @@
   padding: 10px 14px 10px 18px;
 }
 
+.hud-gear-wrap,
+.hud-speed {
+  position: relative;
+}
+.hud-gear-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* Reference ("ghost") values: purple, the reference is the ideal lap. */
+.hud-ghost {
+  margin-top: 5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+  color: var(--fastest);
+  background: color-mix(in srgb, var(--fastest) 16%, transparent);
+  white-space: nowrap;
+}
+.hud-ghost.is-off,
+.hud-ghost.is-down {
+  color: #fff;
+  background: color-mix(in srgb, var(--loss) 70%, transparent);
+}
+.hud-ghost.is-up {
+  color: #0d131b;
+  background: var(--gain);
+}
+.inputs.has-ghost .hud-gear {
+  font-size: 80px;
+}
+.wheel-ghost circle {
+  fill: none;
+  stroke: var(--fastest);
+  stroke-width: 2.5;
+  opacity: 0.85;
+}
+.wheel-ghost.is-estimated circle {
+  stroke-dasharray: 5 4;
+}
+.wheel-ghost path {
+  fill: var(--fastest);
+}
+.bar-ghost {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 3px;
+  margin-bottom: -1.5px;
+  border-radius: 2px;
+  background: var(--fastest);
+  box-shadow: 0 0 0 1px rgba(13, 19, 27, 0.8);
+}
+.bar-track:has(.bar-ghost) {
+  overflow: visible;
+}
 .hud-gear {
   min-width: 52px;
   font-size: 96px;
@@ -516,6 +574,84 @@
 }
 .bar-clutch .bar-fill {
   background: var(--clutch);
+}
+
+/* ---------- Coach ---------------------------------------------------------- */
+
+.coach {
+  display: flex;
+  flex-direction: column;
+  width: 400px;
+  border-left: 4px solid var(--ink-3);
+}
+.coach.tone-info {
+  border-left-color: var(--lapped);
+}
+.coach.tone-good {
+  border-left-color: var(--gain);
+}
+.coach.tone-warn {
+  border-left-color: var(--attention);
+}
+.coach.tone-bad {
+  border-left-color: var(--loss);
+}
+.coach-main {
+  padding: 10px 14px 8px;
+  animation: coach-in 0.18s ease-out;
+}
+@keyframes coach-in {
+  from {
+    opacity: 0.2;
+    transform: translateY(3px);
+  }
+}
+.coach-label {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.coach.tone-info .coach-label {
+  color: var(--lapped);
+}
+.coach.tone-good .coach-label {
+  color: var(--gain);
+}
+.coach.tone-warn .coach-label {
+  color: var(--attention);
+}
+.coach.tone-bad .coach-label {
+  color: var(--loss);
+}
+.coach-detail {
+  margin-top: 3px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.coach.is-idle {
+  padding: 10px 14px;
+}
+.coach.is-idle .coach-label {
+  font-size: 20px;
+  color: var(--ink-2);
+}
+.coach-stats {
+  display: flex;
+  gap: 14px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.coach-stats span:first-child {
+  margin-right: auto;
+}
+.coach-stats .is-gain {
+  color: var(--gain);
+}
+.coach-stats .is-loss {
+  color: var(--loss);
 }
 
 /* ---------- Delta strip --------------------------------------------------------- */
@@ -667,6 +803,9 @@
   padding: 4px 0 5px;
   border-radius: 4px;
   background: rgba(233, 238, 243, 0.06);
+}
+.ds-split-wide {
+  grid-column: 1 / -1;
 }
 .ds-split.is-gain {
   background: color-mix(in srgb, var(--gain) 22%, transparent);

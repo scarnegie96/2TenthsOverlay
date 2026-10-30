@@ -256,6 +256,7 @@ impl Irsdk {
         f.brake = self.f32("Brake");
         f.clutch = 1.0 - self.f32("Clutch");
         f.steering = self.f32("SteeringWheelAngle");
+        f.yaw_rate = self.f32("YawRate");
 
         f.lap = self.i32("Lap");
         f.lap_completed = self.i32("LapCompleted");

@@ -14,7 +14,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use crate::reference::ReferenceLap;
+use crate::reference::{RefKind, RefMeta, RefSample, ReferenceLap};
 use crate::session::{self, SessionInfo};
 use crate::vars::{self, VarHeader, VarType, VAR_HEADER_SIZE};
 
@@ -46,7 +46,7 @@ pub struct IbtLap {
     /// No pit road and no off-track moments.
     pub clean: bool,
     #[serde(skip)]
-    samples: Vec<(f32, f32)>,
+    samples: Vec<RefSample>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -57,6 +57,14 @@ pub struct IbtSummary {
     pub car_name: String,
     pub driver: String,
     pub laps: Vec<IbtLap>,
+    pub kind: RefKind,
+}
+
+impl IbtLap {
+    /// A lap entry with no samples, for listing.
+    pub fn summary_only(lap: i32, lap_time: f32, clean: bool) -> Self {
+        Self { lap, lap_time, clean, samples: Vec::new() }
+    }
 }
 
 impl IbtFile {
@@ -112,10 +120,16 @@ impl IbtFile {
         let on_track_v = self.reader("IsOnTrack");
         let pit_v = self.reader("OnPitRoad");
         let surface_v = self.reader("PlayerTrackSurface");
+        let speed_v = self.reader("Speed");
+        let throttle_v = self.reader("Throttle");
+        let brake_v = self.reader("Brake");
+        let gear_v = self.reader("Gear");
+        let steer_v = self.reader("SteeringWheelAngle");
+        let yaw_v = self.reader("YawRate");
 
         struct Building {
             lap: i32,
-            samples: Vec<(f32, f64)>,
+            samples: Vec<(f64, RefSample)>,
             dirty: bool,
         }
         let mut laps = Vec::new();
@@ -138,7 +152,21 @@ impl IbtFile {
                 }
             }
             let b = cur.get_or_insert_with(|| Building { lap, samples: Vec::new(), dirty: false });
-            b.samples.push((pct, t));
+            let f = |v: Option<f64>| v.map(|x| x as f32);
+            b.samples.push((
+                t,
+                RefSample {
+                    pct,
+                    time: 0.0,
+                    speed: f(speed_v(row)),
+                    throttle: f(throttle_v(row)).unwrap_or(0.0),
+                    brake: f(brake_v(row)).unwrap_or(0.0),
+                    gear: gear_v(row).unwrap_or(0.0) as i32,
+                    steering: f(steer_v(row)),
+                    heading: None,
+                    yaw_rate: f(yaw_v(row)),
+                },
+            ));
             // Off track (surface 0) or on pit road taints the lap.
             if pit_v(row) == Some(1.0) || surface_v(row) == Some(0.0) {
                 b.dirty = true;
@@ -156,50 +184,55 @@ impl IbtFile {
             car_name: player.map(|p| p.car_name.clone()).unwrap_or_default(),
             driver: player.map(|p| p.user_name.clone()).unwrap_or_default(),
             laps: self.laps(),
+            kind: RefKind::Ibt,
         }
     }
 
     /// Turns one lap of this file into a comparison lap.
     pub fn reference(&self, lap: i32, source: &str) -> Result<ReferenceLap, String> {
-        let summary = self.summary();
-        let found = summary
-            .laps
-            .iter()
+        let session = self.session().unwrap_or_default();
+        let player = session.player();
+        let found = self
+            .laps()
+            .into_iter()
             .find(|l| l.lap == lap)
             .ok_or_else(|| format!("Lap {lap} isn't a complete lap in this file."))?;
-        let times = ReferenceLap::from_samples(&found.samples).ok_or("That lap doesn't have enough data to compare against.")?;
-        Ok(ReferenceLap {
-            track_name: summary.track_name,
-            track_config: summary.track_config,
-            car_name: summary.car_name,
-            driver: summary.driver,
+        let meta = RefMeta {
+            track_name: session.track_name.clone(),
+            track_config: session.track_config.clone(),
+            track_key: session.track_key.clone(),
+            car_name: player.map(|p| p.car_name.clone()).unwrap_or_default(),
+            car_key: player.map(|p| p.car_path.clone()).unwrap_or_default(),
+            driver: player.map(|p| p.user_name.clone()).unwrap_or_default(),
             lap_number: lap,
             lap_time: found.lap_time,
             source: source.to_string(),
-            times,
-        })
+            kind: RefKind::Ibt,
+            length_m: session.track_length_km * 1000.0,
+        };
+        ReferenceLap::build(meta, &found.samples).ok_or_else(|| "That lap doesn't have enough data to compare against.".into())
     }
 }
 
 /// Closes a lap: works out exactly when it crossed the line at each end
 /// (between samples) and expresses every sample as seconds since the start.
-fn finish(lap: i32, s: &[(f32, f64)], next: (f32, f64), dirty: bool) -> Option<IbtLap> {
+fn finish(lap: i32, s: &[(f64, RefSample)], next: (f32, f64), dirty: bool) -> Option<IbtLap> {
     if s.len() < 60 {
         return None;
     }
-    let (p0, t0) = s[0];
-    let (pl, tl) = s[s.len() - 1];
+    let (t0, first) = s[0];
+    let (tl, last) = s[s.len() - 1];
+    let (p0, pl) = (first.pct, last.pct);
     // Must start just after the line and end just before it.
     if p0 > 0.05 || pl < 0.95 || next.0 > 0.05 {
         return None;
     }
     // Reject tows and resets: position should only move forward.
-    let backwards = s.windows(2).filter(|w| w[1].0 + 0.01 < w[0].0).count();
-    if backwards > 0 {
+    if s.windows(2).any(|w| w[1].1.pct + 0.01 < w[0].1.pct) {
         return None;
     }
-    let (p1, t1) = s[1.min(s.len() - 1)];
-    let rate = if p1 > p0 { (t1 - t0) / (p1 - p0) as f64 } else { 0.0 };
+    let (t1, second) = s[1];
+    let rate = if second.pct > p0 { (t1 - t0) / (second.pct - p0) as f64 } else { 0.0 };
     let start = t0 - p0 as f64 * rate;
     let span = (next.0 + 1.0 - pl) as f64;
     let end = if span > 0.0 { tl + (1.0 - pl) as f64 / span * (next.1 - tl) } else { tl };
@@ -209,9 +242,9 @@ fn finish(lap: i32, s: &[(f32, f64)], next: (f32, f64), dirty: bool) -> Option<I
     }
 
     let mut samples = Vec::with_capacity(s.len() + 2);
-    samples.push((0.0, 0.0));
-    samples.extend(s.iter().map(|&(p, t)| (p, (t - start) as f32)));
-    samples.push((1.0, lap_time));
+    samples.push(RefSample { pct: 0.0, time: 0.0, ..first });
+    samples.extend(s.iter().map(|&(t, x)| RefSample { time: (t - start) as f32, ..x }));
+    samples.push(RefSample { pct: 1.0, time: lap_time, ..last });
     Some(IbtLap { lap, lap_time, clean: !dirty, samples })
 }
 
@@ -276,6 +309,11 @@ pub const LAP_COLUMNS: &[(&str, VarType)] = &[
     ("OnPitRoad", VarType::Bool),
     ("PlayerTrackSurface", VarType::Int),
     ("Speed", VarType::Float),
+    ("Throttle", VarType::Float),
+    ("Brake", VarType::Float),
+    ("Gear", VarType::Int),
+    ("SteeringWheelAngle", VarType::Float),
+    ("YawRate", VarType::Float),
 ];
 
 #[cfg(test)]
@@ -295,7 +333,8 @@ mod tests {
             let lap = progress.floor();
             let pct = progress - lap;
             let pit = if lap == 3.0 && pct > 0.5 && pct < 0.52 { 1.0 } else { 0.0 };
-            rows.push(vec![t, lap, pct, 1.0, pit, 3.0, 50.0]);
+            let braking = (0.3..0.35).contains(&pct);
+            rows.push(vec![t, lap, pct, 1.0, pit, 3.0, 50.0, if braking { 0.0 } else { 1.0 }, if braking { 0.8 } else { 0.0 }, 4.0, 0.2, 0.1]);
             t += 1.0 / 60.0;
             progress += (1.0 / 60.0) / lap_time;
         }
@@ -321,7 +360,12 @@ mod tests {
         let f = IbtFile::from_bytes(sample_file()).unwrap();
         let r = f.reference(2, "test.ibt").unwrap();
         assert!((r.time_at(0.5) - 40.0).abs() < 0.01);
-        assert!(r.matches("Test Ring", "GP"));
+        assert!((r.brake_at(0.32).unwrap() - 0.8).abs() < 1e-3);
+        assert!(r.throttle_at(0.6).unwrap() > 0.99);
+        assert_eq!(r.gear_at(0.5), Some(4));
+        assert!((r.steering_at(0.5).unwrap() - 0.2).abs() < 1e-3);
+        assert!((r.speed_at(0.5).unwrap() - 50.0).abs() < 1e-3);
+        assert!(r.matches("Test Ring", "GP", ""));
         assert!(f.reference(1, "x").is_err());
     }
 

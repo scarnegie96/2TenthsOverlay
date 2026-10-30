@@ -47,6 +47,9 @@ export interface ReferencePayload {
   lapTime: number;
   source: string;
   matchesTrack: boolean;
+  matchesCar: boolean;
+  kind: "ibt" | "blap";
+  hasSteering: boolean;
 }
 
 export interface IbtLap {
@@ -61,6 +64,7 @@ export interface IbtSummary {
   carName: string;
   driver: string;
   laps: IbtLap[];
+  kind: "ibt" | "blap";
 }
 
 export interface TickPayload {
@@ -84,6 +88,40 @@ export interface TickPayload {
   carLeftRight: number;
   incidents: number;
   nearby: NearbyCar[];
+  /** Ghost inputs and the live coaching cue, while a reference lap for this track is loaded. */
+  coach: CoachPayload | null;
+}
+
+export type CueKind =
+  | "brakeSoon" | "brakeNow" | "brakeEarly" | "noBrakeHere" | "brakeHarder" | "brakeLighter" | "goodBraking"
+  | "carrySpeed" | "fastApex" | "throttleNow" | "moreThrottle" | "shiftDown" | "shiftUp" | "betterExit"
+  | "turnMore" | "turnLess" | "gaining" | "losing" | "onPace";
+
+export type CueTone = "neutral" | "info" | "good" | "warn" | "bad";
+
+export interface Cue {
+  kind: CueKind;
+  tone: CueTone;
+  /** Metres to (+) or past (−) the reference's point. */
+  distanceM: number | null;
+  /** Pedal 0..1 or speed m/s, depending on the cue. */
+  ours: number | null;
+  reference: number | null;
+  gear: number | null;
+  corner: number | null;
+}
+
+export interface CoachPayload {
+  refSpeed: number | null;
+  refThrottle: number | null;
+  refBrake: number | null;
+  refGear: number | null;
+  /** rad, positive = left */
+  refSteering: number | null;
+  steeringEstimated: boolean;
+  /** Your speed minus the reference's, m/s. */
+  speedDelta: number | null;
+  cue: Cue | null;
 }
 
 export interface NearbyCar {

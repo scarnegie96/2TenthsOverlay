@@ -1,6 +1,6 @@
 import type { Units } from "./format";
 
-export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "fuel" | "radar" | "tires" | "spotter";
+export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "fuel" | "radar" | "tires" | "spotter";
 
 export interface WidgetConfig {
   enabled: boolean;
@@ -90,6 +90,7 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showTrace", label: "Show trace", type: "toggle", default: true },
       { key: "showSteering", label: "Show steering wheel", type: "toggle", default: true },
       { key: "showClutch", label: "Show clutch", type: "toggle", default: true },
+      { key: "showGhost", label: "Show reference inputs", type: "toggle", default: true, help: "Purple ghost of the imported reference lap: wheel, pedals, gear and speed" },
     ],
   },
   {
@@ -118,6 +119,16 @@ export const WIDGETS: WidgetMeta[] = [
       },
       { key: "miniSectors", label: "Number of mini sectors", type: "number", default: 12, min: 4, max: 30 },
       { key: "showPrevious", label: "Show last lap's line", type: "toggle", default: true, help: "Dashed, for comparing this lap with the one before" },
+    ],
+  },
+  {
+    id: "coach",
+    name: "Coach",
+    description: "Live coaching against your imported reference lap: brake points, pressure, apex speed, throttle, gear and line.",
+    x: 760, y: 228, enabled: true,
+    options: [
+      { key: "showDetail", label: "Show the reason", type: "toggle", default: true, help: "The line under the cue, like \"Reference brakes 30 m later\"" },
+      { key: "showStats", label: "Show delta and speed", type: "toggle", default: true },
     ],
   },
   {

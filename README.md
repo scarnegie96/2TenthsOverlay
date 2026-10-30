@@ -12,7 +12,15 @@ The **Delta** widget is a horizontal strip comparing your lap with your best lap
 optimal lap, session best, session optimal, last lap, or a lap you import from an
 iRacing `.ibt` telemetry file. The comparison rises above your lap's baseline where
 it's faster and dips below where it's slower, with per-sector gains and losses
-underneath. Import a lap under **Settings → Delta → Reference lap**.
+underneath. Import a lap under **Settings → Delta → Reference lap and coaching**:
+iRacing's saved best/optimal laps (`.blap`/`.olap` from `Documents\iRacing\lapfiles`)
+or a lap from an `.ibt`.
+
+With a reference loaded you also get **coaching**: the Inputs panel shows the
+reference's wheel, pedals, gear and speed as a purple ghost, and the **Coach**
+widget gives one live cue at a time (brake in 50 m, brake now, braking early,
+brake harder or lighter, carry more speed, throttle now, shift down to 4th,
+better exit, turn in more, gaining or losing time).
 
 A note on tires: iRacing only updates tire temperatures and wear while your car
 is in its pit box. On track the Tires widget shows the reading from your last stop.
@@ -72,6 +80,8 @@ cargo check -p telemetry --features typecheck-windows      # type-check the Wind
 cargo run -p telemetry --example dump                      # print demo-race output as JSON
 cargo run -p telemetry --example radar                     # what the radar sees, once a second
 cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt to try importing
+cargo run -p telemetry --example inspect_lap -- lap.blap   # list the corners the coach finds in a lap
+cargo run -p telemetry --example coach_demo                # how often each cue fires in the demo
 ```
 
 ## Project layout
@@ -83,7 +93,9 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   engine.rs           Relative gaps, standings, fuel maths, SoF, deltas
   vars.rs             Variable header parsing shared by live data and .ibt files
   ibt.rs              .ibt telemetry file reader: finds complete laps
-  reference.rs        Imported comparison lap and delta against it
+  blap.rs             iRacing .blap/.olap reader (best/optimal lap files)
+  reference.rs        Imported comparison lap: time, speed, pedals, gear, steering, line
+  coach.rs            Corners from the reference and the live coaching cues
   demo.rs             Fake 22-car, 3-class race with a scripted battle for the radar
   runner.rs           Telemetry thread: 60 Hz tick, 10 Hz field
 src-tauri/            Windows, tray, hotkeys, click-through, config file

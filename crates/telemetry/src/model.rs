@@ -51,6 +51,8 @@ pub struct RawFrame {
     /// Pedal position, 0 = released, 1 = pressed (already inverted from iRacing's `Clutch`).
     pub clutch: f32,
     pub steering: f32,
+    /// rad/s
+    pub yaw_rate: f32,
 
     pub lap: i32,
     pub lap_completed: i32,
@@ -168,6 +170,12 @@ pub struct ReferencePayload {
     pub source: String,
     /// True when it's for the track and layout of the current session.
     pub matches_track: bool,
+    /// False when the reference is a different car from yours (when both are known).
+    pub matches_car: bool,
+    /// "ibt" or "blap".
+    pub kind: crate::reference::RefKind,
+    /// Steering was recorded (otherwise the ghost wheel is estimated).
+    pub has_steering: bool,
 }
 
 /// Sent every telemetry frame (60 Hz). Keep this small.
@@ -198,6 +206,8 @@ pub struct TickPayload {
     pub incidents: i32,
     /// Cars within radar range, for the radar widget.
     pub nearby: Vec<NearbyCar>,
+    /// Ghost inputs and the live coaching cue, when a reference lap for this track is loaded.
+    pub coach: Option<crate::coach::CoachPayload>,
 }
 
 /// Live delta against each kind of comparison lap. None when iRacing (or the

@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  Deltas, FieldPayload, LapFlag, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
+  CoachPayload, Cue, Deltas, FieldPayload, LapFlag, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
   TickPayload, TiresPayload,
 } from "./types";
 
@@ -53,7 +53,10 @@ class Mock {
   private started = false;
   private reference: ReferencePayload = {
     loaded: false, trackName: "", trackConfig: "", carName: "", driver: "", lapTime: 0, source: "", matchesTrack: false,
+    matchesCar: true, kind: "blap", hasSteering: false,
   };
+  private cue: { cue: Cue; since: number; priority: number } | null = null;
+  private refDeltas: [number, number][] = [];
 
   constructor() {
     this.channel.onmessage = (e) => {
@@ -110,9 +113,15 @@ class Mock {
           status: this.status(), session: this.session(), reference: this.reference, editMode: this.editMode,
           overlayVisible: true, demo: true,
         } satisfies Snapshot;
-      case "inspect_ibt":
+      case "inspect_lap_file":
+        if (String(args.path).endsWith(".blap")) {
+          return {
+            trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach", kind: "blap",
+            laps: [{ lap: 1, lapTime: 92.412, clean: true }],
+          };
+        }
         return {
-          trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach",
+          trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach", kind: "ibt",
           laps: [
             { lap: 3, lapTime: 92.884, clean: true },
             { lap: 4, lapTime: 92.412, clean: true },
@@ -123,8 +132,9 @@ class Mock {
       case "load_reference":
         this.reference = {
           loaded: true, trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach",
-          lapTime: [0, 0, 0, 92.884, 92.412, 95.106, 92.655][Number(args.lap)] ?? 92.4, source: String(args.path),
-          matchesTrack: true,
+          lapTime: [0, 92.412, 0, 92.884, 92.412, 95.106, 92.655][Number(args.lap)] ?? 92.4, source: String(args.path),
+          matchesTrack: true, matchesCar: true, kind: String(args.path).endsWith(".ibt") ? "ibt" : "blap",
+          hasSteering: String(args.path).endsWith(".ibt"),
         };
         this.broadcast("reference", this.reference);
         return;
@@ -254,7 +264,7 @@ class Mock {
     const g = Math.min(6, Math.max(1, Math.ceil(speed / 13)));
     const lapCurrent = pct * this.pace[PLAYER];
     const near = this.nearby(pct);
-    return {
+    const t: TickPayload = {
       sessionTime: this.t, isOnTrack: true, onPitRoad: false, speed,
       rpm: 4200 + ((speed % 13) / 13) * 4300, gear: g,
       throttle: braking ? 0 : ahead > f + 0.005 || f > 0.98 ? 1 : 0.45 + Math.sin(this.t * 3) * 0.08,
@@ -264,6 +274,71 @@ class Mock {
       lapLast: this.last[PLAYER], lapBest: this.best[PLAYER],
       deltas: this.deltas(pct, Math.floor(p)),
       fuelLevel: this.fuel, carLeftRight: near.carLeftRight, incidents: 2, nearby: near.cars,
+      coach: null,
+    };
+    t.coach = this.coach(t);
+    return t;
+  }
+
+  /** A rough coach: the "reference" brakes a little later and carries a bit more speed. */
+  private coach(t: TickPayload): CoachPayload | null {
+    if (!this.reference.loaded) return null;
+    const pct = t.lapDistPct;
+    const rp = (pct + 0.004) % 1;
+    const rf = this.speedFactor(rp);
+    const rAhead = this.speedFactor((rp + 0.006) % 1);
+    const refBraking = rAhead < rf - 0.01;
+    const refBrake = refBraking ? Math.min(1, 0.72 + (rf - rAhead) * 8) : 0;
+    const refThrottle = refBraking ? 0 : rAhead > rf + 0.005 || rf > 0.98 ? 1 : 0.55;
+    const refSpeed = 78 * rf * 1.012;
+    const refGear = Math.min(6, Math.max(1, Math.ceil(refSpeed / 13)));
+    const refSteering = Math.sin(rp * 40) * (1 - rf) * 1.9;
+
+    const d = t.deltas.reference ?? 0;
+    this.refDeltas.push([t.sessionTime, d]);
+    while (this.refDeltas.length && t.sessionTime - this.refDeltas[0][0] > 2) this.refDeltas.shift();
+
+    const make = (kind: Cue["kind"], tone: Cue["tone"], priority: number, extra: Partial<Cue> = {}) => ({
+      cue: { kind, tone, distanceM: null, ours: null, reference: null, gear: null, corner: null, ...extra } as Cue,
+      priority,
+    });
+    const options: { cue: Cue; priority: number }[] = [make("onPace", "neutral", 0)];
+    const braking = t.brake > 0.1;
+    if (refBrake > 0.1 && !braking) options.push(make("brakeNow", "bad", 9, { distanceM: -12 }));
+    if (braking && refBrake < 0.05) options.push(make("brakeEarly", "warn", 8, { distanceM: 20 }));
+    if (braking && refBrake > 0.1) {
+      const diff = t.brake - refBrake;
+      if (diff < -0.15) options.push(make("brakeHarder", "warn", 6, { ours: t.brake, reference: refBrake }));
+      else if (diff > 0.15) options.push(make("brakeLighter", "warn", 6, { ours: t.brake, reference: refBrake }));
+      else options.push(make("goodBraking", "good", 2, { reference: refBrake }));
+    }
+    if (!braking) {
+      for (let k = 1; k <= 20; k++) {
+        const a = (rp + k * 0.001) % 1;
+        if (this.speedFactor((a + 0.006) % 1) < this.speedFactor(a) - 0.01) {
+          if (refBrake < 0.05) options.push(make("brakeSoon", "info", 4, { distanceM: k * 5.1 }));
+          break;
+        }
+      }
+    }
+    if (refThrottle > 0.6 && t.throttle < 0.3 && !braking) {
+      options.push(make("throttleNow", "bad", 7, { ours: t.throttle, reference: refThrottle }));
+    }
+    if (t.gear !== refGear) {
+      options.push(make(t.gear > refGear ? "shiftDown" : "shiftUp", "info", 3, { gear: refGear }));
+    }
+    const change = d - (this.refDeltas[0]?.[1] ?? d);
+    if (change < -0.04) options.push(make("gaining", "good", 1, { ours: -change }));
+    else if (change > 0.04) options.push(make("losing", "warn", 1, { ours: change }));
+
+    const best = options.reduce((a, b) => (b.priority > a.priority ? b : a));
+    const cur = this.cue;
+    if (!cur || cur.cue.kind === best.cue.kind || best.priority > cur.priority || t.sessionTime - cur.since > 0.9) {
+      this.cue = { ...best, since: cur && cur.cue.kind === best.cue.kind ? cur.since : t.sessionTime };
+    }
+    return {
+      refSpeed, refThrottle, refBrake, refGear, refSteering, steeringEstimated: !this.reference.hasSteering,
+      speedDelta: t.speed - refSpeed, cue: this.cue!.cue,
     };
   }
 

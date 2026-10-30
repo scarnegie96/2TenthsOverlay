@@ -35,19 +35,23 @@ export const api = {
   setOverlayVisible: (visible: boolean) => call<void>("set_overlay_visible", { visible }),
   setDemo: (enabled: boolean) => call<void>("set_demo", { enabled }),
   openSettings: () => call<void>("open_settings"),
-  /** Asks for an .ibt file. Returns its path, or null if cancelled. */
-  pickIbt: async (): Promise<string | null> => {
-    if (!isTauri) return "demo.ibt";
+  /** Asks for a lap file (.blap, .olap or .ibt). Returns its path, or null if cancelled. */
+  pickLapFile: async (): Promise<string | null> => {
+    if (!isTauri) return "demo.blap";
     const { open } = await import("@tauri-apps/plugin-dialog");
     const picked = await open({
       multiple: false,
       directory: false,
-      title: "Choose an iRacing telemetry file",
-      filters: [{ name: "iRacing telemetry", extensions: ["ibt"] }],
+      title: "Choose a lap to compare against",
+      filters: [
+        { name: "iRacing laps and telemetry", extensions: ["blap", "olap", "ibt"] },
+        { name: "Best / optimal lap (.blap, .olap)", extensions: ["blap", "olap"] },
+        { name: "Telemetry (.ibt)", extensions: ["ibt"] },
+      ],
     });
     return typeof picked === "string" ? picked : null;
   },
-  inspectIbt: (path: string) => call<IbtSummary>("inspect_ibt", { path }),
+  inspectLapFile: (path: string) => call<IbtSummary>("inspect_lap_file", { path }),
   loadReference: (path: string, lap: number) => call<void>("load_reference", { path, lap }),
   clearReference: () => call<void>("clear_reference"),
 };

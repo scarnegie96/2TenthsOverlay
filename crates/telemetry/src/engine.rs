@@ -4,6 +4,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::model::*;
+use crate::coach::Coach;
 use crate::reference::ReferenceLap;
 use crate::session::{DriverInfo, SessionInfo};
 
@@ -18,6 +19,7 @@ pub struct Engine {
     radar_sides: HashMap<i32, i32>,
     /// Imported comparison lap, if any.
     reference: Option<ReferenceLap>,
+    coach: Option<Coach>,
 }
 
 impl Engine {
@@ -36,16 +38,18 @@ impl Engine {
     /// Clears everything learned from the current session. Keeps the reference lap.
     pub fn reset(&mut self) {
         let reference = self.reference.take();
-        *self = Self { reference, ..Self::default() };
+        let coach = reference.as_ref().map(Coach::new);
+        *self = Self { reference, coach, ..Self::default() };
     }
 
     pub fn set_reference(&mut self, reference: Option<ReferenceLap>) {
+        self.coach = reference.as_ref().map(Coach::new);
         self.reference = reference;
     }
 
     fn reference_matches(&self) -> bool {
         match (&self.reference, &self.session) {
-            (Some(r), Some(s)) => r.matches(&s.track_name, &s.track_config),
+            (Some(r), Some(s)) => r.matches(&s.track_name, &s.track_config, &s.track_key),
             _ => false,
         }
     }
@@ -62,6 +66,12 @@ impl Engine {
                 lap_time: r.lap_time,
                 source: r.source.clone(),
                 matches_track: self.reference_matches(),
+                matches_car: {
+                    let ours = self.session.as_ref().and_then(|s| s.player()).map(|p| p.car_path.as_str()).unwrap_or("");
+                    r.car_key.is_empty() || ours.is_empty() || r.car_key.eq_ignore_ascii_case(ours)
+                },
+                kind: r.kind,
+                has_steering: !r.steering.is_empty(),
             },
         }
     }
@@ -102,6 +112,18 @@ impl Engine {
     /// Call on every frame (60 Hz). Updates trackers and returns the fast payload.
     pub fn tick(&mut self, f: &RawFrame) -> TickPayload {
         self.fuel.update(f);
+        let reference_delta = self.reference_delta(f);
+        let coach = match (&self.reference, &mut self.coach) {
+            (Some(r), Some(c)) if reference_delta.is_some() => {
+                let len = if r.length_m > 0.0 {
+                    r.length_m
+                } else {
+                    self.session.as_ref().map(|s| s.track_length_km * 1000.0).unwrap_or(0.0)
+                };
+                Some(c.update(r, f, reference_delta, len))
+            }
+            _ => None,
+        };
         TickPayload {
             session_time: f.session_time,
             is_on_track: f.is_on_track,
@@ -118,11 +140,12 @@ impl Engine {
             lap_current: f.lap_current,
             lap_last: positive(f.lap_last),
             lap_best: positive(f.lap_best),
-            deltas: Deltas { reference: self.reference_delta(f), ..f.deltas },
+            deltas: Deltas { reference: reference_delta, ..f.deltas },
             fuel_level: f.fuel_level,
             car_left_right: f.car_left_right,
             incidents: f.incidents,
             nearby: self.nearby(f),
+            coach,
         }
     }
 

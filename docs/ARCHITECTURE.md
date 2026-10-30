@@ -66,6 +66,19 @@ quoted before parsing, because iRacing doesn't escape them.
   `reference.rs` stores the chosen lap as elapsed time at every 0.1% of the lap,
   saved as `reference.json` in the app data folder. It's only used when the track
   and layout match the session.
+- **.blap / .olap files**: iRacing's own best and optimal laps, undocumented but
+  simple: a header (driver, car id, track id, lap time), a sector table, then one
+  28-byte record every ~2 m with time into the sector, sideways position,
+  heading, pitch, roll, and throttle/brake/clutch/gear bytes. The full layout is in
+  `blap.rs`. Steering isn't stored. Speed comes from the time between records,
+  and how sharply the car turns from the change in heading.
+- **Coaching** (`coach.rs`): the reference is split into corners (brake point,
+  end of braking, slowest point, throttle back over 50%). Each frame we compare
+  your inputs at the same spot and offer cues with a priority; the highest wins.
+  A cue stays up for 0.9 s unless something more urgent comes along, so the label
+  doesn't flicker. For .blap references the ghost wheel is estimated: we learn
+  your car's steering-to-turning ratio from `SteeringWheelAngle` and
+  `YawRate / Speed`, then apply it to the reference's turning.
 - **Sectors**: track sectors come from `SplitTimeInfo.Sectors` in the session
   YAML; the widget can use equal mini sectors instead. The front end
   (`src/lib/deltaHistory.ts`) records the delta curve per lap and the gain or loss
@@ -107,5 +120,7 @@ quoted before parsing, because iRacing doesn't escape them.
 
 - Broadcast messages (`IRSDK_BROADCASTMSG`): pit service buttons, replay control.
 - Track map from `CarIdxLapDistPct` plus a recorded track outline.
+- Coach cues for lift-only corners (no braking) and for lateral line, using
+  the sideways-position channel in .blap files.
 - Show each car's tire compound in the relative (`CarIdxTireCompound`), e.g. wets.
 - Profiles per car or series, and multi-monitor placement.

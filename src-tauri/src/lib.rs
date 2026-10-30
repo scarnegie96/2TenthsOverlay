@@ -12,7 +12,8 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
-use telemetry::ibt::{IbtFile, IbtSummary};
+use telemetry::ibt::IbtSummary;
+use telemetry::lapfile;
 use telemetry::reference::ReferenceLap;
 use telemetry::{FieldPayload, ReferencePayload, RunnerControl, SessionPayload, Sink, StatusPayload, TickPayload};
 
@@ -133,23 +134,19 @@ fn reference_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("reference.json"))
 }
 
-/// Lists the complete laps in an .ibt so the user can pick one.
+/// Lists the laps in an .ibt, .blap or .olap so the user can pick one.
 #[tauri::command]
-async fn inspect_ibt(path: String) -> Result<IbtSummary, String> {
-    // Files can be hundreds of MB; read off the main thread.
-    tauri::async_runtime::spawn_blocking(move || IbtFile::open(std::path::Path::new(&path)).map(|f| f.summary()))
+async fn inspect_lap_file(path: String) -> Result<IbtSummary, String> {
+    // .ibt files can be hundreds of MB; read off the main thread.
+    tauri::async_runtime::spawn_blocking(move || lapfile::summary(std::path::Path::new(&path)))
         .await
         .map_err(|e| e.to_string())?
 }
 
-/// Builds a reference from one lap of an .ibt, saves it and starts comparing against it.
+/// Builds a reference from one lap of a file, saves it and starts comparing against it.
 #[tauri::command]
 async fn load_reference(app: AppHandle, path: String, lap: i32) -> Result<(), String> {
-    let reference = tauri::async_runtime::spawn_blocking(move || {
-        let p = std::path::Path::new(&path);
-        let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        IbtFile::open(p)?.reference(lap, &name)
-    })
+    let reference = tauri::async_runtime::spawn_blocking(move || lapfile::reference(std::path::Path::new(&path), lap))
     .await
     .map_err(|e| e.to_string())??;
     let text = serde_json::to_string(&reference).map_err(|e| e.to_string())?;
@@ -311,7 +308,7 @@ pub fn run() {
             set_overlay_visible,
             set_demo,
             open_settings,
-            inspect_ibt,
+            inspect_lap_file,
             load_reference,
             clear_reference,
         ])

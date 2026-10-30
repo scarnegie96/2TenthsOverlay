@@ -15,6 +15,8 @@ pub struct DriverInfo {
     pub team_name: String,
     pub car_number: String,
     pub car_name: String,
+    /// iRacing's internal car id, e.g. "formulair04".
+    pub car_path: String,
     pub class_id: i32,
     pub class_short_name: String,
     /// `#rrggbb`
@@ -40,6 +42,8 @@ pub struct SessionDef {
 #[derive(Debug, Clone, Default)]
 pub struct SessionInfo {
     pub track_name: String,
+    /// iRacing's internal track id (WeekendInfo.TrackName), e.g. "watkinsglen 2021 fullcourse".
+    pub track_key: String,
     pub track_config: String,
     pub track_length_km: f32,
     pub player_car_idx: i32,
@@ -159,6 +163,7 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
 
     Ok(SessionInfo {
         track_name: text(&weekend["TrackDisplayName"]),
+        track_key: text(&weekend["TrackName"]),
         track_config: text(&weekend["TrackConfigName"]),
         track_length_km: float(&weekend["TrackLength"]).unwrap_or(0.0) as f32,
         player_car_idx: int(&driver_info["DriverCarIdx"]).unwrap_or(0),
@@ -199,6 +204,7 @@ fn parse_driver(d: &Value) -> DriverInfo {
         team_name: text(&d["TeamName"]),
         car_number: text(&d["CarNumber"]),
         car_name: text(&d["CarScreenNameShort"]),
+        car_path: text(&d["CarPath"]),
         class_id: int(&d["CarClassID"]).unwrap_or(0),
         class_short_name: text(&d["CarClassShortName"]),
         class_color: color(&d["CarClassColor"]),

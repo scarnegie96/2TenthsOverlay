@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { BINS, deltaHistory } from "../lib/deltaHistory";
-import { lapTime, signed } from "../lib/format";
+import { lapTime, signed, speed as toSpeed, speedUnit } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { DeltaMode } from "../lib/types";
 import { Panel } from "./Panel";
@@ -43,6 +43,7 @@ export function Delta({ config }: { config: WidgetConfig }) {
   const reference = useLive((s) => s.reference);
   const lapBest = useLive((s) => s.tick?.lapBest ?? null);
   const lapLast = useLive((s) => s.tick?.lapLast ?? null);
+  const units = useLive((s) => s.config.general.units);
 
   // Redraw the text parts 10x a second; the graph runs on its own animation frame.
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -122,9 +123,24 @@ export function Delta({ config }: { config: WidgetConfig }) {
         <div className="ds-side-splits">
           <Split label="This sector" value={live} />
           <Split label={lastSector ? `Sector ${lastSector.index + 1}` : "Last sector"} value={lastSector?.value ?? null} />
+          {mode === "reference" && <PaceSplit units={units} />}
         </div>
       </div>
     </Panel>
+  );
+}
+
+/** Your speed against the reference lap's at this spot. */
+function PaceSplit({ units }: { units: "metric" | "imperial" }) {
+  const sd = useLive((s) => s.tick?.coach?.speedDelta ?? null);
+  const tone = sd == null ? "" : sd < -0.3 ? "is-loss" : sd > 0.3 ? "is-gain" : "";
+  return (
+    <div className={`ds-split ds-split-wide ${tone}`}>
+      <span className="ds-split-label">Speed vs reference</span>
+      <span className="ds-split-value">
+        {sd == null ? "–" : `${sd >= 0 ? "+" : "−"}${toSpeed(Math.abs(sd), units)} ${speedUnit(units)}`}
+      </span>
+    </div>
   );
 }
 

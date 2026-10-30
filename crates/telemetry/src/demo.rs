@@ -310,6 +310,8 @@ impl DemoSource {
         f.brake = brake;
         f.clutch = 0.0;
         f.steering = steering_at(pct);
+        // Roughly: the car turns at a rate set by steering and speed.
+        f.yaw_rate = f.steering / 9.0 * speed / 2.7;
         f.lap = f.car_lap[PLAYER];
         f.lap_completed = f.car_lap_completed[PLAYER];
         f.lap_dist_pct = pct;
@@ -422,6 +424,11 @@ pub fn record_ibt(demo: &mut DemoSource, laps: f32) -> Vec<u8> {
             0.0,
             3.0,
             f.speed as f64,
+            f.throttle as f64,
+            f.brake as f64,
+            f.gear as f64,
+            f.steering as f64,
+            f.yaw_rate as f64,
         ]);
     }
     crate::ibt::write(&yaml, crate::ibt::LAP_COLUMNS, &rows)

@@ -216,9 +216,9 @@ function ReferenceSection() {
 
   const pick = () =>
     run(async () => {
-      const path = await api.pickIbt();
+      const path = await api.pickLapFile();
       if (!path) return;
-      const summary = await api.inspectIbt(path);
+      const summary = await api.inspectLapFile(path);
       if (!summary.laps.length) throw new Error("That file has no complete laps. Record at least one full lap from line to line.");
       const fastest = [...summary.laps].sort((a, b) => Number(b.clean) - Number(a.clean) || a.lapTime - b.lapTime)[0];
       setFile({ path, summary });
@@ -235,7 +235,7 @@ function ReferenceSection() {
   const fastestTime = file ? Math.min(...file.summary.laps.map((l) => l.lapTime)) : 0;
 
   return (
-    <Section title="Reference lap">
+    <Section title="Reference lap and coaching">
       <Field
         label={reference?.loaded ? "Comparing against" : "No reference lap"}
         help={
@@ -244,10 +244,12 @@ function ReferenceSection() {
                 `${lapTime(reference.lapTime)} by ${reference.driver || "unknown driver"} in the ${reference.carName || "car"}`,
                 `${reference.trackName}${reference.trackConfig ? `, ${reference.trackConfig}` : ""}`,
                 reference.matchesTrack ? null : "Not this track, so it's paused until you drive there.",
+                reference.matchesCar ? null : "It's a different car from yours, so coaching will be less accurate.",
+                reference.hasSteering ? null : "Steering isn't saved in .blap/.olap files, so the ghost wheel is estimated from the reference's line.",
               ]
                 .filter(Boolean)
                 .join(". ")
-            : "Import a lap from an iRacing telemetry file (.ibt). In the car, Alt+L starts and stops recording; files are saved in Documents\\iRacing\\telemetry."
+            : "Import iRacing's saved best or optimal lap (.blap or .olap, in Documents\\iRacing\\lapfiles) or a lap from a telemetry file (.ibt, recorded with Alt+L). It powers the Reference lap comparison, the ghost inputs and the Coach widget."
         }
       >
         {reference?.loaded && (
@@ -256,7 +258,7 @@ function ReferenceSection() {
           </button>
         )}
         <button className="btn btn-primary" disabled={busy} onClick={pick}>
-          {reference?.loaded ? "Import another lap" : "Import .ibt file"}
+          {reference?.loaded ? "Import another lap" : "Import a lap"}
         </button>
       </Field>
 
@@ -265,7 +267,7 @@ function ReferenceSection() {
           <p className="note">
             {file.summary.trackName}
             {file.summary.trackConfig ? `, ${file.summary.trackConfig}` : ""}. {file.summary.carName}, driven by{" "}
-            {file.summary.driver || "unknown"}. Pick a lap:
+            {file.summary.driver || "unknown"}. {file.summary.kind === "blap" ? "" : "Pick a lap:"}
           </p>
           <div className="lap-list" role="radiogroup" aria-label="Laps in this file">
             {file.summary.laps.map((l) => (
@@ -276,7 +278,7 @@ function ReferenceSection() {
                 className={`lap-option ${chosen === l.lap ? "is-chosen" : ""}`}
                 onClick={() => setChosen(l.lap)}
               >
-                <span>Lap {l.lap}</span>
+                <span>{file.summary.kind === "blap" ? "Saved lap" : `Lap ${l.lap}`}</span>
                 <b className={l.lapTime === fastestTime ? "is-fastest" : ""}>{lapTime(l.lapTime)}</b>
                 <span className="muted">{l.clean ? "Clean" : "Pit or off track"}</span>
               </button>
@@ -287,7 +289,7 @@ function ReferenceSection() {
               Cancel
             </button>
             <button className="btn btn-primary" disabled={busy || chosen == null} onClick={use}>
-              Use lap {chosen}
+              {file.summary.kind === "blap" ? "Use this lap" : `Use lap ${chosen}`}
             </button>
           </div>
         </div>
