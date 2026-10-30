@@ -34,6 +34,8 @@ export interface GeneralConfig {
   theme: Theme;
   /** Colors changed from the theme's defaults, kept separately for each theme. */
   colors: Record<Theme, Partial<Record<ColorKey, string>>>;
+  /** The saved layout the widgets belong to; changes to them are saved into it. */
+  activeProfile: string | null;
 }
 
 export interface AppConfig {
@@ -293,7 +295,7 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {} } },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {} }, activeProfile: null },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }

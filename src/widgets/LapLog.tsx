@@ -46,9 +46,9 @@ export function LapLog({ config }: { config: WidgetConfig }) {
       <div className="ll-row ll-head" style={{ gridTemplateColumns: cols }}>
         <span>Lap</span>
         <span>Time</span>
-        {showDelta && <span className="num">{compareTo === "personal" ? "To PB" : "To best"}</span>}
-        {showTemp && <span className="num">Track</span>}
-        {showFuel && <span className="num">Fuel</span>}
+        {showDelta && <span className="ll-num">{compareTo === "personal" ? "To PB" : "To best"}</span>}
+        {showTemp && <span className="ll-num">Track</span>}
+        {showFuel && <span className="ll-num">Fuel</span>}
       </div>
       {laps.length === 0 ? (
         <Empty>Laps appear here as you complete them.</Empty>
@@ -79,13 +79,13 @@ function Row({ lap, best, sessionBest, cols, units, showDelta, showTemp, showFue
         {lap.personalBest && <i className="ll-tag is-pb">PB</i>}
       </span>
       {showDelta && (
-        <span className={`num ${delta == null || !lap.clean ? "" : delta <= 0 ? "is-gain" : "is-loss"}`}>
+        <span className={`ll-num ${delta == null || !lap.clean ? "" : delta <= 0 ? "is-gain" : "is-loss"}`}>
           {delta == null ? "–" : signed(delta, 3)}
         </span>
       )}
-      {showTemp && <span className="num muted">{temp(lap.trackTemp, units)}</span>}
+      {showTemp && <span className="ll-num muted">{temp(lap.trackTemp, units)}</span>}
       {showFuel && (
-        <span className="num muted">{lap.fuelUsed == null ? "–" : `${fuel(lap.fuelUsed, units).toFixed(2)} ${fuelUnit(units)}`}</span>
+        <span className="ll-num muted">{lap.fuelUsed == null ? "–" : `${fuel(lap.fuelUsed, units).toFixed(2)} ${fuelUnit(units)}`}</span>
       )}
     </div>
   );

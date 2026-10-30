@@ -1,6 +1,8 @@
 //! Tauri shell: windows, tray, hotkeys, config storage, and the bridge from
 //! the telemetry thread to the web views.
 
+mod profiles;
+
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -97,6 +99,66 @@ fn save_config(app: AppHandle, state: State<AppState>, config: Value) -> Result<
     fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     let _ = app.emit("config-changed", &config);
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Saved layouts
+// ---------------------------------------------------------------------------
+
+fn profiles_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_config_dir().map_err(|e| e.to_string())?.join("layouts"))
+}
+
+fn profiles_changed(app: &AppHandle) {
+    if let Ok(dir) = profiles_dir(app) {
+        let _ = app.emit("profiles-changed", profiles::list(&dir));
+    }
+}
+
+#[tauri::command]
+fn list_profiles(app: AppHandle) -> Result<Vec<profiles::ProfileSummary>, String> {
+    Ok(profiles::list(&profiles_dir(&app)?))
+}
+
+#[tauri::command]
+fn get_profile(app: AppHandle, id: String) -> Result<profiles::Profile, String> {
+    profiles::read(&profiles_dir(&app)?, &id)
+}
+
+#[tauri::command]
+fn save_profile(app: AppHandle, id: Option<String>, name: Option<String>, widgets: Value) -> Result<String, String> {
+    let id = profiles::save(&profiles_dir(&app)?, id.as_deref(), name.as_deref(), widgets)?;
+    profiles_changed(&app);
+    Ok(id)
+}
+
+#[tauri::command]
+fn delete_profile(app: AppHandle, id: String) -> Result<(), String> {
+    profiles::delete(&profiles_dir(&app)?, &id)?;
+    profiles_changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn export_profile(app: AppHandle, id: String, path: String) -> Result<(), String> {
+    profiles::export(&profiles_dir(&app)?, &id, std::path::Path::new(&path))
+}
+
+#[tauri::command]
+fn import_profile(app: AppHandle, path: String) -> Result<String, String> {
+    let id = profiles::import(&profiles_dir(&app)?, std::path::Path::new(&path))?;
+    profiles_changed(&app);
+    Ok(id)
+}
+
+/// What a layout shortcut asks for; the overlay window does the switching.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LayoutShortcut {
+    /// +1 for the next layout.
+    step: Option<i32>,
+    /// 0-based position in the list.
+    index: Option<usize>,
 }
 
 #[tauri::command]
@@ -230,9 +292,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open settings", true, None::<&str>)?;
     let edit = MenuItem::with_id(app, "edit", "Edit layout   Ctrl+Shift+E", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "toggle", "Show / hide overlays   Ctrl+Shift+H", true, None::<&str>)?;
+    let next = MenuItem::with_id(app, "next-layout", "Next layout   Ctrl+Shift+L", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Tenths", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &edit, &hide, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &edit, &hide, &next, &sep, &quit])?;
 
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip("Tenths")
@@ -242,6 +305,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "open" => show_settings(app),
             "edit" => toggle_edit(app),
             "toggle" => toggle_visible(app),
+            "next-layout" => {
+                let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step: Some(1), index: None });
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -271,6 +337,14 @@ fn toggle_visible(app: &AppHandle) {
 pub fn run() {
     let edit_key = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyE);
     let hide_key = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyH);
+    let next_layout_key = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyL);
+    let digits = [
+        Code::Digit1, Code::Digit2, Code::Digit3, Code::Digit4, Code::Digit5, Code::Digit6, Code::Digit7, Code::Digit8,
+        Code::Digit9,
+    ];
+    let layout_keys: Vec<Shortcut> = digits.iter().map(|&d| Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), d)).collect();
+    let mut shortcuts = vec![edit_key, hide_key, next_layout_key];
+    shortcuts.extend(layout_keys.iter().copied());
 
     let control = RunnerControl::default();
     let latest = Arc::new(Mutex::new(Snapshot::default()));
@@ -279,7 +353,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts([edit_key, hide_key])
+                .with_shortcuts(shortcuts)
                 .expect("register shortcuts")
                 .with_handler(move |app, shortcut, event| {
                     if event.state() != ShortcutState::Pressed {
@@ -289,6 +363,10 @@ pub fn run() {
                         toggle_edit(app);
                     } else if shortcut == &hide_key {
                         toggle_visible(app);
+                    } else if shortcut == &next_layout_key {
+                        let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step: Some(1), index: None });
+                    } else if let Some(i) = layout_keys.iter().position(|k| k == shortcut) {
+                        let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step: None, index: Some(i) });
                     }
                 })
                 .build(),
@@ -311,6 +389,12 @@ pub fn run() {
             inspect_lap_file,
             load_reference,
             clear_reference,
+            list_profiles,
+            get_profile,
+            save_profile,
+            delete_profile,
+            export_profile,
+            import_profile,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

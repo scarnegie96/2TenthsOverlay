@@ -5,13 +5,14 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
+  CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
   TickPayload, TiresPayload,
 } from "./types";
 
 type Handler = (payload: unknown) => void;
 
 const CONFIG_KEY = "tenths.config";
+const LAYOUTS_KEY = "tenths.layouts";
 const TRACK_M = 5100;
 const PLAYER = 6;
 const NAMES = [
@@ -70,6 +71,13 @@ class Mock {
   private refDeltas: [number, number][] = [];
 
   constructor() {
+    // ?reference starts with an imported .ibt lap, for the Coach and the reference inputs.
+    if (new URLSearchParams(location.search).has("reference")) {
+      this.reference = {
+        loaded: true, trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach", lapTime: 92.412,
+        source: "demo.ibt", matchesTrack: true, matchesCar: true, kind: "ibt", hasSteering: true,
+      };
+    }
     this.channel.onmessage = (e) => {
       const { event, payload } = e.data as { event: string; payload: unknown };
       if (event === "edit-mode") this.editMode = payload as boolean;
@@ -80,12 +88,12 @@ class Mock {
     // Give a few drivers a fresh personal best / class best so the colors show.
     this.last[2] = this.best[2];
     this.last[PLAYER] = this.best[PLAYER];
-    // Some laps already driven, with an out lap, a spin and a personal best.
+    // Some laps already driven, with an out lap and a spin. The personal best is from an earlier session.
     const b = this.best[PLAYER];
     const now = Math.floor(Date.now() / 1000);
     const seed: [number | null, Partial<LapRecord>][] = [
       [b + 21.6, { pit: true }], [b + 0.82, {}], [b + 0.31, {}], [b + 3.9, { offTrack: true, incidents: 2 }],
-      [b + 0.46, {}], [b, { personalBest: true }], [b + 0.24, {}],
+      [b + 0.46, {}], [b, {}], [b + 0.24, {}],
     ];
     this.lapLog = seed.map(([time, extra], i) => ({
       lap: i + 1, time, clean: !extra.pit && !extra.offTrack, pit: false, offTrack: false, incidents: 0,
@@ -131,6 +139,44 @@ class Mock {
         }
         this.broadcast("config-changed", args.config);
         return;
+      case "list_profiles":
+        return this.layoutList();
+      case "get_profile": {
+        const p = this.layouts()[String(args.id)];
+        if (!p) throw new Error("That layout no longer exists.");
+        return p;
+      }
+      case "save_profile": {
+        const all = this.layouts();
+        const existing = args.id ? all[String(args.id)] : undefined;
+        if (args.id && !existing) throw new Error("That layout no longer exists.");
+        const name = String(args.name ?? "").trim() || existing?.name;
+        if (!name) throw new Error("Give the layout a name.");
+        const id = existing ? String(args.id) : this.newLayoutId(name, all);
+        all[id] = { format: "tenths-layout", version: 1, name, updatedAt: Math.floor(Date.now() / 1000), widgets: args.widgets };
+        this.saveLayouts(all);
+        return id;
+      }
+      case "delete_profile": {
+        const all = this.layouts();
+        delete all[String(args.id)];
+        this.saveLayouts(all);
+        return;
+      }
+      case "import_profile_text": {
+        let p: Profile;
+        try {
+          p = JSON.parse(String(args.text));
+        } catch {
+          throw new Error("That isn't a Tenths layout file.");
+        }
+        if (p?.format !== "tenths-layout" || typeof p.widgets !== "object") throw new Error("That isn't a Tenths layout file.");
+        const all = this.layouts();
+        const id = this.newLayoutId(p.name, all);
+        all[id] = { ...p, updatedAt: Math.floor(Date.now() / 1000) };
+        this.saveLayouts(all);
+        return id;
+      }
       case "get_snapshot":
         return {
           status: this.status(), session: this.session(), reference: this.reference, editMode: this.editMode,
@@ -180,6 +226,36 @@ class Mock {
     }
   }
 
+  private layouts(): Record<string, Profile> {
+    try {
+      return JSON.parse(localStorage.getItem(LAYOUTS_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  private layoutList(): ProfileSummary[] {
+    return Object.entries(this.layouts())
+      .map(([id, p]) => ({ id, name: p.name, updatedAt: p.updatedAt }))
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+  }
+
+  private saveLayouts(all: Record<string, Profile>) {
+    try {
+      localStorage.setItem(LAYOUTS_KEY, JSON.stringify(all));
+    } catch {
+      /* storage unavailable */
+    }
+    this.broadcast("profiles-changed", this.layoutList());
+  }
+
+  private newLayoutId(name: string, all: Record<string, Profile>) {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "layout";
+    let id = slug;
+    for (let n = 2; all[id]; n++) id = `${slug}-${n}`;
+    return id;
+  }
+
   private status(): StatusPayload {
     return { source: "demo", connected: true, message: "Browser preview" };
   }
@@ -204,6 +280,19 @@ class Mock {
     let fieldAt = 0;
     // ?speed=4 in the URL fast-forwards the fake race (handy for lap-based widgets).
     const speedUp = Math.max(1, Math.min(20, Number(new URLSearchParams(location.search).get("speed")) || 1));
+    // ?warmup=100 races that many seconds before the first frame, so graphs and traces are full (screenshots).
+    const warmup = Math.min(600, Number(new URLSearchParams(location.search).get("warmup")) || 0);
+    if (warmup > 0) {
+      // After the widgets mount, so the canvases record it too. A timer, not a frame:
+      // headless screenshots run on virtual time, where frames are rare.
+      setTimeout(() => {
+        for (let i = 0; i < warmup * 30; i++) {
+          this.step(1 / 30);
+          this.dispatch("tick", this.tick());
+          if (i % 3 === 0) this.dispatch("field", this.field());
+        }
+      }, 500);
+    }
     const loop = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000) * speedUp;
       last = now;
@@ -556,8 +645,11 @@ class Mock {
   }
 }
 
-/** Browser preview: press F on the overlay to step through flags. */
-let flagPreview: number | null = null;
+/** Browser preview: press F on the overlay to step through flags, or start on one with ?flag=<bits>. */
+let flagPreview: number | null =
+  typeof location !== "undefined" && new URLSearchParams(location.search).get("flag")
+    ? Number(new URLSearchParams(location.search).get("flag"))
+    : null;
 const PREVIEW_FLAGS = [0x8000 | 0x4000, 0x100 | 0x8, 0x20, 0x40, 0x2, 0x1, 0x10, 0x10000, 0x100000, 0x80000, 0x20000, 0x200, 0x4];
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {

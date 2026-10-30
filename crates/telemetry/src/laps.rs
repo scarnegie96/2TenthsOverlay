@@ -199,7 +199,7 @@ impl LapLog {
                     off_track: self.off,
                     incidents,
                     fuel_used: (self.started_at.is_some() && !refuelled && !self.pit)
-                        .then(|| self.start_fuel - f.fuel_level)
+                        .then_some(self.start_fuel - f.fuel_level)
                         .filter(|u| *u > 0.0),
                     track_temp: f.track_temp,
                     air_temp: f.air_temp,

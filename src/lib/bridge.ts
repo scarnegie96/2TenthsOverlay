@@ -3,7 +3,7 @@
 //  * in a plain browser (`npm run dev`, e.g. on a Mac) -> a local mock with a fake race,
 //    so the UI can be worked on without Windows or iRacing.
 
-import type { IbtSummary, Snapshot } from "./types";
+import type { IbtSummary, Profile, ProfileSummary, Snapshot } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -54,4 +54,44 @@ export const api = {
   inspectLapFile: (path: string) => call<IbtSummary>("inspect_lap_file", { path }),
   loadReference: (path: string, lap: number) => call<void>("load_reference", { path, lap }),
   clearReference: () => call<void>("clear_reference"),
+
+  listProfiles: () => call<ProfileSummary[]>("list_profiles"),
+  getProfile: (id: string) => call<Profile>("get_profile", { id }),
+  /** Creates a layout (id null) or updates one (name null keeps its name). Returns its id. */
+  saveProfile: (id: string | null, name: string | null, widgets: unknown) => call<string>("save_profile", { id, name, widgets }),
+  deleteProfile: (id: string) => call<void>("delete_profile", { id }),
+  /** Asks where to save a copy of a layout. Returns false if cancelled. */
+  exportProfile: async (id: string, name: string): Promise<boolean> => {
+    const fileName = `${name.replace(/[\\/:*?"<>|]+/g, "-")}.tenths-layout.json`;
+    if (!isTauri) {
+      const profile = await call<Profile>("get_profile", { id });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(profile, null, 2)], { type: "application/json" }));
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      return true;
+    }
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({ title: "Export layout", defaultPath: fileName, filters: [{ name: "Tenths layout", extensions: ["json"] }] });
+    if (!path) return false;
+    await call<void>("export_profile", { id, path });
+    return true;
+  },
+  /** Asks for a layout file and adds it. Returns its new id, or null if cancelled. */
+  importProfile: async (): Promise<string | null> => {
+    if (!isTauri) {
+      const text = await new Promise<string | null>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json";
+        input.onchange = () => (input.files?.[0] ? input.files[0].text().then(resolve) : resolve(null));
+        input.click();
+      });
+      return text == null ? null : call<string>("import_profile_text", { text });
+    }
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({ multiple: false, directory: false, title: "Import a layout", filters: [{ name: "Tenths layout", extensions: ["json"] }] });
+    return typeof path === "string" ? call<string>("import_profile", { path }) : null;
+  },
 };

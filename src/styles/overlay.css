@@ -31,6 +31,27 @@
     linear-gradient(170deg, #3b5568 0%, #6f8a97 38%, #8a8f7e 52%, #4a4c43 53%, #2e302b 100%);
 }
 
+/* README screenshots (?shot=<widget>): one widget, with room around it. */
+.shot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 24px;
+}
+/* The reference strip grows above the Inputs widget. */
+.shot-inputs {
+  padding-top: 110px;
+}
+.is-clean .preview-hint {
+  display: none;
+}
+/* Pictures catch the finished state, not a fade in progress. */
+.is-shot *,
+.is-clean * {
+  animation: none !important;
+  transition: none !important;
+}
+
 .preview-hint {
   position: fixed;
   left: 12px;
@@ -75,6 +96,43 @@
 }
 .edit-bar .edit-widgets-btn.is-open {
   box-shadow: inset 0 0 0 1.5px var(--ink-2);
+}
+
+.edit-layout {
+  height: 30px;
+  max-width: 200px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--panel-raised);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Shown for a moment after switching layouts. */
+.layout-toast {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  z-index: 11;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+  font-size: 17px;
+  animation: layout-toast 1.8s ease forwards;
+  pointer-events: none;
+}
+.layout-toast b {
+  color: var(--ink);
+}
+@keyframes layout-toast {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  10%, 75% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; }
 }
 
 /* Every widget, so hidden ones can be turned back on while editing. */
@@ -1783,7 +1841,7 @@
   color: var(--ink-3);
   border-bottom: 1px solid var(--line);
 }
-.ll-row .num {
+.ll-row .ll-num {
   text-align: right;
 }
 .ll-row .muted {

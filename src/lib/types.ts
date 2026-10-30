@@ -342,6 +342,24 @@ export interface LapLogPayload {
   saving: boolean;
 }
 
+/** A saved layout, as listed. */
+export interface ProfileSummary {
+  id: string;
+  name: string;
+  /** Unix seconds. */
+  updatedAt: number;
+}
+
+/** A saved layout file. */
+export interface Profile {
+  format: "tenths-layout";
+  version: number;
+  name: string;
+  updatedAt: number;
+  /** Same shape as AppConfig["widgets"]. */
+  widgets: unknown;
+}
+
 export interface Snapshot {
   status: StatusPayload | null;
   session: SessionPayload | null;

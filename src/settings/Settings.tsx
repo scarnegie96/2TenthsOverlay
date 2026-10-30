@@ -5,11 +5,11 @@ import {
   type AppConfig, type GeneralConfig, type OptionSpec, type WidgetConfig, type WidgetId,
 } from "../lib/config";
 import { lapTime } from "../lib/format";
-import { updateConfig, useLive } from "../lib/store";
+import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import { COLOR_GROUPS, THEME_COLORS, effectiveColor, type ColorKey, type Theme } from "../lib/theme";
 import type { IbtSummary } from "../lib/types";
 
-type Pane = "general" | "appearance" | WidgetId;
+type Pane = "general" | "layouts" | "appearance" | WidgetId;
 
 export function Settings() {
   const [pane, setPane] = useState<Pane>("general");
@@ -24,6 +24,9 @@ export function Settings() {
         <NavItem active={pane === "general"} onClick={() => setPane("general")}>
           General
         </NavItem>
+        <NavItem active={pane === "layouts"} onClick={() => setPane("layouts")}>
+          Layouts
+        </NavItem>
         <NavItem active={pane === "appearance"} onClick={() => setPane("appearance")}>
           Appearance
         </NavItem>
@@ -36,7 +39,10 @@ export function Settings() {
         ))}
       </nav>
       <main className="pane">
-        {pane === "general" ? <GeneralPane /> : pane === "appearance" ? <AppearancePane /> : <WidgetPane id={pane} />}
+        {pane === "general" ? <GeneralPane />
+          : pane === "layouts" ? <LayoutsPane />
+          : pane === "appearance" ? <AppearancePane />
+          : <WidgetPane id={pane} />}
       </main>
     </div>
   );
@@ -135,6 +141,12 @@ function GeneralPane() {
         <Field label="Show or hide overlays">
           <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>H</kbd>
         </Field>
+        <Field label="Next saved layout">
+          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd>
+        </Field>
+        <Field label="Saved layout 1 to 9">
+          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>1</kbd>–<kbd>9</kbd>
+        </Field>
         <p className="note">
           Run iRacing in borderless windowed mode. Overlays can't draw on top of exclusive fullscreen.
         </p>
@@ -151,6 +163,118 @@ function GeneralPane() {
       </Section>
       {!isTauri && <p className="note">Browser preview: settings are saved in this browser only.</p>}
     </>
+  );
+}
+
+function LayoutsPane() {
+  const profiles = useLive((s) => s.profiles);
+  const active = useLive((s) => s.config.general.activeProfile);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const activeName = profiles.find((p) => p.id === active)?.name;
+
+  const run = async (work: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await work();
+    } catch (e) {
+      setError(String(e).replace(/^Error: /, ""));
+    }
+  };
+  const create = () =>
+    run(async () => {
+      await saveNewProfile(name.trim());
+      setName("");
+    });
+
+  return (
+    <>
+      <h1>Layouts</h1>
+      <p className="lede">
+        Save where every widget sits, its size, opacity and options as a layout, and switch between them, for example
+        one for sprints and one for endurance races. Changes you make while a layout is active are saved into it.
+      </p>
+      <Section title="On screen now">
+        <Field
+          label={activeName ?? "Unsaved layout"}
+          help={activeName ? "Moving, resizing or changing widgets updates this layout." : "Save it to switch back to it later."}
+        >
+          <input className="text-input" type="text" value={name} maxLength={40} placeholder="Name, e.g. Endurance"
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && void create()} />
+          <button className="btn btn-primary" disabled={!name.trim()} onClick={() => void create()}>
+            {activeName ? "Save as new" : "Save layout"}
+          </button>
+        </Field>
+      </Section>
+      <Section title="Saved layouts">
+        {profiles.length === 0 && <p className="note">No saved layouts yet.</p>}
+        {profiles.map((p, i) => (
+          <LayoutRow key={p.id} id={p.id} name={p.name} updatedAt={p.updatedAt} index={i} active={p.id === active} run={run} />
+        ))}
+        <Field label="Import a layout" help="A layout file exported from Tenths, on this PC or someone else's.">
+          <button className="btn" onClick={() => void run(async () => {
+            const id = await api.importProfile();
+            if (id) await switchProfile(id);
+          })}>
+            Import…
+          </button>
+        </Field>
+      </Section>
+      {error && <p className="error">{error}</p>}
+      <p className="note">
+        Switch with <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd> for the next layout, or <kbd>Ctrl</kbd> <kbd>Shift</kbd> and
+        the layout's number. Layouts are saved as files in the Tenths settings folder, under <code>layouts</code>.
+      </p>
+    </>
+  );
+}
+
+function LayoutRow({ id, name, updatedAt, index, active, run }: {
+  id: string; name: string; updatedAt: number; index: number; active: boolean; run: (w: () => Promise<unknown>) => Promise<void>;
+}) {
+  const widgets = useLive((s) => s.config.widgets);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const widgetsOf = async () => (active ? widgets : (await api.getProfile(id)).widgets);
+  const rename = () =>
+    run(async () => {
+      const next = renaming?.trim();
+      setRenaming(null);
+      if (next && next !== name) await api.saveProfile(id, next, await widgetsOf());
+    });
+  const updated = new Date(updatedAt * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+
+  return (
+    <div className={`field layout-row ${active ? "is-active" : ""}`}>
+      <span className="layout-key" title={index < 9 ? `Ctrl+Shift+${index + 1}` : "Use Ctrl+Shift+L to reach it"}>
+        {index < 9 ? index + 1 : ""}
+      </span>
+      <div className="field-text">
+        {renaming != null ? (
+          <input className="text-input" autoFocus value={renaming} maxLength={40} aria-label="Layout name"
+            onChange={(e) => setRenaming(e.target.value)} onBlur={() => void rename()}
+            onKeyDown={(e) => (e.key === "Enter" ? void rename() : e.key === "Escape" && setRenaming(null))} />
+        ) : (
+          <span className="field-label">
+            {name}
+            {active && <span className="layout-active">On screen</span>}
+          </span>
+        )}
+        <span className="field-help">Saved {updated}</span>
+      </div>
+      <div className="field-control">
+        {!active && <button className="btn btn-primary" onClick={() => void run(() => switchProfile(id))}>Switch to</button>}
+        <button className="btn btn-quiet" onClick={() => setRenaming(name)}>Rename</button>
+        <button className="btn btn-quiet" onClick={() => void run(async () => api.saveProfile(null, `${name} copy`, await widgetsOf()))}>
+          Duplicate
+        </button>
+        <button className="btn btn-quiet" onClick={() => void run(() => api.exportProfile(id, name))}>Export</button>
+        <button className={`btn ${confirmDelete ? "btn-danger" : "btn-quiet"}`} onBlur={() => setConfirmDelete(false)}
+          onClick={() => (confirmDelete ? void run(() => deleteProfile(id)) : setConfirmDelete(true))}>
+          {confirmDelete ? "Really delete?" : "Delete"}
+        </button>
+      </div>
+    </div>
   );
 }
 

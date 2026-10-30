@@ -433,3 +433,50 @@ kbd {
   color: var(--ink-3);
   text-transform: uppercase;
 }
+
+/* ---------- Layouts ---------------------------------------------------------------- */
+
+.layout-row {
+  justify-content: flex-start;
+  gap: 14px;
+}
+.layout-row .field-text {
+  flex: 1;
+  min-width: 0;
+}
+.layout-key {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.layout-key:empty {
+  visibility: hidden;
+}
+.layout-row.is-active .layout-key {
+  border-color: var(--gain);
+  color: var(--gain);
+}
+.layout-active {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--panel-solid);
+  background: var(--gain);
+  vertical-align: 2px;
+}
+.layout-row .btn-quiet {
+  padding: 0 8px;
+}
+.note code {
+  font: inherit;
+  color: var(--ink-2);
+}
