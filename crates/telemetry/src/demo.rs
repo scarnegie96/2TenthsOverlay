@@ -54,6 +54,8 @@ pub struct DemoSource {
     best: Vec<f32>,
     last: Vec<f32>,
     fuel: f32,
+    prev_speed: f32,
+    long_accel: f32,
     yaml_sent: bool,
     n: usize,
 }
@@ -150,6 +152,8 @@ impl DemoSource {
             best: (0..n).map(|i| class_est[i] + 0.4 + hash(i as u32 + 3) * 1.8).collect(),
             last: (0..n).map(|i| class_est[i] + 0.9 + hash(i as u32 + 5) * 2.0).collect(),
             fuel: 41.7,
+            prev_speed: 0.0,
+            long_accel: 0.0,
             yaml_sent: false,
             n,
         };
@@ -311,7 +315,24 @@ impl DemoSource {
         f.clutch = 0.0;
         f.steering = steering_at(pct);
         // Roughly: the car turns at a rate set by steering and speed.
-        f.yaw_rate = f.steering / 9.0 * speed / 2.7;
+        // Turning rate from steering, with a balance that shifts with speed:
+        // pushes wide in fast corners, rotates a bit more in slow ones.
+        let balance = if speed > 45.0 { 0.82 } else if speed < 28.0 { 1.12 } else { 1.0 };
+        f.yaw_rate = f.steering * speed * 0.016 * balance;
+        // Rough body physics, enough to make the Dynamics widget move believably.
+        let raw_long = if self.prev_speed > 0.0 { (speed - self.prev_speed) / dt } else { 0.0 };
+        self.prev_speed = speed;
+        self.long_accel += (raw_long.clamp(-30.0, 15.0) - self.long_accel) * 0.25;
+        f.long_accel = self.long_accel;
+        f.lat_accel = speed * f.yaw_rate;
+        let kerb = if (pct * 37.0).fract() < 0.02 { 3.5 * (self.t as f32 * 40.0).sin() } else { 0.0 };
+        f.vert_accel = 9.80665 + 0.0006 * speed * speed + kerb;
+        f.pitch = 0.0012 * f.long_accel;
+        f.roll = 0.0016 * f.lat_accel;
+        // The rear steps out a little in the slowest corners.
+        let slide = if speed < 30.0 { 0.035 } else { 0.012 };
+        f.velocity_x = speed;
+        f.velocity_y = -slide * f.yaw_rate * speed;
         f.lap = f.car_lap[PLAYER];
         f.lap_completed = f.car_lap_completed[PLAYER];
         f.lap_dist_pct = pct;

@@ -14,6 +14,7 @@
 pub mod blap;
 pub mod coach;
 pub mod demo;
+pub mod dynamics;
 pub mod engine;
 pub mod ibt;
 pub mod lapfile;

@@ -4,7 +4,7 @@ iRacing overlays you own. A Tauri 2 app for Windows that reads the iRacing SDK
 directly and draws a set of configurable widgets over the sim.
 
 Widgets so far: **Relative**, **Standings** (grouped by class), **Inputs**,
-**Delta**, **Fuel**, **Radar**, **Tires** and **Spotter**, all draggable,
+**Delta**, **Coach**, **Car dynamics**, **Fuel**, **Radar**, **Tires** and **Spotter**, all draggable,
 resizable and toggleable. Last laps are purple for the fastest in class and green
 for a personal best.
 
@@ -22,6 +22,11 @@ and (for .ibt laps, which record steering) wheel, and the **Coach**
 widget gives one live cue at a time (brake in 50 m, brake now, braking early,
 brake harder or lighter, carry more speed, throttle now, shift down to 4th,
 better exit, turn in more, gaining or losing time).
+
+The **Car dynamics** panel has a g-meter (with a faint outline of the grip you've
+been using in each direction), top, side and rear views of the car showing slip,
+pitch and roll, and a live understeer/oversteer bar. Balance is learnt from your
+own driving, so it settles after a few corners.
 
 A note on tires: iRacing only updates tire temperatures and wear while your car
 is in its pit box. On track the Tires widget shows the reading from your last stop.
@@ -97,6 +102,7 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   blap.rs             iRacing .blap/.olap reader (best/optimal lap files)
   reference.rs        Imported comparison lap: time, speed, pedals, gear, steering, line
   coach.rs            Corners from the reference and the live coaching cues
+  dynamics.rs         g-forces, slip, pitch, roll and the understeer/oversteer estimate
   demo.rs             Fake 22-car, 3-class race with a scripted battle for the radar
   runner.rs           Telemetry thread: 60 Hz tick, 10 Hz field
 src-tauri/            Windows, tray, hotkeys, click-through, config file

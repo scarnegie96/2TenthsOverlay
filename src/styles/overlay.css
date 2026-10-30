@@ -632,6 +632,180 @@
   background: var(--clutch);
 }
 
+/* ---------- Car dynamics ------------------------------------------------------ */
+
+.dynamics {
+  width: 470px;
+}
+.dyn-body {
+  display: flex;
+  gap: 14px;
+  padding: 10px 12px 12px;
+}
+.dyn-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dyn-gmeter {
+  display: block;
+}
+.dyn-readouts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.dyn-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.dyn-readout-label {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.dyn-readout-value {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.dyn-readout-value small {
+  margin-left: 1px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.dyn-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dyn-views {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.dyn-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0 5px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.dyn-view-svg {
+  width: 84px;
+  height: 84px;
+  overflow: visible;
+}
+.dyn-view-svg g {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+.dyn-view-label {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.dyn-view-label b {
+  margin-left: 2px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.dyn-car {
+  fill: #c9d1da;
+}
+.dyn-car-detail {
+  fill: rgba(13, 19, 27, 0.55);
+}
+.dyn-wheel {
+  fill: #2a3442;
+  stroke: #8e99a5;
+  stroke-width: 1.2;
+}
+.is-sliding .dyn-car {
+  fill: var(--attention);
+}
+.dyn-travel {
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+.dyn-travel-head {
+  fill: var(--ink-3);
+}
+.dyn-ground {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.dyn-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dyn-balance-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.dyn-balance-head b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.dyn-balance.is-live.is-under .dyn-balance-head b {
+  color: var(--lapped);
+}
+.dyn-balance.is-live.is-over .dyn-balance-head b {
+  color: var(--attention);
+}
+.dyn-balance.is-live.is-neutral .dyn-balance-head b {
+  color: var(--gain);
+}
+.dyn-balance-track {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg,
+      color-mix(in srgb, var(--lapped) 55%, transparent),
+      rgba(233, 238, 243, 0.08) 40%,
+      rgba(233, 238, 243, 0.08) 60%,
+      color-mix(in srgb, var(--attention) 55%, transparent));
+}
+.dyn-balance-mid {
+  position: absolute;
+  left: calc(50% - 1px);
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--ink-3);
+}
+.dyn-balance-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  box-shadow: 0 0 0 2px var(--panel-solid);
+  transition: left 0.1s linear;
+}
+.dyn-balance.is-live .dyn-balance-dot {
+  background: var(--ink);
+}
+.dyn-balance-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
 /* ---------- Coach ---------------------------------------------------------- */
 
 .coach {

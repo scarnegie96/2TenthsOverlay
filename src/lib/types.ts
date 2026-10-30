@@ -90,6 +90,26 @@ export interface TickPayload {
   nearby: NearbyCar[];
   /** Ghost inputs and the live coaching cue, while a reference lap for this track is loaded. */
   coach: CoachPayload | null;
+  /** g-forces, attitude and balance for the Dynamics widget. */
+  dynamics: DynamicsPayload;
+}
+
+export interface DynamicsPayload {
+  /** Sideways g, positive = accelerating left (turning left). */
+  latG: number;
+  /** Fore-aft g, positive = accelerating, negative = braking. */
+  longG: number;
+  /** Vertical g; 1.0 sitting still. */
+  vertG: number;
+  /** Degrees, positive = nose up. */
+  pitchDeg: number;
+  /** Degrees, positive = leaning right. */
+  rollDeg: number;
+  /** Degrees between heading and direction of travel, positive = sliding left. */
+  slipDeg: number;
+  yawRateDeg: number;
+  /** -1 understeer .. +1 oversteer; null when not cornering hard enough or still learning. */
+  balance: number | null;
 }
 
 export type CueKind =

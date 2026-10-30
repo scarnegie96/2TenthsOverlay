@@ -82,6 +82,13 @@ quoted before parsing, because iRacing doesn't escape them.
 - **Inputs panel**: with a reference loaded, a slimmer strip extends from the
   top with the reference's gear, speed, wheel (.ibt only), trace and pedals. It
   uses the same columns as yours, so the two traces line up.
+- **Car dynamics** (`dynamics.rs`): g from `LatAccel`/`LongAccel`/`VertAccel`,
+  attitude from `Pitch`/`Roll`, slip angle from `atan2(VelocityY, VelocityX)`.
+  Balance: in gentle corners (0.15-0.6 g, little slip) we fit yaw rate against
+  speed x steering to learn how your car normally rotates. In hard corners,
+  actual yaw rate below that expectation is understeer, above it oversteer; a
+  big slip angle with opposite lock is always oversteer. The sign conventions of
+  iRacing's `Pitch` and `Roll` should be checked in the sim (see the views).
 - **Sectors**: track sectors come from `SplitTimeInfo.Sectors` in the session
   YAML; the widget can use equal mini sectors instead. The front end
   (`src/lib/deltaHistory.ts`) records the delta curve per lap and the gain or loss

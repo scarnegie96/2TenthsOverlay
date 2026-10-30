@@ -310,7 +310,7 @@ function OptionField({ spec, value, onChange }: { spec: OptionSpec; value: unkno
       );
     case "number":
       return (
-        <Field label={spec.label}>
+        <Field label={spec.label} help={spec.help}>
           <Slider value={Number(value)} min={spec.min} max={spec.max} step={spec.step ?? 1}
             format={(v) => `${spec.step && spec.step < 1 ? v.toFixed(2).replace(/0$/, "") : v}${spec.suffix ? ` ${spec.suffix}` : ""}`}
             onChange={onChange} />

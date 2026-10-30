@@ -257,6 +257,13 @@ impl Irsdk {
         f.clutch = 1.0 - self.f32("Clutch");
         f.steering = self.f32("SteeringWheelAngle");
         f.yaw_rate = self.f32("YawRate");
+        f.lat_accel = self.f32("LatAccel");
+        f.long_accel = self.f32("LongAccel");
+        f.vert_accel = self.f32("VertAccel");
+        f.pitch = self.f32("Pitch");
+        f.roll = self.f32("Roll");
+        f.velocity_x = self.f32("VelocityX");
+        f.velocity_y = self.f32("VelocityY");
 
         f.lap = self.i32("Lap");
         f.lap_completed = self.i32("LapCompleted");

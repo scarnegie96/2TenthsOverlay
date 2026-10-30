@@ -1,6 +1,6 @@
 import type { Units } from "./format";
 
-export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "fuel" | "radar" | "tires" | "spotter";
+export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "dynamics" | "fuel" | "radar" | "tires" | "spotter";
 
 export interface WidgetConfig {
   enabled: boolean;
@@ -30,7 +30,7 @@ export interface AppConfig {
 
 export type OptionSpec =
   | { key: string; label: string; type: "toggle"; default: boolean; help?: string }
-  | { key: string; label: string; type: "number"; default: number; min: number; max: number; step?: number; suffix?: string }
+  | { key: string; label: string; type: "number"; default: number; min: number; max: number; step?: number; suffix?: string; help?: string }
   | { key: string; label: string; type: "select"; default: string; choices: { value: string; label: string }[] };
 
 export interface WidgetMeta {
@@ -129,6 +129,25 @@ export const WIDGETS: WidgetMeta[] = [
     options: [
       { key: "showDetail", label: "Show the reason", type: "toggle", default: true, help: "The line under the cue, like \"Reference brakes 30 m later\"" },
       { key: "showStats", label: "Show delta and speed", type: "toggle", default: true },
+    ],
+  },
+  {
+    id: "dynamics",
+    name: "Car dynamics",
+    description: "G-meter with the grip you've been using, the car's slip, pitch and roll, and an understeer / oversteer estimate.",
+    x: 24, y: 716, enabled: true,
+    options: [
+      { key: "maxG", label: "G-meter range", type: "number", default: 3, min: 2, max: 6, suffix: "g" },
+      {
+        key: "direction", label: "Dot shows", type: "select", default: "felt",
+        choices: [
+          { value: "felt", label: "Force you feel (braking pushes it up)" },
+          { value: "accel", label: "Car's acceleration (braking pulls it down)" },
+        ],
+      },
+      { key: "showAttitude", label: "Show slip, pitch and roll", type: "toggle", default: true },
+      { key: "exaggerate", label: "Exaggerate pitch and roll", type: "number", default: 4, min: 1, max: 10, suffix: "×", help: "Real angles are small; the numbers always show the true value" },
+      { key: "showBalance", label: "Show balance", type: "toggle", default: true, help: "Learnt from your driving, so it settles after a few corners" },
     ],
   },
   {

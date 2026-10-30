@@ -20,6 +20,7 @@ pub struct Engine {
     /// Imported comparison lap, if any.
     reference: Option<ReferenceLap>,
     coach: Option<Coach>,
+    dynamics: crate::dynamics::DynamicsTracker,
 }
 
 impl Engine {
@@ -146,6 +147,7 @@ impl Engine {
             incidents: f.incidents,
             nearby: self.nearby(f),
             coach,
+            dynamics: self.dynamics.update(f),
         }
     }
 

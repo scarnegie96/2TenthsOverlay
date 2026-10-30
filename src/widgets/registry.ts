@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import type { WidgetConfig, WidgetId } from "../lib/config";
 import { Coach } from "./Coach";
 import { Delta } from "./Delta";
+import { Dynamics } from "./Dynamics";
 import { Fuel } from "./Fuel";
 import { Inputs } from "./Inputs";
 import { Radar } from "./Radar";
@@ -26,4 +27,5 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   radar: Radar,
   tires: Tires,
   coach: Coach,
+  dynamics: Dynamics,
 };

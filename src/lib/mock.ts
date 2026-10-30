@@ -50,6 +50,7 @@ class Mock {
   private lapStart = Array.from({ length: N }, () => 0);
   private sides = new Map<number, number>();
   private fuel = 31.4;
+  private dyn = { speed: 0, time: 0, longG: 0, balance: null as number | null };
   private started = false;
   private reference: ReferencePayload = {
     loaded: false, trackName: "", trackConfig: "", carName: "", driver: "", lapTime: 0, source: "", matchesTrack: false,
@@ -275,9 +276,38 @@ class Mock {
       deltas: this.deltas(pct, Math.floor(p)),
       fuelLevel: this.fuel, carLeftRight: near.carLeftRight, incidents: 2, nearby: near.cars,
       coach: null,
+      dynamics: { latG: 0, longG: 0, vertG: 1, pitchDeg: 0, rollDeg: 0, slipDeg: 0, yawRateDeg: 0, balance: null },
     };
+    t.dynamics = this.dynamics(t, pct);
     t.coach = this.coach(t);
     return t;
+  }
+
+  /** Rough body physics so the Dynamics widget moves believably. */
+  private dynamics(t: TickPayload, pct: number): TickPayload["dynamics"] {
+    const G = 9.80665;
+    const dt = t.sessionTime - this.dyn.time;
+    const rawLong = dt > 0 && this.dyn.time > 0 ? (t.speed - this.dyn.speed) / dt / G : 0;
+    this.dyn.longG += (Math.max(-2.2, Math.min(1.2, rawLong)) - this.dyn.longG) * 0.25;
+    this.dyn.speed = t.speed;
+    this.dyn.time = t.sessionTime;
+    const balanceFactor = t.speed > 45 ? 0.82 : t.speed < 28 ? 1.12 : 1;
+    const yaw = t.steering * t.speed * 0.016 * balanceFactor;
+    const latG = (t.speed * yaw) / G;
+    const hard = Math.abs(latG) > 0.5;
+    const target = hard ? (balanceFactor - 1) / 0.4 : null;
+    if (target != null) this.dyn.balance = (this.dyn.balance ?? target) + (target - (this.dyn.balance ?? target)) * 0.12;
+    const kerb = ((pct * 37) % 1) < 0.02 ? 0.35 * Math.sin(t.sessionTime * 40) : 0;
+    return {
+      latG,
+      longG: this.dyn.longG,
+      vertG: 1 + 0.00006 * t.speed * t.speed + kerb,
+      pitchDeg: (0.0012 * this.dyn.longG * G * 180) / Math.PI,
+      rollDeg: (0.0016 * latG * G * 180) / Math.PI,
+      slipDeg: (-(t.speed < 30 ? 0.035 : 0.012) * yaw * t.speed * 180) / Math.PI / Math.max(1, t.speed),
+      yawRateDeg: (yaw * 180) / Math.PI,
+      balance: hard ? this.dyn.balance : null,
+    };
   }
 
   /** A rough coach: the "reference" brakes a little later and carries a bit more speed. */

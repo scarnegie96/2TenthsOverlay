@@ -53,6 +53,16 @@ pub struct RawFrame {
     pub steering: f32,
     /// rad/s
     pub yaw_rate: f32,
+    /// m/s², car frame. Lateral positive = left, longitudinal positive = forwards.
+    pub lat_accel: f32,
+    pub long_accel: f32,
+    pub vert_accel: f32,
+    /// rad
+    pub pitch: f32,
+    pub roll: f32,
+    /// m/s, car frame: X forwards, Y left.
+    pub velocity_x: f32,
+    pub velocity_y: f32,
 
     pub lap: i32,
     pub lap_completed: i32,
@@ -208,6 +218,8 @@ pub struct TickPayload {
     pub nearby: Vec<NearbyCar>,
     /// Ghost inputs and the live coaching cue, when a reference lap for this track is loaded.
     pub coach: Option<crate::coach::CoachPayload>,
+    /// g-forces, attitude and balance for the Dynamics widget.
+    pub dynamics: crate::dynamics::DynamicsPayload,
 }
 
 /// Live delta against each kind of comparison lap. None when iRacing (or the
