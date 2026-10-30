@@ -144,7 +144,7 @@ export const WIDGETS: WidgetMeta[] = [
     id: "radar",
     name: "Radar",
     description: "Top-down view of the cars around you, with a warning when one is alongside.",
-    x: 850, y: 640, enabled: true,
+    x: 842, y: 596, enabled: true,
     options: [
       { key: "range", label: "Range", type: "number", default: 20, min: 10, max: 50, step: 5, suffix: "m" },
       { key: "alwaysShow", label: "Always visible", type: "toggle", default: true, help: "Turn off to hide it until a car is in range" },
@@ -164,7 +164,7 @@ export const WIDGETS: WidgetMeta[] = [
     id: "spotter",
     name: "Spotter",
     description: "Simple left and right lights when a car is alongside. The radar includes these too.",
-    x: 850, y: 760, enabled: false,
+    x: 1130, y: 680, enabled: false,
     options: [
       { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Otherwise it only appears when a car is alongside" },
     ],

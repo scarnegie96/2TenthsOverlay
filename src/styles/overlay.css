@@ -108,6 +108,7 @@
 
 .frame-label {
   position: absolute;
+  z-index: 3; /* above anything that grows out of a widget, like the Inputs reference strip */
   left: 0;
   bottom: 100%;
   transform-origin: 0 100%;
@@ -118,6 +119,10 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--attention);
+}
+/* The Inputs reference strip grows above the widget; put the label above it. */
+.frame:has(.inputs-stack.has-ghost) .frame-label {
+  bottom: calc(100% + 84px);
 }
 .frame-label span {
   color: var(--ink-3);
