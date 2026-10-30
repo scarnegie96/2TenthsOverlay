@@ -24,7 +24,7 @@
 //! ```
 //!
 //! Steering isn't stored, so references from these files have no steering
-//! channel; the coach estimates it from how sharply the car turns.
+//! channel: no reference wheel and no steering cues. (.ibt files do record it.)
 
 use std::path::Path;
 

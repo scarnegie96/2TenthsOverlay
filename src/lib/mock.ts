@@ -292,7 +292,8 @@ class Mock {
     const refThrottle = refBraking ? 0 : rAhead > rf + 0.005 || rf > 0.98 ? 1 : 0.55;
     const refSpeed = 78 * rf * 1.012;
     const refGear = Math.min(6, Math.max(1, Math.ceil(refSpeed / 13)));
-    const refSteering = Math.sin(rp * 40) * (1 - rf) * 1.9;
+    // Only .ibt references carry steering.
+    const refSteering = this.reference.hasSteering ? Math.sin(rp * 40) * (1 - rf) * 1.9 : null;
 
     const d = t.deltas.reference ?? 0;
     this.refDeltas.push([t.sessionTime, d]);
@@ -337,7 +338,7 @@ class Mock {
       this.cue = { ...best, since: cur && cur.cue.kind === best.cue.kind ? cur.since : t.sessionTime };
     }
     return {
-      refSpeed, refThrottle, refBrake, refGear, refSteering, steeringEstimated: !this.reference.hasSteering,
+      refSpeed, refThrottle, refBrake, refGear, refSteering,
       speedDelta: t.speed - refSpeed, cue: this.cue!.cue,
     };
   }

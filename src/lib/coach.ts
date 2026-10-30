@@ -51,9 +51,9 @@ export function cueText(cue: Cue, units: Units): { label: string; detail: string
     case "betterExit":
       return { label: "Better exit needed", detail: `${diff()} down on the straight` };
     case "turnMore":
-      return { label: "Turn in more", detail: "Reference takes a tighter line here" };
+      return { label: "Turn in more", detail: "Reference has more lock on here" };
     case "turnLess":
-      return { label: "Open the wheel", detail: "You're turning tighter than the reference" };
+      return { label: "Open the wheel", detail: "You have more lock on than the reference" };
     case "gaining":
       return { label: "Gaining", detail: `${(cue.ours ?? 0).toFixed(2)}s in the last 2 seconds` };
     case "losing":

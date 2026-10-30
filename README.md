@@ -16,8 +16,9 @@ underneath. Import a lap under **Settings → Delta → Reference lap and coachi
 iRacing's saved best/optimal laps (`.blap`/`.olap` from `Documents\iRacing\lapfiles`)
 or a lap from an `.ibt`.
 
-With a reference loaded you also get **coaching**: the Inputs panel shows the
-reference's wheel, pedals, gear and speed as a purple ghost, and the **Coach**
+With a reference loaded you also get **coaching**: a slimmer strip grows out of
+the top of the Inputs panel showing the reference's gear, speed, trace, pedals
+and (for .ibt laps, which record steering) wheel, and the **Coach**
 widget gives one live cue at a time (brake in 50 m, brake now, braking early,
 brake harder or lighter, carry more speed, throttle now, shift down to 4th,
 better exit, turn in more, gaining or losing time).

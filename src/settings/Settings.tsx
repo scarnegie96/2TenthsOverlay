@@ -245,7 +245,7 @@ function ReferenceSection() {
                 `${reference.trackName}${reference.trackConfig ? `, ${reference.trackConfig}` : ""}`,
                 reference.matchesTrack ? null : "Not this track, so it's paused until you drive there.",
                 reference.matchesCar ? null : "It's a different car from yours, so coaching will be less accurate.",
-                reference.hasSteering ? null : "Steering isn't saved in .blap/.olap files, so the ghost wheel is estimated from the reference's line.",
+                reference.hasSteering ? null : "Steering isn't saved in .blap/.olap files, so there's no reference wheel or steering coaching. Use an .ibt lap for those.",
               ]
                 .filter(Boolean)
                 .join(". ")

@@ -5,6 +5,9 @@
 //! throttle. Each frame we compare what you're doing at the same spot and
 //! pick the single most useful thing to say. Cues are held briefly so the
 //! label doesn't flicker; a more urgent cue can always interrupt.
+//!
+//! Steering cues need a reference that recorded steering, which .ibt files do
+//! and .blap/.olap files don't.
 
 use std::collections::VecDeque;
 
@@ -39,7 +42,7 @@ pub enum CueKind {
     ShiftUp,
     /// Down on speed on a straight.
     BetterExit,
-    /// The reference turns the car more sharply here.
+    /// The reference has more steering lock on here (.ibt references only).
     TurnMore,
     TurnLess,
     Gaining,
@@ -101,10 +104,9 @@ pub struct CoachPayload {
     pub ref_throttle: Option<f32>,
     pub ref_brake: Option<f32>,
     pub ref_gear: Option<i32>,
-    /// Steering wheel angle (rad, positive left). Measured for .ibt references,
-    /// estimated from the reference's line for .blap/.olap.
+    /// Steering wheel angle (rad, positive left). Only .ibt references record
+    /// steering; .blap/.olap files don't, so this is None for them.
     pub ref_steering: Option<f32>,
-    pub steering_estimated: bool,
     /// Your speed minus the reference's, m/s.
     pub speed_delta: Option<f32>,
     pub cue: Option<Cue>,
@@ -195,38 +197,11 @@ impl Sustain {
     }
 }
 
-/// Learns how far your wheel turns for a given cornering curvature, so an
-/// estimated ghost wheel can be drawn for references without steering data.
-#[derive(Default)]
-struct SteerCalibration {
-    sxx: f64,
-    sxy: f64,
-    n: u32,
-    /// Agreement between our curvature and the reference's (sign convention check).
-    sign_sum: f64,
-}
-
-impl SteerCalibration {
-    fn learn(&mut self, curvature: f32, steering: f32) {
-        // Forget slowly so a car change doesn't stick forever.
-        self.sxx = self.sxx * 0.999 + (curvature * curvature) as f64;
-        self.sxy = self.sxy * 0.999 + (curvature * steering) as f64;
-        self.n = self.n.saturating_add(1);
-    }
-    fn ratio(&self) -> Option<f32> {
-        (self.n >= 120 && self.sxx > 1e-9).then(|| (self.sxy / self.sxx) as f32)
-    }
-    fn sign(&self) -> f32 {
-        if self.sign_sum < 0.0 { -1.0 } else { 1.0 }
-    }
-}
-
 const HOLD_S: f64 = 0.9;
 
 pub struct Coach {
     zones: Vec<Zone>,
     current: Option<(Cue, f64)>,
-    calib: SteerCalibration,
     deltas: VecDeque<(f64, f32)>,
     gear_wrong: Sustain,
     more_throttle: Sustain,
@@ -239,7 +214,6 @@ impl Coach {
         Self {
             zones: find_zones(reference),
             current: None,
-            calib: SteerCalibration::default(),
             deltas: VecDeque::new(),
             gear_wrong: Sustain::default(),
             more_throttle: Sustain::default(),
@@ -256,25 +230,10 @@ impl Coach {
     pub fn update(&mut self, r: &ReferenceLap, f: &RawFrame, delta: Option<f32>, length_m: f32) -> CoachPayload {
         let p = f.lap_dist_pct.clamp(0.0, 1.0);
         let ref_speed = r.speed_at(p);
-        let ref_curv = r.curvature_at(p);
-
-        // Our own turning rate, for the steering estimate and turn cues.
-        let our_curv = (f.speed > 12.0).then(|| f.yaw_rate / f.speed);
-        if let (Some(c), Some(rc)) = (our_curv, ref_curv) {
-            if c.abs() > 0.002 && f.steering.abs() < 6.0 {
-                self.calib.learn(c, f.steering);
-            }
-            if c.abs() > 0.004 && rc.abs() > 0.004 {
-                self.calib.sign_sum = (self.calib.sign_sum * 0.999 + (c * rc).signum() as f64).clamp(-500.0, 500.0);
-            }
-        }
-        let (ref_steering, estimated) = match r.steering_at(p) {
-            Some(s) => (Some(s), false),
-            None => (self.calib.ratio().zip(ref_curv).map(|(k, rc)| k * rc * self.calib.sign()), true),
-        };
+        let ref_steering = r.steering_at(p);
 
         let cue = if f.is_on_track && !f.on_pit_road && f.speed > 3.0 {
-            let candidate = self.pick(r, f, p, delta, length_m.max(1.0), our_curv);
+            let candidate = self.pick(r, f, p, delta, length_m.max(1.0));
             Some(self.hold(candidate, f.session_time))
         } else {
             self.current = None;
@@ -287,7 +246,6 @@ impl Coach {
             ref_brake: r.brake_at(p),
             ref_gear: r.gear_at(p).filter(|g| *g > 0),
             ref_steering,
-            steering_estimated: estimated,
             speed_delta: ref_speed.map(|s| f.speed - s),
             cue,
         }
@@ -308,7 +266,7 @@ impl Coach {
         }
     }
 
-    fn pick(&mut self, r: &ReferenceLap, f: &RawFrame, p: f32, delta: Option<f32>, len: f32, our_curv: Option<f32>) -> Cue {
+    fn pick(&mut self, r: &ReferenceLap, f: &RawFrame, p: f32, delta: Option<f32>, len: f32) -> Cue {
         let now = f.session_time;
         let bin = (p * REF_BINS as f32).round() as usize;
         let m_per_bin = len / REF_BINS as f32;
@@ -433,14 +391,16 @@ impl Coach {
             offer(Cue::new(CueKind::BetterExit, Tone::Warn, 3).values(f.speed, rs));
         }
 
-        // How sharply we turn versus the reference, in proper corners.
-        if let (Some(c), Some(rc)) = (our_curv, r.curvature_at(p)) {
-            let rc = rc * self.calib.sign();
-            let ratio = if rc.abs() > 0.008 { c / rc } else { 1.0 };
-            let off = rc.abs() > 0.008 && !(0.75..=1.3).contains(&ratio);
+        // Steering versus the reference, in proper corners. Only possible when the
+        // reference recorded steering (.ibt); .blap/.olap files don't store it.
+        if let Some(rs) = r.steering_at(p) {
+            let ours = f.steering;
+            let corner = rs.abs() > 0.15 && f.speed > 12.0;
+            let ratio = if corner && ours.signum() == rs.signum() { ours.abs() / rs.abs() } else { 1.0 };
+            let off = corner && !(0.75..=1.3).contains(&ratio);
             if self.turn.check(off, now, 0.4) {
                 let kind = if ratio < 0.75 { CueKind::TurnMore } else { CueKind::TurnLess };
-                offer(Cue::new(kind, Tone::Info, 2).values(c.abs(), rc.abs()));
+                offer(Cue::new(kind, Tone::Info, 2).values(ours.abs(), rs.abs()));
             }
         }
 
@@ -518,6 +478,33 @@ mod tests {
         // Reference is back on the power and we're not.
         let mut c = Coach::new(&r);
         assert_eq!(kind(&mut c, frame(0.46, 15.0, 0.0, 0.0, 30.0, 3)), Some(CueKind::ThrottleNow));
+    }
+
+    #[test]
+    fn steering_cues_only_with_recorded_steering() {
+        // No steering in the reference (like a .blap): never a turn cue.
+        let r = reference();
+        let mut c = Coach::new(&r);
+        for i in 0..60 {
+            let mut f = frame(0.40, i as f64 / 60.0, 0.2, 0.0, 25.0, 3);
+            f.steering = 0.1;
+            let k = c.update(&r, &f, None, 1000.0).cue.unwrap().kind;
+            assert!(k != CueKind::TurnMore && k != CueKind::TurnLess);
+        }
+        // Same reference with 0.6 rad of lock recorded through the corner (like an .ibt).
+        let mut r = reference();
+        r.steering = (0..=REF_BINS)
+            .map(|k| if (360..=440).contains(&k) { 0.6 } else { 0.0 })
+            .collect();
+        let mut c = Coach::new(&r);
+        let mut last = CueKind::OnPace;
+        for i in 0..60 {
+            // Speed matches the reference so nothing more urgent fires.
+            let mut f = frame(0.41, i as f64 / 60.0, 0.0, 0.0, r.speed_at(0.41).unwrap(), 3);
+            f.steering = 0.2;
+            last = c.update(&r, &f, None, 1000.0).cue.unwrap().kind;
+        }
+        assert_eq!(last, CueKind::TurnMore);
     }
 
     #[test]

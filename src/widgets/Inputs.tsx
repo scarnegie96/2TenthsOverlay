@@ -1,17 +1,21 @@
 import { useEffect, useRef } from "react";
 import { opt, type WidgetConfig } from "../lib/config";
-import { gear, speed } from "../lib/format";
+import { gear, speed, type Units } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { TickPayload } from "../lib/types";
 import { Panel } from "./Panel";
 
 const TRACE_W = 300;
 const TRACE_H = 92;
+const GHOST_TRACE_H = 62;
+
+type Source = "ours" | "reference";
 
 /**
  * Driver HUD strip, left to right: gear, speed, steering wheel, pedal trace,
- * pedal bars. Big readouts on the left, detail on the right. With a reference
- * lap loaded, its inputs at the same spot show as a purple ghost on each part.
+ * pedal bars. With a reference lap loaded, a slimmer strip extends out of the
+ * top showing the reference's inputs at the same spot, laid out on the same
+ * columns so the two traces line up.
  */
 export function Inputs({ config }: { config: WidgetConfig }) {
   const tick = useLive((s) => s.tick);
@@ -23,88 +27,114 @@ export function Inputs({ config }: { config: WidgetConfig }) {
   const seconds = opt(config, "traceSeconds", 6);
   const showGhost = opt(config, "showGhost", true);
 
-  const shift = shiftRpm > 0 && (tick?.rpm ?? 0) >= shiftRpm;
-  const ghost = showGhost ? tick?.coach ?? null : null;
-  const gearOff = ghost?.refGear != null && tick != null && tick.gear > 0 && ghost.refGear !== tick.gear;
-  const sd = ghost?.speedDelta ?? null;
+  const ref = showGhost ? tick?.coach ?? null : null;
+  const layout = { showClutch, showSteering, showTrace, seconds, units };
 
   return (
-    <Panel className={`inputs ${ghost ? "has-ghost" : ""}`}>
-      <div className="inputs-body">
-        <div className="hud-gear-wrap">
-          <span className={`hud-gear ${shift ? "is-shift" : ""}`}>{gear(tick?.gear ?? 0)}</span>
-          {ghost?.refGear != null && (
-            <span className={`hud-ghost ${gearOff ? "is-off" : ""}`} title="Reference gear">
-              ref {gear(ghost.refGear)}
-            </span>
-          )}
-        </div>
-        <div className="hud-speed">
-          <span className="hud-speed-value">{speed(tick?.speed ?? 0, units)}</span>
-          <span className="hud-speed-unit">{units === "imperial" ? "MPH" : "KPH"}</span>
-          {ghost?.refSpeed != null && (
-            <span
-              className={`hud-ghost ${sd != null && sd < -0.5 ? "is-down" : sd != null && sd > 0.5 ? "is-up" : ""}`}
-              title="Reference speed here"
-            >
-              ref {speed(ghost.refSpeed, units)}
-            </span>
-          )}
-        </div>
-        {showSteering && (
-          <Wheel
-            angle={tick?.steering ?? 0}
-            ghost={ghost?.refSteering ?? null}
-            estimated={ghost?.steeringEstimated ?? false}
+    <div className={`inputs-stack ${ref ? "has-ghost" : ""}`}>
+      {ref && (
+        <Panel className="inputs inputs-ghost">
+          <Strip
+            {...layout}
+            source="reference"
+            label="Ref"
+            gear={ref.refGear ?? 0}
+            speedMs={ref.refSpeed ?? 0}
+            steering={ref.refSteering}
+            steeringNote={ref.refSteering == null ? "No wheel data" : null}
+            throttle={ref.refThrottle ?? 0}
+            brake={ref.refBrake ?? 0}
+            clutch={null}
+            shift={false}
           />
-        )}
-        {showTrace && <Trace seconds={seconds} />}
-        <div className="pedals">
-          {showClutch && <Bar label="Clutch" value={tick?.clutch ?? 0} kind="clutch" />}
-          <Bar label="Brake" value={tick?.brake ?? 0} kind="brake" ghost={ghost?.refBrake ?? null} />
-          <Bar label="Throttle" value={tick?.throttle ?? 0} kind="throttle" ghost={ghost?.refThrottle ?? null} />
-        </div>
-      </div>
-    </Panel>
+        </Panel>
+      )}
+      <Panel className="inputs inputs-main">
+        <Strip
+          {...layout}
+          source="ours"
+          label={null}
+          gear={tick?.gear ?? 0}
+          speedMs={tick?.speed ?? 0}
+          steering={tick?.steering ?? 0}
+          steeringNote={null}
+          throttle={tick?.throttle ?? 0}
+          brake={tick?.brake ?? 0}
+          clutch={tick?.clutch ?? 0}
+          shift={shiftRpm > 0 && (tick?.rpm ?? 0) >= shiftRpm}
+        />
+      </Panel>
+    </div>
   );
 }
 
-function Bar({ label, value, kind, ghost = null }: { label: string; value: number; kind: string; ghost?: number | null }) {
+interface StripProps {
+  source: Source;
+  /** Small caption under the gear, e.g. "Ref". */
+  label: string | null;
+  gear: number;
+  speedMs: number;
+  steering: number | null;
+  steeringNote: string | null;
+  throttle: number;
+  brake: number;
+  /** null hides the clutch bar but keeps its space, so columns stay aligned. */
+  clutch: number | null;
+  shift: boolean;
+  showClutch: boolean;
+  showSteering: boolean;
+  showTrace: boolean;
+  seconds: number;
+  units: Units;
+}
+
+/** One row of the HUD. Used for both your inputs and the reference's. */
+function Strip(p: StripProps) {
+  return (
+    <div className="inputs-body">
+      <div className="hud-gear-wrap">
+        <span className={`hud-gear ${p.shift ? "is-shift" : ""}`}>{gear(p.gear)}</span>
+        {p.label && <span className="hud-caption">{p.label}</span>}
+      </div>
+      <div className="hud-speed">
+        <span className="hud-speed-value">{speed(p.speedMs, p.units)}</span>
+        <span className="hud-speed-unit">{p.units === "imperial" ? "MPH" : "KPH"}</span>
+      </div>
+      {p.showSteering && (
+        <div className="hud-wheel-wrap">
+          {p.steering == null ? <div className="hud-wheel" /> : <Wheel angle={p.steering} />}
+          {p.steeringNote && <span className="hud-wheel-note">{p.steeringNote}</span>}
+        </div>
+      )}
+      {p.showTrace && <Trace seconds={p.seconds} source={p.source} />}
+      <div className="pedals">
+        {p.showClutch &&
+          (p.clutch == null ? <div className="bar bar-spacer" /> : <Bar label="Clutch" value={p.clutch} kind="clutch" />)}
+        <Bar label="Brake" value={p.brake} kind="brake" />
+        <Bar label="Throttle" value={p.throttle} kind="throttle" />
+      </div>
+    </div>
+  );
+}
+
+function Bar({ label, value, kind }: { label: string; value: number; kind: string }) {
   const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
     <div className={`bar bar-${kind} ${pct > 0 ? "is-active" : ""}`} aria-label={`${label} ${pct}%`} title={label}>
       <span className="bar-pct">{pct}</span>
       <div className="bar-track">
         <div className="bar-fill" style={{ transform: `scaleY(${pct / 100})` }} />
-        {ghost != null && (
-          <div
-            className="bar-ghost"
-            style={{ bottom: `${Math.min(1, Math.max(0, ghost)) * 100}%` }}
-            title={`Reference ${Math.round(ghost * 100)}%`}
-          />
-        )}
       </div>
     </div>
   );
 }
 
-/**
- * A wheel that turns with yours; the red mark is 12 o'clock at centre.
- * The purple ghost is the reference's wheel (dashed when it's estimated
- * from the reference's line rather than recorded).
- */
-function Wheel({ angle, ghost, estimated }: { angle: number; ghost: number | null; estimated: boolean }) {
+/** A wheel that turns with yours. The red mark is 12 o'clock at centre. */
+function Wheel({ angle }: { angle: number }) {
   // iRacing: radians, positive = turned left (anticlockwise).
   const deg = (-angle * 180) / Math.PI;
-  const ghostDeg = ghost == null ? null : (-ghost * 180) / Math.PI;
   return (
     <svg className="hud-wheel" viewBox="0 0 100 100" aria-label={`Steering ${Math.round(-deg)}°`}>
-      {ghostDeg != null && (
-        <g className={`wheel-ghost ${estimated ? "is-estimated" : ""}`} style={{ transform: `rotate(${ghostDeg}deg)`, transformOrigin: "50px 50px" }}>
-          <circle cx="50" cy="50" r="46.5" />
-          <path d="M 50 1.5 L 45.5 9 L 54.5 9 Z" />
-        </g>
-      )}
       <g style={{ transform: `rotate(${deg}deg)`, transformOrigin: "50px 50px" }}>
         <circle className="wheel-rim" cx="50" cy="50" r="41" />
         {/* Spokes: left, right and down to a centre hub. */}
@@ -118,15 +148,16 @@ function Wheel({ angle, ghost, estimated }: { angle: number; ghost: number | nul
 }
 
 /** Rolling throttle/brake trace drawn on a canvas, outside React's render loop. */
-function Trace({ seconds }: { seconds: number }) {
+function Trace({ seconds, source }: { seconds: number; source: Source }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const height = source === "reference" ? GHOST_TRACE_H : TRACE_H;
 
   useEffect(() => {
     const el = canvas.current!;
     const ctx = el.getContext("2d")!;
     const dpr = Math.max(1, window.devicePixelRatio || 1) * 2; // stays crisp when scaled up
     el.width = TRACE_W * dpr;
-    el.height = TRACE_H * dpr;
+    el.height = height * dpr;
     ctx.scale(dpr, dpr);
 
     const css = getComputedStyle(el);
@@ -134,29 +165,25 @@ function Trace({ seconds }: { seconds: number }) {
     const brakeColor = css.getPropertyValue("--brake").trim() || "#ff5468";
     const gridColor = css.getPropertyValue("--grid").trim() || "rgba(255,255,255,.07)";
 
-    const ghostColor = css.getPropertyValue("--fastest").trim() || "#b98cff";
-    const samples: { t: number; th: number; br: number; gth: number | null; gbr: number | null }[] = [];
+    const samples: { t: number; th: number | null; br: number | null }[] = [];
     let raf = 0;
 
     const unsub = useLive.subscribe((s, prev) => {
       if (s.tick && s.tick !== prev.tick) push(s.tick);
     });
     function push(t: TickPayload) {
-      samples.push({
-        t: t.sessionTime,
-        th: t.throttle,
-        br: t.brake,
-        gth: t.coach?.refThrottle ?? null,
-        gbr: t.coach?.refBrake ?? null,
-      });
+      // The reference's inputs at the spot we're at, so both traces share a time axis.
+      const th = source === "ours" ? t.throttle : t.coach?.refThrottle ?? null;
+      const br = source === "ours" ? t.brake : t.coach?.refBrake ?? null;
+      samples.push({ t: t.sessionTime, th, br });
       const cutoff = t.sessionTime - seconds - 0.1;
       while (samples.length && (samples[0].t < cutoff || samples[0].t > t.sessionTime)) samples.shift();
     }
 
     const pad = 4;
-    const y = (v: number) => pad + (1 - v) * (TRACE_H - pad * 2);
+    const y = (v: number) => pad + (1 - v) * (height - pad * 2);
     const x = (t: number, now: number) => TRACE_W - ((now - t) / seconds) * TRACE_W;
-    const line = (key: "th" | "br" | "gth" | "gbr", color: string, now: number, ghost = false) => {
+    const line = (key: "th" | "br", color: string, now: number) => {
       ctx.beginPath();
       let open = false;
       for (const s of samples) {
@@ -170,18 +197,14 @@ function Trace({ seconds }: { seconds: number }) {
         open = true;
       }
       ctx.strokeStyle = color;
-      ctx.lineWidth = ghost ? 1.5 : 2.5;
-      ctx.globalAlpha = ghost ? 0.85 : 1;
-      ctx.setLineDash(ghost ? [4, 3] : []);
+      ctx.lineWidth = source === "ours" ? 2.5 : 2;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.setLineDash([]);
     };
 
     const draw = () => {
-      ctx.clearRect(0, 0, TRACE_W, TRACE_H);
+      ctx.clearRect(0, 0, TRACE_W, height);
       const now = samples.length ? samples[samples.length - 1].t : 0;
 
       ctx.strokeStyle = gridColor;
@@ -201,14 +224,11 @@ function Trace({ seconds }: { seconds: number }) {
         const px = Math.round(x(t, now)) + 0.5;
         ctx.beginPath();
         ctx.moveTo(px, 0);
-        ctx.lineTo(px, TRACE_H);
+        ctx.lineTo(px, height);
         ctx.stroke();
       }
 
       if (samples.length > 1) {
-        // Reference inputs first, dashed purple, so ours draw on top.
-        line("gth", ghostColor, now, true);
-        line("gbr", ghostColor, now, true);
         line("th", throttleColor, now);
         line("br", brakeColor, now);
       }
@@ -219,7 +239,7 @@ function Trace({ seconds }: { seconds: number }) {
       cancelAnimationFrame(raf);
       unsub();
     };
-  }, [seconds]);
+  }, [seconds, source, height]);
 
-  return <canvas ref={canvas} className="trace" style={{ width: TRACE_W, height: TRACE_H }} />;
+  return <canvas ref={canvas} className="trace" style={{ width: TRACE_W, height }} />;
 }

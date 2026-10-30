@@ -116,9 +116,8 @@ export interface CoachPayload {
   refThrottle: number | null;
   refBrake: number | null;
   refGear: number | null;
-  /** rad, positive = left */
+  /** rad, positive = left. Only .ibt references record steering. */
   refSteering: number | null;
-  steeringEstimated: boolean;
   /** Your speed minus the reference's, m/s. */
   speedDelta: number | null;
   cue: Cue | null;

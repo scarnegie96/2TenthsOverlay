@@ -404,55 +404,81 @@
   flex-direction: column;
   align-items: center;
 }
-/* Reference ("ghost") values: purple, the reference is the ideal lap. */
-.hud-ghost {
-  margin-top: 5px;
-  padding: 1px 6px;
+.hud-caption {
+  margin-top: 6px;
+  padding: 0 6px;
   border-radius: 3px;
   font-size: 12px;
   font-weight: 700;
-  line-height: 15px;
-  color: var(--fastest);
-  background: color-mix(in srgb, var(--fastest) 16%, transparent);
-  white-space: nowrap;
-}
-.hud-ghost.is-off,
-.hud-ghost.is-down {
-  color: #fff;
-  background: color-mix(in srgb, var(--loss) 70%, transparent);
-}
-.hud-ghost.is-up {
-  color: #0d131b;
-  background: var(--gain);
-}
-.inputs.has-ghost .hud-gear {
-  font-size: 80px;
-}
-.wheel-ghost circle {
-  fill: none;
-  stroke: var(--fastest);
-  stroke-width: 2.5;
-  opacity: 0.85;
-}
-.wheel-ghost.is-estimated circle {
-  stroke-dasharray: 5 4;
-}
-.wheel-ghost path {
-  fill: var(--fastest);
-}
-.bar-ghost {
-  position: absolute;
-  left: -3px;
-  right: -3px;
-  height: 3px;
-  margin-bottom: -1.5px;
-  border-radius: 2px;
+  line-height: 16px;
+  color: var(--panel-solid);
   background: var(--fastest);
-  box-shadow: 0 0 0 1px rgba(13, 19, 27, 0.8);
 }
-.bar-track:has(.bar-ghost) {
-  overflow: visible;
+.hud-wheel-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
 }
+.hud-wheel-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.15;
+  color: var(--ink-3);
+}
+
+/* The reference strip: a slimmer tab growing out of the top of the main
+   panel. It's inset 12px each side but its contents sit on the same columns,
+   so the reference trace lines up directly above yours. */
+/* The strip grows upwards out of the panel, so the widget's position and
+   size (and anything snapped to it) stay put when a reference is loaded. */
+.inputs-stack {
+  position: relative;
+}
+.inputs-ghost {
+  position: absolute;
+  z-index: 1;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% - 1px);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: inset 0 2px 0 var(--fastest);
+}
+.inputs-ghost .inputs-body {
+  height: 82px;
+  padding: 10px 2px 10px 6px;
+}
+.inputs-ghost .hud-gear {
+  font-size: 64px;
+}
+.inputs-ghost .hud-speed-value {
+  font-size: 32px;
+}
+.inputs-ghost .hud-speed-unit {
+  margin-top: 2px;
+  font-size: 11px;
+}
+.inputs-ghost .hud-wheel-wrap {
+  width: 86px;
+}
+.inputs-ghost .hud-wheel {
+  width: 60px;
+  height: 60px;
+}
+.inputs-ghost .pedals {
+  height: 62px;
+}
+.inputs-ghost .bar-pct {
+  font-size: 12px;
+}
+.bar-spacer {
+  visibility: hidden;
+}
+
 .hud-gear {
   min-width: 52px;
   font-size: 96px;
