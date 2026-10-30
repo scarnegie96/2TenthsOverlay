@@ -89,6 +89,13 @@ quoted before parsing, because iRacing doesn't escape them.
   actual yaw rate below that expectation is understeer, above it oversteer; a
   big slip angle with opposite lock is always oversteer. The sign conventions of
   iRacing's `Pitch` and `Roll` should be checked in the sim (see the views).
+- **Instruments** (`instruments.rs`): `EngineWarnings` bits are water temp 0x1,
+  fuel pressure 0x2, oil pressure 0x4, stalled 0x8, pit limiter 0x10, rev limiter
+  0x20, and in newer SDKs oil temp 0x40, repair required 0x80, optional repair
+  0x100. Low fuel is ours: under 2 laps of fuel by the fuel tracker, or under 8%
+  of the tank before there's a per-lap figure. Gauges reading 0 are treated as
+  "not modelled for this car". Brake bias is `dcBrakeBias` (plus
+  `dcBrakeBiasFine`/`dcPeakBrakeBias` on cars that have them), shown as % front.
 - **Sectors**: track sectors come from `SplitTimeInfo.Sectors` in the session
   YAML; the widget can use equal mini sectors instead. The front end
   (`src/lib/deltaHistory.ts`) records the delta curve per lap and the gain or loss

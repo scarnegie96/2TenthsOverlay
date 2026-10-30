@@ -277,10 +277,33 @@ class Mock {
       fuelLevel: this.fuel, carLeftRight: near.carLeftRight, incidents: 2, nearby: near.cars,
       coach: null,
       dynamics: { latG: 0, longG: 0, vertG: 1, pitchDeg: 0, rollDeg: 0, slipDeg: 0, yawRateDeg: 0, balance: null },
+      instruments: null as unknown as TickPayload["instruments"],
     };
     t.dynamics = this.dynamics(t, pct);
+    t.instruments = this.instruments(t);
     t.coach = this.coach(t);
     return t;
+  }
+
+  /** Engine gauges that follow the revs; a water temperature warning comes on now and then. */
+  private instruments(t: TickPayload): TickPayload["instruments"] {
+    const load = (t.rpm - 4200) / 4300;
+    const hot = this.t % 45 > 39;
+    return {
+      warnings: {
+        waterTemp: hot, fuelPressure: false, oilPressure: false, oilTemp: false, stalled: false,
+        pitLimiter: false, revLimiter: t.rpm > 8400, repairRequired: false, repairOptional: false,
+        lowFuel: t.fuelLevel / 2.7 < 2,
+      },
+      oilTemp: 98 + 8 * load + Math.sin(this.t * 0.01) * 2,
+      oilPress: 2.2 + 3 * load,
+      waterTemp: hot ? 112 : 88 + 4 * load,
+      fuelPress: 3.8,
+      voltage: 13.8,
+      brakeBias: this.t % 60 > 30 ? 54.0 : 54.5,
+      brakeBiasFine: null,
+      peakBrakeBias: null,
+    };
   }
 
   /** Rough body physics so the Dynamics widget moves believably. */

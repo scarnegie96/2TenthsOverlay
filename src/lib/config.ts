@@ -1,6 +1,6 @@
 import type { Units } from "./format";
 
-export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "dynamics" | "fuel" | "radar" | "tires" | "spotter";
+export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "dynamics" | "instruments" | "fuel" | "radar" | "tires" | "spotter";
 
 export interface WidgetConfig {
   enabled: boolean;
@@ -148,6 +148,17 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showAttitude", label: "Show slip, pitch and roll", type: "toggle", default: true },
       { key: "exaggerate", label: "Exaggerate pitch and roll", type: "number", default: 4, min: 1, max: 10, suffix: "×", help: "Real angles are small; the numbers always show the true value" },
       { key: "showBalance", label: "Show balance", type: "toggle", default: true, help: "Learnt from your driving, so it settles after a few corners" },
+    ],
+  },
+  {
+    id: "instruments",
+    name: "Instruments",
+    description: "Warning lights (oil, water, fuel, stalled, limiters, repairs), engine gauges and a brake bias dial.",
+    x: 1396, y: 846, enabled: true,
+    options: [
+      { key: "showGauges", label: "Show engine gauges", type: "toggle", default: true },
+      { key: "showBias", label: "Show brake bias", type: "toggle", default: true, help: "Only for cars with adjustable bias" },
+      { key: "testLights", label: "Light every warning while editing", type: "toggle", default: false, help: "Bulb test, to check how they look" },
     ],
   },
   {

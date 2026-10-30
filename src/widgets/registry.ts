@@ -5,6 +5,7 @@ import { Delta } from "./Delta";
 import { Dynamics } from "./Dynamics";
 import { Fuel } from "./Fuel";
 import { Inputs } from "./Inputs";
+import { Instruments } from "./Instruments";
 import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Spotter } from "./Spotter";
@@ -28,4 +29,5 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   tires: Tires,
   coach: Coach,
   dynamics: Dynamics,
+  instruments: Instruments,
 };

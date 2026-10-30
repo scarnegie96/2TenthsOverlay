@@ -64,6 +64,19 @@ pub struct RawFrame {
     pub velocity_x: f32,
     pub velocity_y: f32,
 
+    /// `EngineWarnings` bitfield.
+    pub engine_warnings: u32,
+    /// None when the car doesn't expose the channel.
+    pub oil_temp: Option<f32>,
+    pub oil_press: Option<f32>,
+    pub water_temp: Option<f32>,
+    pub fuel_press: Option<f32>,
+    pub voltage: Option<f32>,
+    /// `dcBrakeBias` and friends; None when the car has no adjustable bias.
+    pub brake_bias: Option<f32>,
+    pub brake_bias_fine: Option<f32>,
+    pub peak_brake_bias: Option<f32>,
+
     pub lap: i32,
     pub lap_completed: i32,
     pub lap_dist_pct: f32,
@@ -220,6 +233,8 @@ pub struct TickPayload {
     pub coach: Option<crate::coach::CoachPayload>,
     /// g-forces, attitude and balance for the Dynamics widget.
     pub dynamics: crate::dynamics::DynamicsPayload,
+    /// Warning lights, engine gauges and brake bias.
+    pub instruments: crate::instruments::InstrumentsPayload,
 }
 
 /// Live delta against each kind of comparison lap. None when iRacing (or the

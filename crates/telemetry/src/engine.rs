@@ -148,6 +148,7 @@ impl Engine {
             nearby: self.nearby(f),
             coach,
             dynamics: self.dynamics.update(f),
+            instruments: crate::instruments::build(f, mean(&self.fuel.per_lap)),
         }
     }
 

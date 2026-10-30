@@ -333,6 +333,26 @@ impl DemoSource {
         let slide = if speed < 30.0 { 0.035 } else { 0.012 };
         f.velocity_x = speed;
         f.velocity_y = -slide * f.yaw_rate * speed;
+
+        // Engine gauges that respond to revs, and a water temperature warning
+        // that comes on for a few seconds every so often so the light can be seen.
+        use crate::instruments::engine_warning as w;
+        let load = (rpm - 4_200.0) / 4_300.0;
+        let hot = (self.t % 45.0) > 39.0;
+        f.oil_temp = Some(98.0 + 8.0 * load + (self.t as f32 * 0.01).sin() * 2.0);
+        f.oil_press = Some(2.2 + 3.0 * load);
+        f.water_temp = Some(if hot { 112.0 } else { 88.0 + 4.0 * load });
+        f.fuel_press = Some(3.8);
+        f.voltage = Some(13.8);
+        f.brake_bias = Some(if (self.t % 60.0) > 30.0 { 54.0 } else { 54.5 });
+        let mut warn = 0;
+        if hot {
+            warn |= w::WATER_TEMP;
+        }
+        if rpm > 8_400.0 {
+            warn |= w::REV_LIMITER;
+        }
+        f.engine_warnings = warn;
         f.lap = f.car_lap[PLAYER];
         f.lap_completed = f.car_lap_completed[PLAYER];
         f.lap_dist_pct = pct;

@@ -632,6 +632,199 @@
   background: var(--clutch);
 }
 
+/* ---------- Instruments ------------------------------------------------------ */
+
+.instruments {
+  width: 480px;
+}
+.dash-lights {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.dash-light {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0 3px;
+  border-radius: 5px;
+  color: rgba(233, 238, 243, 0.16);
+  transition: color 0.12s, background 0.12s;
+}
+.dash-icon {
+  width: 30px;
+  height: 30px;
+}
+.dash-light span {
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--ink-3);
+  opacity: 0.55;
+}
+.dash-light.is-on span {
+  opacity: 1;
+  color: var(--ink);
+}
+.dash-light.is-on.level-danger {
+  color: var(--loss);
+  background: color-mix(in srgb, var(--loss) 16%, transparent);
+}
+.dash-light.is-on.level-caution {
+  color: var(--attention);
+  background: color-mix(in srgb, var(--attention) 14%, transparent);
+}
+.dash-light.is-on.level-info {
+  color: var(--lapped);
+  background: color-mix(in srgb, var(--lapped) 16%, transparent);
+}
+.dash-light.is-on .dash-icon {
+  filter: drop-shadow(0 0 5px currentColor);
+}
+/* Critical lights pulse so they're hard to miss in a peripheral glance. */
+.dash-light.is-on.level-danger .dash-icon {
+  animation: dash-pulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes dash-pulse {
+  to {
+    opacity: 0.55;
+  }
+}
+.instruments.has-danger {
+  border-color: color-mix(in srgb, var(--loss) 60%, transparent);
+}
+
+.dash-lower {
+  display: flex;
+  gap: 14px;
+  padding: 8px 12px 10px;
+}
+.dash-gauges {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+.dash-gauge {
+  display: grid;
+  grid-template-columns: 66px 1fr 66px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.dash-gauge-label {
+  color: var(--ink-3);
+}
+.dash-gauge-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(233, 238, 243, 0.08);
+  overflow: hidden;
+}
+.dash-gauge-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ink-2);
+  transform-origin: 0 50%;
+}
+.dash-gauge.is-warn .dash-gauge-bar span {
+  background: var(--loss);
+}
+.dash-gauge.is-warn .dash-gauge-value {
+  color: var(--loss);
+}
+.dash-gauge-value {
+  text-align: right;
+  font-weight: 700;
+  font-size: 15px;
+}
+.dash-gauge-value small {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.dash-gauge.is-missing {
+  opacity: 0.45;
+}
+
+.bias {
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0 0;
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+.bias-dial {
+  width: 132px;
+  height: 77px;
+  overflow: visible;
+}
+.bias-track {
+  fill: none;
+  stroke: rgba(233, 238, 243, 0.1);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.bias-tick {
+  stroke: var(--ink-3);
+  stroke-width: 1.2;
+}
+.bias-tick.is-major {
+  stroke: var(--ink-2);
+  stroke-width: 1.8;
+}
+.bias-needle {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transition: transform 0.25s ease-out;
+}
+.bias-needle path {
+  fill: var(--attention);
+}
+.bias-hub {
+  fill: var(--ink);
+}
+.bias-end {
+  font: 600 9px var(--font);
+  fill: var(--ink-3);
+}
+.bias-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -2px;
+}
+.bias-value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+.bias-label {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.bias.is-changed .bias-value,
+.bias.is-changed .bias-label {
+  color: var(--attention);
+}
+.bias-extra {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: pre;
+}
+.bias.is-missing .bias-dial {
+  opacity: 0.35;
+}
+
 /* ---------- Car dynamics ------------------------------------------------------ */
 
 .dynamics {

@@ -265,6 +265,17 @@ impl Irsdk {
         f.velocity_x = self.f32("VelocityX");
         f.velocity_y = self.f32("VelocityY");
 
+        let opt = |name: &str| self.num(name, 0).map(|v| v as f32);
+        f.engine_warnings = self.num("EngineWarnings", 0).unwrap_or(0.0) as u32;
+        f.oil_temp = opt("OilTemp");
+        f.oil_press = opt("OilPress");
+        f.water_temp = opt("WaterTemp");
+        f.fuel_press = opt("FuelPress");
+        f.voltage = opt("Voltage");
+        f.brake_bias = opt("dcBrakeBias");
+        f.brake_bias_fine = opt("dcBrakeBiasFine");
+        f.peak_brake_bias = opt("dcPeakBrakeBias");
+
         f.lap = self.i32("Lap");
         f.lap_completed = self.i32("LapCompleted");
         f.lap_dist_pct = self.f32("LapDistPct");

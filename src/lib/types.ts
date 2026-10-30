@@ -92,6 +92,39 @@ export interface TickPayload {
   coach: CoachPayload | null;
   /** g-forces, attitude and balance for the Dynamics widget. */
   dynamics: DynamicsPayload;
+  /** Warning lights, engine gauges and brake bias. */
+  instruments: InstrumentsPayload;
+}
+
+export interface Warnings {
+  waterTemp: boolean;
+  fuelPressure: boolean;
+  oilPressure: boolean;
+  oilTemp: boolean;
+  stalled: boolean;
+  pitLimiter: boolean;
+  revLimiter: boolean;
+  repairRequired: boolean;
+  repairOptional: boolean;
+  /** Worked out by Tenths from fuel per lap, not an iRacing flag. */
+  lowFuel: boolean;
+}
+
+export interface InstrumentsPayload {
+  warnings: Warnings;
+  /** °C */
+  oilTemp: number | null;
+  /** bar */
+  oilPress: number | null;
+  /** °C */
+  waterTemp: number | null;
+  /** bar */
+  fuelPress: number | null;
+  voltage: number | null;
+  /** % front; null when the car has no adjustable bias. */
+  brakeBias: number | null;
+  brakeBiasFine: number | null;
+  peakBrakeBias: number | null;
 }
 
 export interface DynamicsPayload {

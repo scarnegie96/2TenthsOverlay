@@ -17,6 +17,7 @@ pub mod demo;
 pub mod dynamics;
 pub mod engine;
 pub mod ibt;
+pub mod instruments;
 pub mod lapfile;
 pub mod model;
 pub mod reference;
