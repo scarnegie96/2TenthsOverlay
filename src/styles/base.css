@@ -1,0 +1,73 @@
+/* Design tokens shared by the overlay and settings windows.
+ *
+ * Colour language borrows from motorsport timing screens:
+ *   purple = fastest, green = gaining / throttle, red = losing / brake,
+ *   amber = attention, blue = a car you're lapping.
+ */
+:root {
+  --font: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
+
+  --ink: #e9eef3;
+  --ink-2: #a7b4c2;
+  --ink-3: #6d7c8d;
+
+  --panel: rgba(13, 19, 27, 0.84);
+  --panel-solid: #0d131b;
+  --panel-raised: #151e29;
+  --line: rgba(146, 170, 196, 0.16);
+  --line-strong: rgba(146, 170, 196, 0.32);
+  --grid: rgba(233, 238, 243, 0.07);
+
+  --fastest: #b98cff;
+  --gain: #4be08f;
+  --loss: #ff5468;
+  --attention: #ffb547;
+  --lapped: #6fb7ff;
+  --lapping: #ff9a6b;
+  --player: rgba(233, 238, 243, 0.12);
+
+  --throttle: var(--gain);
+  --brake: var(--loss);
+  --clutch: #6fb7ff;
+
+  --radius: 6px;
+  --row-h: 26px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

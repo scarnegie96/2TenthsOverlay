@@ -1,0 +1,258 @@
+//! Data types: the normalized raw frame every source produces, and the
+//! payloads the engine sends to the UI.
+
+use serde::Serialize;
+
+pub const MAX_CARS: usize = 64;
+
+/// `CarIdxTrackSurface` / `PlayerTrackSurface` values (irsdk_TrkLoc).
+pub mod track_surface {
+    pub const NOT_IN_WORLD: i32 = -1;
+    pub const OFF_TRACK: i32 = 0;
+    pub const IN_PIT_STALL: i32 = 1;
+    pub const APPROACHING_PITS: i32 = 2;
+    pub const ON_TRACK: i32 = 3;
+}
+
+/// `CarLeftRight` values (irsdk_CarLeftRight).
+pub mod car_left_right {
+    pub const OFF: i32 = 0;
+    pub const CLEAR: i32 = 1;
+    pub const CAR_LEFT: i32 = 2;
+    pub const CAR_RIGHT: i32 = 3;
+    pub const CAR_LEFT_RIGHT: i32 = 4;
+    pub const TWO_CARS_LEFT: i32 = 5;
+    pub const TWO_CARS_RIGHT: i32 = 6;
+}
+
+/// One telemetry sample, normalized from whichever source produced it.
+/// Field names follow the iRacing variable they come from.
+#[derive(Debug, Clone, Default)]
+pub struct RawFrame {
+    pub tick: i32,
+    pub session_num: i32,
+    pub session_state: i32,
+    pub session_flags: u32,
+    pub session_time: f64,
+    /// Seconds; iRacing reports a huge value when the session is lap-limited.
+    pub session_time_remain: f64,
+    /// `SessionLapsRemainEx`; 32767 when unlimited.
+    pub session_laps_remain: i32,
+
+    pub player_car_idx: i32,
+    pub is_on_track: bool,
+    pub on_pit_road: bool,
+
+    pub speed: f32,
+    pub rpm: f32,
+    pub gear: i32,
+    pub throttle: f32,
+    pub brake: f32,
+    /// Pedal position, 0 = released, 1 = pressed (already inverted from iRacing's `Clutch`).
+    pub clutch: f32,
+    pub steering: f32,
+
+    pub lap: i32,
+    pub lap_completed: i32,
+    pub lap_dist_pct: f32,
+    pub lap_current: f32,
+    pub lap_last: f32,
+    pub lap_best: f32,
+    pub delta_best: f32,
+    pub delta_best_ok: bool,
+
+    pub fuel_level: f32,
+    pub fuel_level_pct: f32,
+
+    pub car_left_right: i32,
+    pub incidents: i32,
+    pub track_temp: f32,
+    pub air_temp: f32,
+
+    pub car_lap: Vec<i32>,
+    pub car_lap_completed: Vec<i32>,
+    pub car_lap_dist_pct: Vec<f32>,
+    pub car_position: Vec<i32>,
+    pub car_class_position: Vec<i32>,
+    pub car_on_pit_road: Vec<bool>,
+    pub car_track_surface: Vec<i32>,
+    pub car_est_time: Vec<f32>,
+    pub car_f2_time: Vec<f32>,
+    pub car_last_lap: Vec<f32>,
+    pub car_best_lap: Vec<f32>,
+}
+
+impl RawFrame {
+    pub fn with_capacity() -> Self {
+        Self {
+            car_lap: vec![0; MAX_CARS],
+            car_lap_completed: vec![0; MAX_CARS],
+            car_lap_dist_pct: vec![-1.0; MAX_CARS],
+            car_position: vec![0; MAX_CARS],
+            car_class_position: vec![0; MAX_CARS],
+            car_on_pit_road: vec![false; MAX_CARS],
+            car_track_surface: vec![track_surface::NOT_IN_WORLD; MAX_CARS],
+            car_est_time: vec![0.0; MAX_CARS],
+            car_f2_time: vec![0.0; MAX_CARS],
+            car_last_lap: vec![-1.0; MAX_CARS],
+            car_best_lap: vec![-1.0; MAX_CARS],
+            ..Default::default()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Payloads sent to the UI (camelCase JSON).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SourceKind {
+    None,
+    Iracing,
+    Demo,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusPayload {
+    pub source: SourceKind,
+    /// True when a sim (real or demo) is delivering frames.
+    pub connected: bool,
+    pub message: String,
+}
+
+/// Sent once per session-info change.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPayload {
+    pub track_name: String,
+    pub track_config: String,
+    pub track_length_km: f32,
+    pub session_type: String,
+    pub player_car_idx: i32,
+    pub player_class_id: i32,
+    pub car_name: String,
+    pub fuel_max_ltr: f32,
+    pub est_lap_time: f32,
+    pub shift_rpm: f32,
+    pub redline_rpm: f32,
+    pub multiclass: bool,
+}
+
+/// Sent every telemetry frame (60 Hz). Keep this small.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TickPayload {
+    pub session_time: f64,
+    pub is_on_track: bool,
+    pub on_pit_road: bool,
+    /// m/s
+    pub speed: f32,
+    pub rpm: f32,
+    pub gear: i32,
+    pub throttle: f32,
+    pub brake: f32,
+    pub clutch: f32,
+    /// radians, positive = left
+    pub steering: f32,
+    pub lap: i32,
+    pub lap_dist_pct: f32,
+    pub lap_current: f32,
+    pub lap_last: Option<f32>,
+    pub lap_best: Option<f32>,
+    pub delta_best: Option<f32>,
+    pub fuel_level: f32,
+    pub car_left_right: i32,
+    pub incidents: i32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverCell {
+    pub car_idx: i32,
+    pub name: String,
+    pub abbrev: String,
+    pub number: String,
+    pub class_id: i32,
+    pub class_name: String,
+    pub class_color: String,
+    pub irating: i32,
+    pub license: String,
+    pub license_color: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelativeRow {
+    #[serde(flatten)]
+    pub driver: DriverCell,
+    pub position: i32,
+    pub class_position: i32,
+    /// Seconds. Positive = this car is ahead of the player on track.
+    pub gap: f32,
+    /// +1 = a lap or more ahead of the player, -1 = a lap or more behind, 0 = same lap.
+    pub lap_status: i32,
+    pub on_pit_road: bool,
+    pub is_player: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StandingRow {
+    #[serde(flatten)]
+    pub driver: DriverCell,
+    pub position: i32,
+    pub class_position: i32,
+    pub lap: i32,
+    /// Seconds behind the class leader (race) or best-lap difference (practice / qualifying).
+    pub gap: Option<f32>,
+    pub laps_down: i32,
+    /// Seconds to the car one place ahead in class.
+    pub interval: Option<f32>,
+    pub last_lap: Option<f32>,
+    pub best_lap: Option<f32>,
+    /// Holds the fastest lap in its class.
+    pub class_fastest: bool,
+    pub on_pit_road: bool,
+    pub is_player: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FuelPayload {
+    pub level: f32,
+    pub max: f32,
+    /// Average litres per green lap (last 5).
+    pub per_lap: Option<f32>,
+    pub last_lap_used: Option<f32>,
+    pub laps_of_fuel: Option<f32>,
+    /// Laps the player still has to drive, including the rest of this lap.
+    pub laps_to_go: Option<f32>,
+    /// Litres needed to finish beyond what's in the tank (negative = spare).
+    pub to_finish: Option<f32>,
+    pub samples: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionClock {
+    pub session_type: String,
+    pub time_remain: Option<f64>,
+    pub laps_remain: Option<i32>,
+    pub total_laps: Option<i32>,
+    pub flags: u32,
+    pub track_temp: f32,
+    pub air_temp: f32,
+    pub strength_of_field: Option<i32>,
+}
+
+/// Sent at 10 Hz: everything about the field and strategy.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldPayload {
+    pub clock: SessionClock,
+    pub relative: Vec<RelativeRow>,
+    pub standings: Vec<StandingRow>,
+    pub fuel: FuelPayload,
+}

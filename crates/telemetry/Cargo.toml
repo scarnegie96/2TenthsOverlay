@@ -1,0 +1,21 @@
+[package]
+name = "telemetry"
+version = "0.1.0"
+edition = "2021"
+description = "iRacing SDK reader, demo simulator and derived-data engine. No Tauri dependency."
+
+[features]
+# Lets the Windows-only IRSDK reader be type-checked on other platforms (cargo check only).
+typecheck-windows = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Memory",
+  "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+serde_json = "1"
