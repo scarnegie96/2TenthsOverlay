@@ -297,8 +297,19 @@ impl Irsdk {
         f.fuel_level_pct = self.f32("FuelLevelPct");
         f.car_left_right = self.i32("CarLeftRight");
         f.incidents = self.i32("PlayerCarMyIncidentCount");
+        f.team_incidents = self.i32("PlayerCarTeamIncidentCount");
+        f.fast_repairs_used = self.i32("FastRepairUsed");
         f.track_temp = self.f32("TrackTempCrew");
         f.air_temp = self.f32("AirTemp");
+
+        f.time_of_day = opt("SessionTimeOfDay");
+        f.skies = self.num("Skies", 0).map(|v| v as i32);
+        f.track_wetness = self.num("TrackWetness", 0).map(|v| v as i32);
+        f.declared_wet = self.bool("WeatherDeclaredWet");
+        f.wind_speed = opt("WindVel");
+        f.wind_dir = opt("WindDir");
+        // Documented as a percentage but published as a fraction; accept either.
+        f.humidity = opt("RelativeHumidity").map(|h| if h > 1.0 { h / 100.0 } else { h });
 
         for k in 0..4 {
             for j in 0..3 {

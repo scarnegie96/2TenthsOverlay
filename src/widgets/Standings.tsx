@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { gap as fmtGap, irating } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { StandingRow } from "../lib/types";
-import { BestLap, ClassStripe, IRatingBadge, LastLap, strengthOfField } from "./cells";
+import { BestLap, ClassStripe, IRatingBadge, LastLap } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { sessionAside } from "./Relative";
 
@@ -51,12 +51,16 @@ export function Standings({ config }: { config: WidgetConfig }) {
   const showLast = opt(config, "showLast", true);
   const showBest = opt(config, "showBest", true);
   const showIR = opt(config, "showIRating", true);
+  const showSoF = opt(config, "showSoF", true);
 
   const all = field?.standings ?? [];
   const playerClass = all.find((r) => r.isPlayer)?.classId ?? session?.playerClassId;
   let groups = groupByClass(all);
   if (myClassOnly) groups = groups.filter((g) => g.classId === playerClass);
   const showClassHeads = groups.length > 1;
+  const classSoF = (id: number) => field?.clock.classes.find((c) => c.classId === id)?.strengthOfField ?? null;
+  // With one class there are no class headers, so the SoF goes in the top line.
+  const headSoF = showSoF && !showClassHeads && groups.length === 1 ? classSoF(groups[0].classId) : null;
 
   const cols = [
     "24px 8px 34px minmax(0, 1fr)",
@@ -79,6 +83,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
             <span className="row-head-title">
               <b>{session?.trackName || "Standings"}</b>
               {sessionAside(field?.clock)}
+              {headSoF ? <span>SoF {irating(headSoF)}</span> : null}
             </span>
             {showIR && <span>iR</span>}
             <span>{gapMode === "interval" ? "Int" : "Gap"}</span>
@@ -87,7 +92,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
           </div>
           {groups.map((g) => {
             const max = g.classId === playerClass ? myRows : otherRows;
-            const sof = strengthOfField(g.rows.map((r) => r.irating));
+            const sof = showSoF ? classSoF(g.classId) : null;
             return (
               <div key={g.classId} className="class-group" style={{ "--row-class": g.color } as React.CSSProperties}>
                 {showClassHeads && (

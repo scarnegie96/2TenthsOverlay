@@ -1370,6 +1370,68 @@
   color: var(--attention);
 }
 
+/* ---------- Session ----------------------------------------------------------- */
+
+.session-info {
+  width: 300px;
+}
+.si-track {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.si-track b {
+  font-size: 16px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.si-track span {
+  font-size: 13px;
+  color: var(--ink-3);
+  white-space: pre;
+}
+.si-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin: 6px 10px 8px;
+  font-size: 14px;
+}
+.si-grid dt {
+  color: var(--ink-2);
+}
+.si-grid dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+  white-space: pre;
+}
+.si-grid .si-class {
+  padding-left: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--row-class);
+  box-shadow: inset 2px 0 0 var(--row-class);
+}
+.si-grid .si-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.si-grid .si-wet {
+  color: var(--attention);
+}
+.si-grid .si-warn {
+  color: var(--attention);
+}
+.si-grid dd .tag {
+  margin-left: 6px;
+}
+
 /* ---------- Spotter ----------------------------------------------------------- */
 
 .spotter {

@@ -91,8 +91,27 @@ pub struct RawFrame {
 
     pub car_left_right: i32,
     pub incidents: i32,
+    /// PlayerCarTeamIncidentCount: what the incident limit counts in team events.
+    pub team_incidents: i32,
+    /// FastRepairUsed
+    pub fast_repairs_used: i32,
     pub track_temp: f32,
     pub air_temp: f32,
+
+    // Conditions. None when the variable isn't published.
+    /// SessionTimeOfDay, seconds since midnight in the sim.
+    pub time_of_day: Option<f32>,
+    /// Skies: 0 clear, 1 partly cloudy, 2 mostly cloudy, 3 overcast.
+    pub skies: Option<i32>,
+    /// TrackWetness (irsdk_TrackWetness): 1 dry .. 7 extremely wet, 0 unknown.
+    pub track_wetness: Option<i32>,
+    pub declared_wet: bool,
+    /// m/s
+    pub wind_speed: Option<f32>,
+    /// radians
+    pub wind_dir: Option<f32>,
+    /// 0..1
+    pub humidity: Option<f32>,
 
     /// Tires in LF, RF, LR, RR order. iRacing only refreshes temps and wear
     /// while the car sits in its pit box; on track they hold the last reading.
@@ -365,6 +384,38 @@ pub struct SessionClock {
     pub flags: u32,
     pub track_temp: f32,
     pub air_temp: f32,
+    /// SoF of the player's class.
+    pub strength_of_field: Option<i32>,
+    /// Every class in the field with its car count and SoF, fastest class first.
+    pub classes: Vec<ClassSummary>,
+    /// Seconds since midnight in the sim.
+    pub time_of_day: Option<f32>,
+    pub skies: Option<i32>,
+    pub track_wetness: Option<i32>,
+    pub declared_wet: bool,
+    /// m/s
+    pub wind_speed: Option<f32>,
+    /// radians
+    pub wind_dir: Option<f32>,
+    /// 0..1
+    pub humidity: Option<f32>,
+    /// The player's count, or the team's in team events (what the limit applies to).
+    pub incidents: i32,
+    /// None when unlimited.
+    pub incident_limit: Option<i32>,
+    pub fast_repairs_used: i32,
+    /// None when unlimited.
+    pub fast_repairs_limit: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassSummary {
+    pub class_id: i32,
+    pub name: String,
+    pub color: String,
+    /// Entries in the class (spectators and the pace car excluded).
+    pub cars: i32,
     pub strength_of_field: Option<i32>,
 }
 

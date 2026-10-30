@@ -138,6 +138,11 @@ impl DemoSource {
         frame.is_on_track = true;
         frame.track_temp = 31.4;
         frame.air_temp = 22.8;
+        frame.skies = Some(1);
+        frame.track_wetness = Some(1);
+        frame.wind_speed = Some(3.4);
+        frame.wind_dir = Some(5.5);
+        frame.humidity = Some(0.56);
 
         let mut s = Self {
             frame,
@@ -305,6 +310,8 @@ impl DemoSource {
 
         f.tick += 1;
         f.session_time = self.t;
+        // Race started at 14:00 in the sim.
+        f.time_of_day = Some(14.0 * 3600.0 + self.t as f32);
         f.session_time_remain = 604_800.0;
         f.session_laps_remain = (RACE_LAPS - f.car_lap_completed[leader]).max(0);
         f.speed = speed;
@@ -384,6 +391,10 @@ WeekendInfo:
  TrackDisplayName: Demo Ring
  TrackConfigName: Grand Prix
  TrackLength: 5.10 km
+ TeamRacing: 0
+ WeekendOptions:
+  IncidentLimit: 17
+  FastRepairsLimit: 1
 SplitTimeInfo:
  Sectors:
  - SectorNum: 0

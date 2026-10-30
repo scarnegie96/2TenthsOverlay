@@ -35,7 +35,7 @@ export function Relative({ config }: { config: WidgetConfig }) {
     slots.push(me >= 0 ? rows[me + k] ?? null : null);
   }
 
-  const sof = field?.clock.strengthOfField;
+  const sof = opt(config, "showSoF", true) ? field?.clock.strengthOfField : null;
   const cols = [
     "24px 8px 34px minmax(0, 1fr)",
     showLic && "auto",

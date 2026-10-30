@@ -1,6 +1,8 @@
 import type { Units } from "./format";
 
-export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "dynamics" | "instruments" | "fuel" | "radar" | "tires" | "spotter";
+export type WidgetId =
+  | "relative" | "standings" | "session" | "inputs" | "delta" | "coach" | "dynamics" | "instruments" | "fuel" | "radar" | "tires"
+  | "spotter";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -67,6 +69,7 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showLicense", label: "Show license", type: "toggle", default: true },
       { key: "showLastLap", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showPit", label: "Show cars in the pits", type: "toggle", default: true },
+      { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "For your class, in the header" },
     ],
   },
   {
@@ -88,6 +91,19 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showIRating", label: "Show iRating", type: "toggle", default: true },
       { key: "showLast", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showBest", label: "Show best lap", type: "toggle", default: true },
+      { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "Per class in multi-class races" },
+    ],
+  },
+  {
+    id: "session",
+    name: "Session",
+    description: "Track, field size and strength of field, time of day, weather, and your incidents against the limit.",
+    // Off by default: the default layout has no free spot that the coach doesn't use.
+    x: 572, y: 214, enabled: false,
+    options: [
+      { key: "showClasses", label: "List each class", type: "toggle", default: true, help: "Cars and SoF per class in multi-class races" },
+      { key: "showConditions", label: "Show conditions", type: "toggle", default: true, help: "Time of day, temperatures, sky, track wetness and wind" },
+      { key: "showLimits", label: "Show incidents and fast repairs", type: "toggle", default: true },
     ],
   },
   {

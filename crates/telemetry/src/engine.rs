@@ -269,6 +269,18 @@ impl Engine {
         let def = s.session(f.session_num);
         let sof = strength_of_field(s, s.player().map(|p| p.class_id));
         SessionClock {
+            classes: class_summaries(s),
+            time_of_day: f.time_of_day,
+            skies: f.skies,
+            track_wetness: f.track_wetness,
+            declared_wet: f.declared_wet,
+            wind_speed: f.wind_speed,
+            wind_dir: f.wind_dir,
+            humidity: f.humidity,
+            incidents: if s.team_racing { f.team_incidents } else { f.incidents },
+            incident_limit: s.incident_limit,
+            fast_repairs_used: f.fast_repairs_used,
+            fast_repairs_limit: s.fast_repairs_limit,
             session_type: def.map(|d| d.session_type.clone()).unwrap_or_default(),
             time_remain: (f.session_time_remain > 0.0 && f.session_time_remain < 604_800.0)
                 .then_some(f.session_time_remain),
@@ -510,12 +522,38 @@ pub fn relative_gap(car_frac: f32, player_frac: f32, lap_time: f32) -> f32 {
     d * lap_time
 }
 
+fn is_entry(d: &DriverInfo) -> bool {
+    !d.is_spectator && !d.is_pace_car && d.car_idx >= 0
+}
+
+/// Each class with its entry count and SoF, fastest class (shortest estimated lap) first.
+fn class_summaries(s: &SessionInfo) -> Vec<ClassSummary> {
+    let mut out: Vec<(f32, ClassSummary)> = Vec::new();
+    for d in s.drivers.iter().filter(|d| is_entry(d)) {
+        match out.iter_mut().find(|(_, c)| c.class_id == d.class_id) {
+            Some((_, c)) => c.cars += 1,
+            None => out.push((
+                d.class_est_lap_time,
+                ClassSummary {
+                    class_id: d.class_id,
+                    name: d.class_short_name.clone(),
+                    color: d.class_color.clone(),
+                    cars: 1,
+                    strength_of_field: strength_of_field(s, Some(d.class_id)),
+                },
+            )),
+        }
+    }
+    out.sort_by(|a, b| a.0.total_cmp(&b.0));
+    out.into_iter().map(|(_, c)| c).collect()
+}
+
 /// iRacing's published SoF formula.
 fn strength_of_field(s: &SessionInfo, class: Option<i32>) -> Option<i32> {
     let irs: Vec<f64> = s
         .drivers
         .iter()
-        .filter(|d| !d.is_spectator && !d.is_pace_car && d.irating > 0)
+        .filter(|d| is_entry(d) && d.irating > 0)
         .filter(|d| class.is_none_or(|c| d.class_id == c))
         .map(|d| d.irating as f64)
         .collect();
@@ -739,5 +777,22 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(strength_of_field(&s, None), Some(2000));
+    }
+
+    #[test]
+    fn class_summaries_split_the_field() {
+        let driver = |i: i32, class_id: i32, irating: i32, est: f32| DriverInfo {
+            car_idx: i, class_id, irating, class_est_lap_time: est, ..Default::default()
+        };
+        let mut pace = driver(0, 9, 0, 0.0);
+        pace.is_pace_car = true;
+        let s = SessionInfo {
+            drivers: vec![pace, driver(1, 2, 1500, 100.0), driver(2, 1, 3000, 90.0), driver(3, 2, 1500, 100.0)],
+            ..Default::default()
+        };
+        let c = class_summaries(&s);
+        assert_eq!(c.len(), 2);
+        assert_eq!((c[0].class_id, c[0].cars, c[0].strength_of_field), (1, 1, Some(3000)));
+        assert_eq!((c[1].class_id, c[1].cars, c[1].strength_of_field), (2, 2, Some(1500)));
     }
 }

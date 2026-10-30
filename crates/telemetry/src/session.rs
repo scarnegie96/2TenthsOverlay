@@ -57,6 +57,11 @@ pub struct SessionInfo {
     pub tire_compounds: Vec<String>,
     /// Sector start points as lap fractions (SplitTimeInfo.Sectors).
     pub sectors: Vec<f32>,
+    /// WeekendOptions.IncidentLimit; None when unlimited.
+    pub incident_limit: Option<i32>,
+    /// WeekendOptions.FastRepairsLimit; None when unlimited.
+    pub fast_repairs_limit: Option<i32>,
+    pub team_racing: bool,
 }
 
 impl SessionInfo {
@@ -173,6 +178,10 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
         redline_rpm: float(&driver_info["DriverCarRedLine"]).unwrap_or(0.0) as f32,
         drivers,
         sessions,
+        // "unlimited" doesn't parse as a number, so it comes out as None.
+        incident_limit: int(&weekend["WeekendOptions"]["IncidentLimit"]),
+        fast_repairs_limit: int(&weekend["WeekendOptions"]["FastRepairsLimit"]),
+        team_racing: int(&weekend["TeamRacing"]).unwrap_or(0) != 0,
         sectors: {
             let mut v: Vec<f32> = root["SplitTimeInfo"]["Sectors"]
                 .as_sequence()
@@ -279,6 +288,10 @@ WeekendInfo:
  TrackDisplayName: Circuit de Spa-Francorchamps
  TrackConfigName: Grand Prix Pits
  TrackLength: 6.93 km
+ TeamRacing: 0
+ WeekendOptions:
+  IncidentLimit: 17
+  FastRepairsLimit: unlimited
 SplitTimeInfo:
  Sectors:
  - SectorNum: 0
@@ -356,6 +369,9 @@ DriverInfo:
         assert_eq!(info.tire_compounds, vec!["Hard", "Wet"]);
         assert_eq!(info.sectors.len(), 3);
         assert!((info.sectors[1] - 0.3124).abs() < 1e-4);
+        assert_eq!(info.incident_limit, Some(17));
+        assert_eq!(info.fast_repairs_limit, None);
+        assert!(!info.team_racing);
 
         let race = info.session(2).unwrap();
         assert_eq!(race.laps, Some(25));

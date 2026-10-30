@@ -33,6 +33,15 @@ const BATTLE: [number, number, number, number][] = [
   [8, 14, 11, 31],
 ];
 
+/** iRacing's SoF formula (the real one is in the engine). */
+function strengthOfField(iratings: number[]): number | null {
+  const irs = iratings.filter((ir) => ir > 0);
+  if (!irs.length) return null;
+  const br = 1600 / Math.LN2;
+  const sum = irs.reduce((acc, ir) => acc + Math.exp(-ir / br), 0);
+  return Math.round(br * Math.log(irs.length / sum));
+}
+
 const rand = (i: number) => {
   const x = Math.sin(i * 12.9898) * 43758.5453;
   return x - Math.floor(x);
@@ -474,6 +483,14 @@ class Mock {
       };
     });
 
+    const classes = CLASSES.map((c, k) => {
+      const cars = [...Array(N).keys()].filter((i) => classOf(i) === k);
+      return {
+        classId: c.id, name: c.name, color: c.color, cars: cars.length,
+        strengthOfField: strengthOfField(cars.map((i) => this.driver(i).irating)),
+      };
+    });
+
     const perLap = 2.7;
     const lapsToGo = 30 - Math.floor(this.progress[order[0]]) - 1 + (1 - (me % 1));
     const tires: TiresPayload = {
@@ -488,7 +505,10 @@ class Mock {
     return {
       clock: {
         sessionType: "Race", timeRemain: null, lapsRemain: 30 - Math.floor(this.progress[order[0]]), totalLaps: 30,
-        flags: 0, trackTemp: 31.4, airTemp: 22.8, strengthOfField: 2687,
+        flags: 0, trackTemp: 31.4, airTemp: 22.8, strengthOfField: classes[1].strengthOfField, classes,
+        timeOfDay: 14 * 3600 + (performance.now() / 1000) % 3600, skies: 1, trackWetness: 1, declaredWet: false,
+        windSpeed: 3.4, windDir: 5.5, humidity: 0.56, incidents: 2, incidentLimit: 17, fastRepairsUsed: 0,
+        fastRepairsLimit: 1,
       },
       relative,
       standings,

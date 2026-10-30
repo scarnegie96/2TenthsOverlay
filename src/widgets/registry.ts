@@ -8,6 +8,7 @@ import { Inputs } from "./Inputs";
 import { Instruments } from "./Instruments";
 import { Radar } from "./Radar";
 import { Relative } from "./Relative";
+import { Session } from "./Session";
 import { Spotter } from "./Spotter";
 import { Standings } from "./Standings";
 import { Tires } from "./Tires";
@@ -21,6 +22,7 @@ export interface WidgetProps {
 export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   relative: Relative,
   standings: Standings,
+  session: Session,
   inputs: Inputs,
   delta: Delta,
   fuel: Fuel,

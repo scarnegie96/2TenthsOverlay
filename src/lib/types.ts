@@ -247,6 +247,35 @@ export interface SessionClock {
   flags: number;
   trackTemp: number;
   airTemp: number;
+  /** SoF of the player's class. */
+  strengthOfField: number | null;
+  /** Fastest class first. */
+  classes: ClassSummary[];
+  /** Seconds since midnight in the sim. */
+  timeOfDay: number | null;
+  /** 0 clear, 1 partly cloudy, 2 mostly cloudy, 3 overcast */
+  skies: number | null;
+  /** 1 dry .. 7 extremely wet, 0 unknown */
+  trackWetness: number | null;
+  declaredWet: boolean;
+  /** m/s */
+  windSpeed: number | null;
+  /** radians */
+  windDir: number | null;
+  /** 0..1 */
+  humidity: number | null;
+  /** Yours, or the team's in team events. */
+  incidents: number;
+  incidentLimit: number | null;
+  fastRepairsUsed: number;
+  fastRepairsLimit: number | null;
+}
+
+export interface ClassSummary {
+  classId: number;
+  name: string;
+  color: string;
+  cars: number;
   strengthOfField: number | null;
 }
 
