@@ -1,8 +1,9 @@
-//! Prints what the coach sees in a reference lap: each braking zone with its
-//! brake point, peak pressure, slowest speed and gear, and the throttle pickup.
+//! Prints what the coach sees in a reference lap: each corner (braking or lift)
+//! with its entry point, peak pressure or lowest throttle, slowest speed and
+//! gear, and the throttle pickup.
 //!   cargo run -p telemetry --example inspect_lap -- path/to/lap.blap   (or .olap / .ibt LAP_NUMBER)
 use std::path::Path;
-use telemetry::{blap::BlapFile, coach::find_zones, ibt::IbtFile, reference::REF_BINS};
+use telemetry::{blap::BlapFile, coach::{find_corners, CornerKind}, ibt::IbtFile, reference::REF_BINS};
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -21,17 +22,25 @@ fn main() {
         "{} on {} ({}), {:.3}s by {}, {:.0} m",
         r.car_key, r.track_name, r.track_key, r.lap_time, r.driver, len
     );
-    println!("{:>3} {:>8} {:>8} {:>6} {:>9} {:>5} {:>9}", "#", "brake at", "brake to", "peak", "apex km/h", "gear", "throttle");
-    for (i, z) in find_zones(&r).iter().enumerate() {
+    println!(
+        "{:>3} {:>5} {:>8} {:>8} {:>6} {:>9} {:>5} {:>9}",
+        "#", "kind", "entry", "brake to", "pedal", "apex km/h", "gear", "throttle"
+    );
+    for (i, c) in find_corners(&r).iter().enumerate() {
+        let (kind, pedal) = match c.kind {
+            CornerKind::Brake => ("brake", c.peak_brake),
+            CornerKind::Lift => ("lift", c.min_throttle),
+        };
         println!(
-            "{:>3} {:>7.0}m {:>7.0}m {:>5.0}% {:>9.0} {:>5} {:>8.0}m",
+            "{:>3} {:>5} {:>7.0}m {:>7.0}m {:>5.0}% {:>9.0} {:>5} {:>8.0}m",
             i + 1,
-            m(z.brake_start),
-            m(z.brake_end),
-            z.peak_brake * 100.0,
-            r.speed[z.apex] * 3.6,
-            r.gear[z.apex],
-            m(z.pickup)
+            kind,
+            m(c.entry),
+            m(c.brake_end),
+            pedal * 100.0,
+            c.min_speed.unwrap_or(0.0) * 3.6,
+            c.apex_gear,
+            m(c.pickup)
         );
     }
 }

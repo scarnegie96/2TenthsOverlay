@@ -71,14 +71,33 @@ quoted before parsing, because iRacing doesn't escape them.
   28-byte record every ~2 m with time into the sector, sideways position,
   heading, pitch, roll, and throttle/brake/clutch/gear bytes. The full layout is in
   `blap.rs`. Steering isn't stored, so .blap/.olap references have no reference
-  wheel and no steering cues (.ibt files record `SteeringWheelAngle`, so those do).
+  wheel (.ibt files record `SteeringWheelAngle`, so those do). The heading
+  gives the path's curvature, which the coach uses for line cues.
   Speed comes from the time between records.
-- **Coaching** (`coach.rs`): the reference is split into corners (brake point,
-  end of braking, slowest point, throttle back over 50%). Each frame we compare
-  your inputs at the same spot and offer cues with a priority; the highest wins.
-  A cue stays up for 0.9 s unless something more urgent comes along, so the label
-  doesn't flicker. Steering cues compare your wheel angle with the reference's,
-  so they only appear for .ibt references.
+- **Coaching** (`coach.rs`): the reference is split into corners. Braking
+  corners run from the brake point through the slowest point to the throttle
+  back over 50%; lift corners do the same off full throttle without braking.
+  The scan starts mid-straight and all bin maths wraps, so corners across the
+  start line work. Each corner is watched from 250 m before its entry to
+  150 m after its pickup (windows never overlap).
+  - *Live cues*: each frame we compare your inputs and offer cues with a
+    priority; the highest wins. A cue stays up for 0.9 s (verdicts 2.5 s)
+    unless something more urgent comes along. Initial brake pressure is
+    compared with the reference's the same distance after *its* brake point
+    as you are after yours, so braking late isn't read as braking lightly;
+    trail and release are compared by position. Your brake point only counts
+    once you've held the brake 0.1 s. Gear is only cued within 40 m of the
+    apex. Line cues compare your curvature (yaw rate / speed) with the
+    reference's, which every reference has; steering angle is the fallback.
+    No cues under yellow, off track or in the pits.
+  - *Corner passes*: each pass records your brake point, peak pressure,
+    slowest speed and gear, throttle pickup, and the delta at the window
+    start, the reference's apex and the window end (kept continuous across
+    the line). Entry loss is up to the apex, exit loss after it; the bigger
+    side picks the cause (`Issue`), shown as a verdict on the way out. Passes
+    are dropped after a jump in position, a tow or a reset. Each corner keeps
+    a weighted average loss: the worst is sent as `focus`, and corners
+    averaging under 0.03 s after two passes only get urgent cues.
 - **Inputs panel**: with a reference loaded, a slimmer strip extends from the
   top with the reference's gear, speed, wheel (.ibt only), trace and pedals. It
   uses the same columns as yours, so the two traces line up.
@@ -149,7 +168,7 @@ quoted before parsing, because iRacing doesn't escape them.
 
 - Broadcast messages (`IRSDK_BROADCASTMSG`): pit service buttons, replay control.
 - Track map from `CarIdxLapDistPct` plus a recorded track outline.
-- Coach cues for lift-only corners (no braking) and for lateral line, using
-  the sideways-position channel in .blap files.
+- Coach cues for lateral line, using the sideways-position channel in .blap
+  files, and audio for the brake countdown.
 - Show each car's tire compound in the relative (`CarIdxTireCompound`), e.g. wets.
 - Profiles per car or series, and multi-monitor placement.

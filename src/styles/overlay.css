@@ -1249,6 +1249,29 @@
 .coach-stats .is-loss {
   color: var(--loss);
 }
+.coach-focus {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 14px 6px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.coach-focus span:nth-child(2) {
+  margin-right: auto;
+}
+.coach-focus-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--attention);
+}
+.coach-focus .is-loss {
+  font-weight: 600;
+  color: var(--loss);
+}
 
 /* ---------- Delta strip --------------------------------------------------------- */
 

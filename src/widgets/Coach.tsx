@@ -1,12 +1,13 @@
 import { opt, type WidgetConfig } from "../lib/config";
-import { cueText } from "../lib/coach";
+import { cueText, issueText } from "../lib/coach";
 import { signed, speed, speedUnit } from "../lib/format";
 import { useLive } from "../lib/store";
 import { Panel } from "./Panel";
 
 /**
  * One live coaching message comparing you with the imported reference lap:
- * where to brake, how hard, apex speed, throttle pickup, gear and line.
+ * where to brake, how hard, apex speed, throttle pickup, gear and line, and a
+ * verdict as you leave each corner. Below it, the corner costing you most.
  */
 export function Coach({ config, editing }: { config: WidgetConfig; editing: boolean }) {
   const coach = useLive((s) => s.tick?.coach ?? null);
@@ -15,6 +16,7 @@ export function Coach({ config, editing }: { config: WidgetConfig; editing: bool
   const units = useLive((s) => s.config.general.units);
   const showDetail = opt(config, "showDetail", true);
   const showStats = opt(config, "showStats", true);
+  const showFocus = opt(config, "showFocus", true);
 
   if (!reference?.loaded) {
     return editing ? (
@@ -34,8 +36,13 @@ export function Coach({ config, editing }: { config: WidgetConfig; editing: bool
   }
 
   const cue = coach?.cue ?? null;
-  const text = cue ? cueText(cue, units) : { label: "Waiting for you to drive", detail: "Coaching starts on track" };
+  const text = cue
+    ? cueText(cue, units)
+    : coach
+      ? { label: "Coaching paused", detail: "Off track or under yellow" }
+      : { label: "Waiting for you to drive", detail: "Coaching starts on track" };
   const sd = coach?.speedDelta ?? null;
+  const focus = coach?.focus ?? null;
 
   return (
     <Panel className={`coach tone-${cue?.tone ?? "neutral"}`}>
@@ -52,6 +59,13 @@ export function Coach({ config, editing }: { config: WidgetConfig; editing: bool
           <span className={sd == null ? "" : sd < -0.3 ? "is-loss" : sd > 0.3 ? "is-gain" : ""}>
             {sd == null ? "–" : `${sd >= 0 ? "+" : "−"}${speed(Math.abs(sd), units)} ${speedUnit(units)}`}
           </span>
+        </div>
+      )}
+      {showFocus && focus && (
+        <div className="coach-focus">
+          <span className="coach-focus-tag">Focus</span>
+          <span>Corner {focus.corner}{focus.issue ? `, ${issueText(focus.issue)}` : ""}</span>
+          <span className="is-loss">+{focus.lossS.toFixed(2)}s</span>
         </div>
       )}
     </Panel>

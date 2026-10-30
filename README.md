@@ -115,13 +115,19 @@ temperature and fuel-used columns.
 
 ![Coach widget](docs/widgets/coach.png)
 
-One live cue at a time from an imported reference lap: brake in 50 m, brake
-now, you're braking early, brake harder or lighter, carry more speed, throttle
-now, shift down, turn in more, and whether you're gaining or losing. Below it,
-your gap to the reference and your speed difference. Only shown while a
-reference lap for this track is loaded.
+One live cue at a time from an imported reference lap: brake or lift in 50 m,
+brake now, you're braking early, brake harder or lighter (measured from your
+own brake point, so braking late isn't mistaken for braking lightly), trail
+the brake, carry more speed, throttle now, gear at the apex, turn in more, and
+whether you're gaining or losing. As you leave each corner it gives a verdict:
+the time you gained or lost there and the main reason, like "Braked 20 m
+early" or "Throttle earlier". Below it, your gap to the reference and your
+speed difference, and the focus corner: the one costing you most on average,
+and why. Corners where you're consistently on pace stop getting minor cues,
+and coaching pauses under yellow and off track. Only shown while a reference
+lap for this track is loaded.
 
-*Options*: show the reason line, and show the gap and speed.
+*Options*: show the reason line, the gap and speed, and the focus corner.
 
 ### Inputs
 
@@ -233,7 +239,7 @@ under **Settings → Delta → Reference lap and coaching**:
 
 - **`.blap` / `.olap`**: iRacing's saved best and optimal laps, from
   `Documents\iRacing\lapfiles`. These don't record steering, so there's no
-  reference wheel or steering cues.
+  reference wheel; line cues use the car's heading instead.
 - **`.ibt`**: iRacing telemetry files (record with `Alt+L`). Pick any complete
   lap; these include steering.
 

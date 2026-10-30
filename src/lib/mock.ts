@@ -471,7 +471,7 @@ class Mock {
     while (this.refDeltas.length && t.sessionTime - this.refDeltas[0][0] > 2) this.refDeltas.shift();
 
     const make = (kind: Cue["kind"], tone: Cue["tone"], priority: number, extra: Partial<Cue> = {}) => ({
-      cue: { kind, tone, distanceM: null, ours: null, reference: null, gear: null, corner: null, ...extra } as Cue,
+      cue: { kind, tone, distanceM: null, ours: null, reference: null, gear: null, corner: null, timeS: null, issue: null, ...extra } as Cue,
       priority,
     });
     const options: { cue: Cue; priority: number }[] = [make("onPace", "neutral", 0)];
@@ -511,6 +511,7 @@ class Mock {
     return {
       refSpeed, refThrottle, refBrake, refGear, refSteering,
       speedDelta: t.speed - refSpeed, cue: this.cue!.cue,
+      focus: { corner: 3, lossS: 0.18, issue: "brakedEarly", passes: 4 },
     };
   }
 

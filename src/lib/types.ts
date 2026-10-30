@@ -150,22 +150,41 @@ export interface DynamicsPayload {
 }
 
 export type CueKind =
-  | "brakeSoon" | "brakeNow" | "brakeEarly" | "noBrakeHere" | "brakeHarder" | "brakeLighter" | "goodBraking"
+  | "brakeSoon" | "liftSoon" | "brakeNow" | "brakeEarly" | "noBrakeHere" | "brakeHarder" | "brakeLighter" | "goodBraking"
+  | "holdBrake" | "releaseBrake" | "liftLess"
   | "carrySpeed" | "fastApex" | "throttleNow" | "moreThrottle" | "shiftDown" | "shiftUp" | "betterExit"
-  | "turnMore" | "turnLess" | "gaining" | "losing" | "onPace";
+  | "turnMore" | "turnLess" | "cornerVerdict" | "gaining" | "losing" | "onPace";
+
+/** The main reason a corner gained or lost time (corner verdicts and the focus corner). */
+export type CueIssue =
+  | "gained" | "brakedEarly" | "brakedLate" | "brakeHarder" | "slowApex" | "fastEntry" | "latePickup"
+  | "liftedEarly" | "liftedTooMuch" | "wrongGear" | "entry" | "exit";
 
 export type CueTone = "neutral" | "info" | "good" | "warn" | "bad";
 
 export interface Cue {
   kind: CueKind;
   tone: CueTone;
-  /** Metres to (+) or past (−) the reference's point. */
+  /** Metres to (+) or past (−) the reference's point. Verdicts: how much later (+) or earlier (−) you did it. */
   distanceM: number | null;
-  /** Pedal 0..1 or speed m/s, depending on the cue. */
+  /** Pedal 0..1, speed m/s or gear, depending on the cue. */
   ours: number | null;
   reference: number | null;
   gear: number | null;
+  /** Counted from the start line. */
   corner: number | null;
+  /** Verdicts: seconds lost in the corner (negative = gained). */
+  timeS: number | null;
+  issue: CueIssue | null;
+}
+
+/** The corner costing you most, averaged over your recent passes. */
+export interface CoachFocus {
+  corner: number;
+  /** Average seconds lost per pass. */
+  lossS: number;
+  issue: CueIssue | null;
+  passes: number;
 }
 
 export interface CoachPayload {
@@ -177,7 +196,9 @@ export interface CoachPayload {
   refSteering: number | null;
   /** Your speed minus the reference's, m/s. */
   speedDelta: number | null;
+  /** Null while there's nothing to coach: off track, in the pits or under yellow. */
   cue: Cue | null;
+  focus: CoachFocus | null;
 }
 
 export interface NearbyCar {

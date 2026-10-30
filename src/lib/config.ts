@@ -180,11 +180,12 @@ export const WIDGETS: WidgetMeta[] = [
   {
     id: "coach",
     name: "Coach",
-    description: "Live coaching against your imported reference lap: brake points, pressure, apex speed, throttle, gear and line.",
+    description: "Live coaching against your imported reference lap: brake and lift points, pressure, apex speed, throttle, gear and line, with a verdict on each corner.",
     x: 760, y: 270, enabled: true,
     options: [
       { key: "showDetail", label: "Show the reason", type: "toggle", default: true, help: "The line under the cue, like \"Reference brakes 30 m later\"" },
       { key: "showStats", label: "Show delta and speed", type: "toggle", default: true },
+      { key: "showFocus", label: "Show focus corner", type: "toggle", default: true, help: "The corner costing you most time on average, and why" },
     ],
   },
   {
