@@ -11,7 +11,6 @@ import { LapLog } from "./LapLog";
 import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Session } from "./Session";
-import { Spotter } from "./Spotter";
 import { Standings } from "./Standings";
 import { Tires } from "./Tires";
 
@@ -30,7 +29,6 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   laplog: LapLog,
   flags: Flags,
   fuel: Fuel,
-  spotter: Spotter,
   radar: Radar,
   tires: Tires,
   coach: Coach,

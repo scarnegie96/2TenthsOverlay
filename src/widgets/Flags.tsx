@@ -81,8 +81,10 @@ export function Flags({ config, editing }: { config: WidgetConfig; editing: bool
 
   return (
     <div className={`flags ${visible ? "" : "is-hidden"}`} style={{ "--flag": board?.color ?? "var(--ink-3)" } as React.CSSProperties}>
-      <LedBoard pattern={board?.pattern ?? { kind: "off" }} flash={board?.flash ?? false} />
-      {showCaption && <div className={`flags-caption ${caption ? "" : "is-empty"}`}>{caption || " "}</div>}
+      <div className="flags-housing">
+        <LedBoard pattern={board?.pattern ?? { kind: "off" }} flash={board?.flash ?? false} />
+        {showCaption && caption && <div className="flags-caption">{caption}</div>}
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "flags" | "spotter";
+  | "radar" | "tires" | "flags";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -269,15 +269,6 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "textWarning", label: "Black and white", type: "text", default: "Warning", maxLength: 28 },
       { key: "textDisqualified", label: "Disqualified", type: "text", default: "Disqualified", maxLength: 28 },
       { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Shows the dark board when there's no flag" },
-    ],
-  },
-  {
-    id: "spotter",
-    name: "Spotter",
-    description: "Simple left and right lights when a car is alongside. The radar includes these too.",
-    x: 1130, y: 680, enabled: false,
-    options: [
-      { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Otherwise it only appears when a car is alongside" },
     ],
   },
 ];

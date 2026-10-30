@@ -41,7 +41,7 @@ export const COLOR_GROUPS: { title: string; colors: ColorSpec[] }[] = [
       { key: "fastest", label: "Fastest in class" },
       { key: "gain", label: "Gaining and personal best" },
       { key: "loss", label: "Losing time" },
-      { key: "attention", label: "Warnings and highlights", help: "Also the cars alongside on the radar and spotter" },
+      { key: "attention", label: "Warnings and highlights", help: "Also the cars alongside on the radar" },
       { key: "lapped", label: "Cars you're lapping" },
       { key: "lapping", label: "Cars lapping you" },
     ],

@@ -15,9 +15,9 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ## Features
 
-- **14 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
-  inputs, car dynamics, dash lights, fuel, tires, a radar, a spotter and an LED
-  flag board. Each one has its own options.
+- **13 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
+  inputs, car dynamics, dash lights, fuel, tires, a radar and an LED flag
+  board. Each one has its own options.
 - **Edit layout mode**: drag any widget anywhere, resize it, snap it to the
   screen edges and other widgets, and turn widgets on or off from the edit bar.
 - **Saved layouts**: keep as many layouts as you like (sprint, endurance,
@@ -186,15 +186,6 @@ someone's alongside.
 
 *Options*: range, always visible or only when a car is near, and class colors.
 
-### Spotter
-
-![Spotter widget](docs/widgets/spotter.png)
-
-Simple left and right lights when a car is alongside, doubled for two cars.
-The radar shows these too. Off by default.
-
-*Options*: always visible.
-
 ### Flags
 
 ![Flags widget](docs/widgets/flags.png)
@@ -202,8 +193,8 @@ The radar shows these too. Off by default.
 A trackside LED flag board. Yellow (flashing when waved), safety car ("SC" in a
 yellow border), blue (flashing), debris, white, chequered, red, black, meatball,
 black-and-white warning and disqualified each have their own pattern. Green
-shows for a few seconds after a start or restart. A line of text under the
-board says what the flag means.
+shows for a few seconds after a start or restart. Under the lights, a bar in
+the flag's color says what it means.
 
 *Options*: the text for each flag (for example "Accident ahead" for yellow), up
 to three letters for the safety car board, how long green shows, and whether

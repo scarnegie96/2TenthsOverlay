@@ -286,7 +286,7 @@ impl DemoSource {
             f.car_lap_dist_pct[i] = -1.0;
         }
 
-        // Side-by-side detection for the spotter.
+        // Side-by-side detection for the radar.
         let mut left = 0;
         let mut right = 0;
         for i in 0..n {

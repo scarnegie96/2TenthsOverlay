@@ -18,7 +18,7 @@ knows which source it's reading from, so the demo exercises the real maths.
 
 | Event     | Rate          | Contents                                          | Goes to        |
 | --------- | ------------- | ------------------------------------------------- | -------------- |
-| `tick`    | every frame, 60 Hz | Player car: inputs, gear, speed, lap times, delta, fuel level, spotter, nearby cars for the radar | overlay only |
+| `tick`    | every frame, 60 Hz | Player car: inputs, gear, speed, lap times, delta, fuel level, side-by-side warnings and nearby cars for the radar | overlay only |
 | `field`   | 10 Hz         | Relative, standings, fuel strategy, tires, session clock | all windows    |
 | `session` | on change     | Track, session type, car, fuel tank size, shift RPM | all windows  |
 | `status`  | on change     | Source and connection state                       | all windows    |
