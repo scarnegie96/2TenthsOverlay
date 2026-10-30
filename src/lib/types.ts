@@ -85,6 +85,8 @@ export interface TickPayload {
   lapCurrent: number;
   lapLast: number | null;
   lapBest: number | null;
+  /** Your best clean sectors this session added up. */
+  lapOptimal: number | null;
   deltas: Deltas;
   fuelLevel: number;
   carLeftRight: number;

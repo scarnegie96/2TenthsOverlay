@@ -281,7 +281,7 @@ class Mock {
       brake: braking ? Math.min(1, 0.6 + (f - ahead) * 8) : 0,
       clutch: 0, steering: Math.sin(pct * 40) * (1 - f) * 2,
       lap: Math.floor(p) + 1, lapDistPct: pct, lapCurrent,
-      lapLast: this.last[PLAYER], lapBest: this.best[PLAYER],
+      lapLast: this.last[PLAYER], lapBest: this.best[PLAYER], lapOptimal: this.best[PLAYER] - 0.412,
       deltas: this.deltas(pct, Math.floor(p)),
       fuelLevel: this.fuel, carLeftRight: near.carLeftRight, incidents: 2, nearby: near.cars,
       coach: null,

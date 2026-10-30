@@ -38,6 +38,8 @@ export function Delta({ config }: { config: WidgetConfig }) {
   const sectorMode = opt<string>(config, "sectors", "track");
   const mini = opt(config, "miniSectors", 12);
   const showPrevious = opt(config, "showPrevious", true);
+  const simple = opt(config, "simple", false);
+  const showLapTimes = opt(config, "showLapTimes", true);
 
   const trackSectors = useLive((s) => s.session?.sectors);
   const reference = useLive((s) => s.reference);
@@ -81,52 +83,93 @@ export function Delta({ config }: { config: WidgetConfig }) {
   const lastSector = deltaHistory.lastSector(mode);
   const sectorNo = deltaHistory.currentSector + 1;
 
+  if (simple) {
+    return (
+      <Panel className={`delta-strip is-simple ${state}`}>
+        <div className="ds-simple">
+          <span className="ds-mode">vs {MODE_LABELS[mode]}</span>
+          <span className="ds-total">{now == null ? "–.––" : signed(now)}</span>
+          {unavailable && <span className="ds-simple-note">{unavailable}</span>}
+        </div>
+        {showLapTimes && <LapTimes mode={mode} />}
+      </Panel>
+    );
+  }
+
   return (
     <Panel className={`delta-strip ${state}`}>
-      <div className="ds-main">
-        <div className="ds-head">
-          <span className="ds-mode">vs {MODE_LABELS[mode]}</span>
-          {comparisonTime != null && comparisonTime > 0 && <span className="ds-ref">{lapTime(comparisonTime)}</span>}
-          <span className="ds-lap">{lapTime(tick?.lapCurrent ?? null)}</span>
-          <span className="ds-total">{now == null ? "–.––" : signed(now)}</span>
+      <div className="ds-body">
+        <div className="ds-main">
+          <div className="ds-head">
+            <span className="ds-mode">vs {MODE_LABELS[mode]}</span>
+            {comparisonTime != null && comparisonTime > 0 && <span className="ds-ref">{lapTime(comparisonTime)}</span>}
+            <span className="ds-lap">{lapTime(tick?.lapCurrent ?? null)}</span>
+            <span className="ds-total">{now == null ? "–.––" : signed(now)}</span>
+          </div>
+          <div className="ds-graph-wrap">
+            <Graph mode={mode} showPrevious={showPrevious} />
+            {unavailable && <div className="ds-empty">{unavailable}</div>}
+          </div>
+          <div className="ds-sectors">
+            {deltaHistory.sectors.map((start, i) => {
+              const end = deltaHistory.sectors[i + 1] ?? 1;
+              const isCurrent = i === deltaHistory.currentSector;
+              const v = isCurrent ? live : h.sectors[i];
+              const done = !isCurrent && v != null;
+              const tone = v == null ? "" : v > 0.005 ? "is-loss" : v < -0.005 ? "is-gain" : "is-even";
+              const roomy = (end - start) * GRAPH_W >= 38;
+              return (
+                <div
+                  key={i}
+                  className={`ds-sector ${tone} ${isCurrent ? "is-current" : done ? "is-done" : "is-upcoming"}`}
+                  style={{ flexGrow: end - start }}
+                  title={`Sector ${i + 1}`}
+                >
+                  {v != null && roomy ? signed(v) : ""}
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div className="ds-graph-wrap">
-          <Graph mode={mode} showPrevious={showPrevious} />
-          {unavailable && <div className="ds-empty">{unavailable}</div>}
-        </div>
-        <div className="ds-sectors">
-          {deltaHistory.sectors.map((start, i) => {
-            const end = deltaHistory.sectors[i + 1] ?? 1;
-            const isCurrent = i === deltaHistory.currentSector;
-            const v = isCurrent ? live : h.sectors[i];
-            const done = !isCurrent && v != null;
-            const tone = v == null ? "" : v > 0.005 ? "is-loss" : v < -0.005 ? "is-gain" : "is-even";
-            const roomy = (end - start) * GRAPH_W >= 38;
-            return (
-              <div
-                key={i}
-                className={`ds-sector ${tone} ${isCurrent ? "is-current" : done ? "is-done" : "is-upcoming"}`}
-                style={{ flexGrow: end - start }}
-                title={`Sector ${i + 1}`}
-              >
-                {v != null && roomy ? signed(v) : ""}
-              </div>
-            );
-          })}
+        <div className="ds-side">
+          <div className="ds-side-sector">
+            <span className="ds-side-label">Sector</span>
+            <span className="ds-side-num">{sectorNo}</span>
+          </div>
+          <div className="ds-side-splits">
+            <Split label="This sector" value={live} />
+            <Split label={lastSector ? `Sector ${lastSector.index + 1}` : "Last sector"} value={lastSector?.value ?? null} />
+            {mode === "reference" && <PaceSplit units={units} />}
+          </div>
         </div>
       </div>
-      <div className="ds-side">
-        <div className="ds-side-sector">
-          <span className="ds-side-label">Sector</span>
-          <span className="ds-side-num">{sectorNo}</span>
-        </div>
-        <div className="ds-side-splits">
-          <Split label="This sector" value={live} />
-          <Split label={lastSector ? `Sector ${lastSector.index + 1}` : "Last sector"} value={lastSector?.value ?? null} />
-          {mode === "reference" && <PaceSplit units={units} />}
-        </div>
-      </div>
+      {showLapTimes && <LapTimes mode={mode} />}
     </Panel>
+  );
+}
+
+/** Your best, optimal and last laps, with the one you're comparing against highlighted. */
+function LapTimes({ mode }: { mode: DeltaMode }) {
+  const best = useLive((s) => s.tick?.lapBest ?? null);
+  const optimal = useLive((s) => s.tick?.lapOptimal ?? null);
+  const last = useLive((s) => s.tick?.lapLast ?? null);
+  const lastIsBest = last != null && best != null && Math.abs(last - best) < 0.0005;
+  const active = (m: DeltaMode[]) => (m.includes(mode) ? "is-active" : "");
+  return (
+    <div className="ds-laps">
+      <div className={`ds-lapt ${active(["best", "sessionBest"])}`}>
+        <span className="ds-lapt-label">Best</span>
+        <span className="ds-lapt-value">{lapTime(best)}</span>
+      </div>
+      <div className={`ds-lapt ${active(["optimal", "sessionOptimal"])}`} title="Your best sectors this session added up">
+        <span className="ds-lapt-label">Optimal</span>
+        <span className="ds-lapt-value">{lapTime(optimal)}</span>
+      </div>
+      <div className={`ds-lapt ${active(["last"])} ${lastIsBest ? "is-personal" : ""}`}>
+        <span className="ds-lapt-label">Last</span>
+        <span className="ds-lapt-value">{lapTime(last)}</span>
+      </div>
+    </div>
   );
 }
 

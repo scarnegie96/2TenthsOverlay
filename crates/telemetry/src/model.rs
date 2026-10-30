@@ -248,6 +248,8 @@ pub struct TickPayload {
     pub lap_current: f32,
     pub lap_last: Option<f32>,
     pub lap_best: Option<f32>,
+    /// Your best clean sectors this session added up.
+    pub lap_optimal: Option<f32>,
     /// Seconds versus each comparison lap at this point of the lap; positive = slower.
     pub deltas: Deltas,
     pub fuel_level: f32,

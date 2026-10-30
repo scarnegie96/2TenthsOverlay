@@ -99,7 +99,7 @@ export const WIDGETS: WidgetMeta[] = [
     name: "Session",
     description: "Track, field size and strength of field, time of day, weather, and your incidents against the limit.",
     // Off by default: the default layout has no free spot that the coach doesn't use.
-    x: 572, y: 214, enabled: false,
+    x: 572, y: 250, enabled: false,
     options: [
       { key: "showClasses", label: "List each class", type: "toggle", default: true, help: "Cars and SoF per class in multi-class races" },
       { key: "showConditions", label: "Show conditions", type: "toggle", default: true, help: "Time of day, temperatures, sky, track wetness and wind" },
@@ -146,6 +146,8 @@ export const WIDGETS: WidgetMeta[] = [
       },
       { key: "miniSectors", label: "Number of mini sectors", type: "number", default: 12, min: 4, max: 30 },
       { key: "showPrevious", label: "Show last lap's line", type: "toggle", default: true, help: "Dashed, for comparing this lap with the one before" },
+      { key: "showLapTimes", label: "Show lap times", type: "toggle", default: true, help: "Your best, optimal (best sectors this session) and last laps along the bottom" },
+      { key: "simple", label: "Simple pace readout", type: "toggle", default: false, help: "Just the live gap to the comparison lap, without the graph and sectors" },
     ],
   },
   {

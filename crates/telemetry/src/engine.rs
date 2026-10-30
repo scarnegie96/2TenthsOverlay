@@ -15,6 +15,7 @@ const LAP_TIME_WINDOW: usize = 5;
 pub struct Engine {
     session: Option<SessionInfo>,
     fuel: FuelTracker,
+    sectors: SectorTracker,
     /// Lane each nearby car was given last frame, so cars don't jump sides.
     radar_sides: HashMap<i32, i32>,
     /// Imported comparison lap, if any.
@@ -113,6 +114,8 @@ impl Engine {
     /// Call on every frame (60 Hz). Updates trackers and returns the fast payload.
     pub fn tick(&mut self, f: &RawFrame) -> TickPayload {
         self.fuel.update(f);
+        let starts = self.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]);
+        self.sectors.update(f, starts);
         let reference_delta = self.reference_delta(f);
         let coach = match (&self.reference, &mut self.coach) {
             (Some(r), Some(c)) if reference_delta.is_some() => {
@@ -142,6 +145,7 @@ impl Engine {
             lap_current: f.lap_current,
             lap_last: positive(f.lap_last),
             lap_best: positive(f.lap_best),
+            lap_optimal: self.sectors.optimal(),
             deltas: Deltas { reference: reference_delta, ..f.deltas },
             fuel_level: f.fuel_level,
             car_left_right: f.car_left_right,
@@ -580,6 +584,96 @@ fn strength_of_field(s: &SessionInfo, class: Option<i32>) -> Option<i32> {
 }
 
 // ---------------------------------------------------------------------------
+// Optimal lap
+// ---------------------------------------------------------------------------
+
+/// Times each track sector and keeps the best clean one, so the optimal lap is
+/// their sum. A sector counts only when driven start to finish on track, off pit
+/// road and without going off; boundary times are interpolated between frames.
+#[derive(Default)]
+struct SectorTracker {
+    session_num: i32,
+    starts: Vec<f32>,
+    best: Vec<Option<f32>>,
+    /// Sector being timed and when it began.
+    sector: Option<usize>,
+    sector_start: f64,
+    clean: bool,
+    prev: Option<(f32, f64)>,
+}
+
+impl SectorTracker {
+    fn update(&mut self, f: &RawFrame, starts: &[f32]) {
+        let starts = if starts.is_empty() { &[0.0][..] } else { starts };
+        if f.session_num != self.session_num || self.starts != starts {
+            *self = Self {
+                session_num: f.session_num,
+                starts: starts.to_vec(),
+                best: vec![None; starts.len()],
+                ..Self::default()
+            };
+        }
+        if !f.is_on_track || f.lap_dist_pct < 0.0 {
+            self.sector = None;
+            self.prev = None;
+            return;
+        }
+
+        let (pct, t) = (f.lap_dist_pct, f.session_time);
+        let off = f.on_pit_road
+            || f.car_track_surface.get(f.player_car_idx.max(0) as usize) == Some(&track_surface::OFF_TRACK);
+        let idx = self.starts.iter().rposition(|&s| s <= pct).unwrap_or(0);
+
+        match (self.sector, self.prev) {
+            (Some(cur), Some((p0, t0))) => {
+                let n = self.starts.len();
+                let wrapped = pct < p0 - 0.5;
+                if idx != cur || wrapped {
+                    let next = (cur + 1) % n;
+                    if idx == next && (next != 0 || wrapped) {
+                        // Crossed into the next sector: finish this one.
+                        let boundary = if next == 0 { 1.0 } else { self.starts[next] };
+                        let p1 = if wrapped { pct + 1.0 } else { pct };
+                        let frac = if p1 > p0 { ((boundary - p0) / (p1 - p0)).clamp(0.0, 1.0) } else { 1.0 };
+                        let crossed_at = t0 + frac as f64 * (t - t0);
+                        let time = (crossed_at - self.sector_start) as f32;
+                        if self.clean && time > 1.0 && self.best[cur].is_none_or(|b| time < b) {
+                            self.best[cur] = Some(time);
+                        }
+                        self.sector = Some(next);
+                        self.sector_start = crossed_at;
+                        self.clean = !off;
+                    } else {
+                        // Skipped a sector or went backwards (tow, reset): start over mid-sector.
+                        self.sector = Some(idx);
+                        self.sector_start = t;
+                        self.clean = false;
+                    }
+                }
+            }
+            _ => {
+                // Joined mid-sector, so this one can't be timed.
+                self.sector = Some(idx);
+                self.sector_start = t;
+                self.clean = false;
+            }
+        }
+        if off {
+            self.clean = false;
+        }
+        self.prev = Some((pct, t));
+    }
+
+    /// Sum of the best sectors, once every sector has a clean time.
+    fn optimal(&self) -> Option<f32> {
+        if self.best.is_empty() {
+            return None;
+        }
+        self.best.iter().copied().sum()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Fuel
 // ---------------------------------------------------------------------------
 
@@ -790,6 +884,47 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(strength_of_field(&s, None), Some(2000));
+    }
+
+    /// Drives one lap at 60 Hz taking `sector_secs[k]` seconds over sector k,
+    /// optionally putting the car off track halfway through one sector.
+    fn drive(t: &mut SectorTracker, f: &mut RawFrame, starts: &[f32], sector_secs: &[f32], off_in: Option<usize>) {
+        let mut pct = f.lap_dist_pct;
+        for (k, &secs) in sector_secs.iter().enumerate() {
+            let end = starts.get(k + 1).copied().unwrap_or(1.0);
+            let width = end - starts[k];
+            let steps = (secs * 60.0).round() as usize;
+            for step in 0..steps {
+                f.session_time += 1.0 / 60.0;
+                pct += width / steps as f32;
+                f.lap_dist_pct = pct.fract();
+                let off = off_in == Some(k) && step == steps / 2;
+                f.car_track_surface[0] = if off { track_surface::OFF_TRACK } else { track_surface::ON_TRACK };
+                t.update(f, starts);
+            }
+        }
+        pct = pct.round();
+        f.lap_dist_pct = pct.fract();
+    }
+
+    #[test]
+    fn optimal_lap_from_best_clean_sectors() {
+        let starts = [0.0, 0.3, 0.7];
+        let mut t = SectorTracker::default();
+        let mut f = RawFrame::with_capacity();
+        f.is_on_track = true;
+        f.lap_dist_pct = 0.0;
+
+        // First lap: timing only starts on the first frame, so sector 1 isn't timed.
+        drive(&mut t, &mut f, &starts, &[30.0, 40.0, 30.0], None);
+        assert_eq!(t.optimal(), None, "the first sector started mid-way");
+        drive(&mut t, &mut f, &starts, &[29.0, 41.0, 30.0], None);
+        let o = t.optimal().unwrap();
+        assert!((o - 99.0).abs() < 0.05, "29 + 40 + 30, got {o}");
+        // A faster sector that went off doesn't count.
+        drive(&mut t, &mut f, &starts, &[28.0, 39.0, 31.0], Some(0));
+        let o = t.optimal().unwrap();
+        assert!((o - 98.0).abs() < 0.05, "29 + 39 + 30, got {o}");
     }
 
     #[test]
