@@ -34,7 +34,7 @@
 .preview-hint {
   position: fixed;
   left: 50%;
-  bottom: 12px;
+  top: 12px;
   transform: translateX(-50%);
   font-size: 13px;
   color: rgba(233, 238, 243, 0.7);
@@ -363,51 +363,122 @@
   width: 520px;
 }
 
-/* ---------- Inputs ------------------------------------------------------------ */
+/* ---------- Inputs (driver HUD strip) ---------------------------------------- */
 
 .inputs-body {
   display: flex;
-  align-items: stretch;
-  gap: 10px;
-  padding: 8px;
+  align-items: center;
+  gap: 16px;
+  height: 112px;
+  padding: 10px 14px 10px 18px;
 }
+
+.hud-gear {
+  min-width: 52px;
+  font-size: 96px;
+  font-weight: 700;
+  line-height: 0.8;
+  text-align: center;
+  color: var(--attention);
+  transition: color 0.08s;
+}
+.hud-gear.is-shift {
+  color: var(--loss);
+}
+
+.hud-speed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 78px;
+}
+.hud-speed-value {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 0.95;
+}
+.hud-speed-unit {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.hud-wheel {
+  flex-shrink: 0;
+  width: 86px;
+  height: 86px;
+}
+.hud-wheel g {
+  will-change: transform;
+}
+.wheel-rim {
+  fill: none;
+  stroke: #c9d1da;
+  stroke-width: 8;
+}
+.wheel-spoke {
+  fill: none;
+  stroke: #c9d1da;
+  stroke-width: 7;
+  stroke-linejoin: round;
+}
+.wheel-spoke:nth-of-type(2) {
+  fill: #c9d1da;
+  stroke-width: 2;
+}
+.wheel-hub {
+  fill: #c9d1da;
+}
+.wheel-mark {
+  fill: none;
+  stroke: var(--loss);
+  stroke-width: 9;
+}
+
 .trace {
   display: block;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
+
 .pedals {
   display: flex;
-  gap: 5px;
+  gap: 6px;
+  height: 92px;
 }
 .bar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  width: 26px;
+  gap: 4px;
+  width: 24px;
 }
 .bar-pct {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1;
   color: var(--ink-3);
 }
 .bar-throttle.is-active .bar-pct {
-  color: var(--throttle);
+  color: var(--ink);
 }
 .bar-brake.is-active .bar-pct {
-  color: var(--brake);
+  color: var(--ink);
 }
 .bar-clutch.is-active .bar-pct {
-  color: var(--clutch);
+  color: var(--ink);
 }
 .bar-track {
   position: relative;
   flex: 1;
   width: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   background: rgba(233, 238, 243, 0.08);
+  box-shadow: inset 0 0 0 1px var(--line);
   overflow: hidden;
 }
 .bar-fill {
@@ -423,46 +494,6 @@
 }
 .bar-clutch .bar-fill {
   background: var(--clutch);
-}
-.bar-label {
-  font-size: 11px;
-  color: var(--ink-3);
-  line-height: 1;
-}
-.gearbox {
-  display: grid;
-  grid-template-rows: 1fr auto auto;
-  justify-items: center;
-  align-items: center;
-  width: 64px;
-}
-.gear {
-  font-size: 46px;
-  font-weight: 700;
-  line-height: 0.9;
-}
-.gearbox.is-shift .gear {
-  color: var(--attention);
-}
-.speed {
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1;
-}
-.speed small {
-  margin-left: 2px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--ink-3);
-}
-.steer {
-  width: 20px;
-  height: 20px;
-  margin-top: 4px;
-  stroke: var(--ink-3);
-}
-.steer .steer-top {
-  stroke: var(--ink);
 }
 
 /* ---------- Delta ------------------------------------------------------------- */

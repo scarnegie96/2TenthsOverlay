@@ -83,12 +83,13 @@ export const WIDGETS: WidgetMeta[] = [
   {
     id: "inputs",
     name: "Inputs",
-    description: "Throttle and brake trace, pedal bars, gear and speed.",
-    x: 780, y: 930, enabled: true,
+    description: "Gear, speed, steering wheel, throttle and brake trace, and pedal bars.",
+    x: 600, y: 940, enabled: true,
     options: [
       { key: "traceSeconds", label: "Trace length", type: "number", default: 6, min: 2, max: 20, suffix: "s" },
-      { key: "showClutch", label: "Show clutch", type: "toggle", default: false },
-      { key: "showSteering", label: "Show steering", type: "toggle", default: true },
+      { key: "showTrace", label: "Show trace", type: "toggle", default: true },
+      { key: "showSteering", label: "Show steering wheel", type: "toggle", default: true },
+      { key: "showClutch", label: "Show clutch", type: "toggle", default: true },
     ],
   },
   {
