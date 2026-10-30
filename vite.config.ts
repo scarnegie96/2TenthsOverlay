@@ -6,7 +6,13 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
-  server: { port: 1420, strictPort: true },
+  server: {
+    port: 1420,
+    strictPort: true,
+    // Cargo's build output lives under the project root; watching it makes
+    // Vite crash with EBUSY when Windows locks build-script executables.
+    watch: { ignored: ["**/target/**", "**/src-tauri/**"] },
+  },
   build: {
     target: "chrome110", // WebView2 is Chromium
     rollupOptions: {
