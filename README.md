@@ -3,8 +3,13 @@
 iRacing overlays you own. A Tauri 2 app for Windows that reads the iRacing SDK
 directly and draws a set of configurable widgets over the sim.
 
-Widgets so far: **Relative**, **Standings**, **Inputs**, **Delta**, **Fuel** and
-**Spotter**, all draggable, resizable and toggleable.
+Widgets so far: **Relative**, **Standings** (grouped by class), **Inputs**,
+**Delta**, **Fuel**, **Radar**, **Tires** and **Spotter**, all draggable,
+resizable and toggleable. Last laps are purple for the fastest in class and green
+for a personal best.
+
+A note on tires: iRacing only updates tire temperatures and wear while your car
+is in its pit box. On track the Tires widget shows the reading from your last stop.
 
 ## Running it on Windows
 
@@ -59,6 +64,7 @@ The Rust side builds only on Windows, apart from the core crate:
 cargo test -p telemetry                                    # engine + parser tests, any OS
 cargo check -p telemetry --features typecheck-windows      # type-check the Windows SDK reader
 cargo run -p telemetry --example dump                      # print demo-race output as JSON
+cargo run -p telemetry --example radar                     # what the radar sees, once a second
 ```
 
 ## Project layout
@@ -68,7 +74,7 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   irsdk.rs            Shared-memory reader (our own, about 300 lines)
   session.rs          Session YAML parser, tolerant of iRacing's quirks
   engine.rs           Relative gaps, standings, fuel maths, SoF
-  demo.rs             Fake 22-car multi-class race
+  demo.rs             Fake 22-car, 3-class race with a scripted battle for the radar
   runner.rs           Telemetry thread: 60 Hz tick, 10 Hz field
 src-tauri/            Windows, tray, hotkeys, click-through, config file
 src/

@@ -18,8 +18,8 @@ knows which source it's reading from, so the demo exercises the real maths.
 
 | Event     | Rate          | Contents                                          | Goes to        |
 | --------- | ------------- | ------------------------------------------------- | -------------- |
-| `tick`    | every frame, 60 Hz | Player car: inputs, gear, speed, lap times, delta, fuel level, spotter | overlay only |
-| `field`   | 10 Hz         | Relative, standings, fuel strategy, session clock | all windows    |
+| `tick`    | every frame, 60 Hz | Player car: inputs, gear, speed, lap times, delta, fuel level, spotter, nearby cars for the radar | overlay only |
+| `field`   | 10 Hz         | Relative, standings, fuel strategy, tires, session clock | all windows    |
 | `session` | on change     | Track, session type, car, fuel tank size, shift RPM | all windows  |
 | `status`  | on change     | Source and connection state                       | all windows    |
 
@@ -46,6 +46,15 @@ quoted before parsing, because iRacing doesn't escape them.
   laps. +1 means the car is lapping you, −1 means you're lapping it.
 - **Standings gaps**: race uses `CarIdxF2Time` within each class. Practice and
   qualifying use best-lap differences.
+- **Lap colors**: a last lap equal to the driver's best is a personal best
+  (green). If that also equals the best in their class, it's the fastest (purple).
+- **Radar**: distance along the track is `CarIdxLapDistPct` difference × track
+  length. iRacing doesn't give lateral position, only `CarLeftRight`, so the
+  nearest overlapping cars take the reported sides. Lanes are sticky: a car
+  keeps its side while within 14 m, so cars don't jump lanes as they pull away.
+- **Tires**: `LFtempCL/CM/CR`, `LFwearL/M/R` etc. are only refreshed by iRacing
+  while `PlayerCarInPitStall` is true. The widget labels readings as live or
+  from the last stop. Compound names come from `DriverInfo.DriverTires`.
 - **Fuel**: average of the last 5 green laps. A lap is skipped if you joined
   mid-lap, visited pit road or refuelled. Laps to go come from
   `SessionLapsRemainEx` in lap races, or time remaining divided by average lap
@@ -83,6 +92,5 @@ quoted before parsing, because iRacing doesn't escape them.
 
 - Broadcast messages (`IRSDK_BROADCASTMSG`): pit service buttons, replay control.
 - Track map from `CarIdxLapDistPct` plus a recorded track outline.
-- Proximity radar. The SDK only gives `CarLeftRight`, so a true radar needs
-  distance estimates from `CarIdxLapDistPct`.
+- Show each car's tire compound in the relative (`CarIdxTireCompound`), e.g. wets.
 - Profiles per car or series, and multi-monitor placement.

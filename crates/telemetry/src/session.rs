@@ -49,6 +49,8 @@ pub struct SessionInfo {
     pub redline_rpm: f32,
     pub drivers: Vec<DriverInfo>,
     pub sessions: Vec<SessionDef>,
+    /// Compound names by index (DriverInfo.DriverTires).
+    pub tire_compounds: Vec<String>,
 }
 
 impl SessionInfo {
@@ -164,6 +166,17 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
         redline_rpm: float(&driver_info["DriverCarRedLine"]).unwrap_or(0.0) as f32,
         drivers,
         sessions,
+        tire_compounds: driver_info["DriverTires"]
+            .as_sequence()
+            .map(|seq| {
+                let mut v: Vec<(i32, String)> = seq
+                    .iter()
+                    .map(|t| (int(&t["TireIndex"]).unwrap_or(0), text(&t["TireCompoundType"])))
+                    .collect();
+                v.sort_by_key(|(i, _)| *i);
+                v.into_iter().map(|(_, name)| name).collect()
+            })
+            .unwrap_or_default(),
     })
 }
 
@@ -265,6 +278,11 @@ DriverInfo:
  DriverCarEstLapTime: 137.4500
  DriverCarSLShiftRPM: 7900.000
  DriverCarRedLine: 8500.000
+ DriverTires:
+ - TireIndex: 1
+   TireCompoundType: "Wet"
+ - TireIndex: 0
+   TireCompoundType: "Hard"
  Drivers:
  - CarIdx: 0
    UserName: Pace Car
@@ -310,6 +328,7 @@ DriverInfo:
 
         assert!(info.driver(0).unwrap().is_pace_car);
         assert!(info.is_multiclass());
+        assert_eq!(info.tire_compounds, vec!["Hard", "Wet"]);
 
         let race = info.session(2).unwrap();
         assert_eq!(race.laps, Some(25));

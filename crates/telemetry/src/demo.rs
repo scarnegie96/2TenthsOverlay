@@ -16,6 +16,8 @@ const PROFILE_STEPS: usize = 2_000;
 const PLAYER: usize = 6;
 const PIT_CAR: usize = 21;
 const RACE_LAPS: i32 = 30;
+/// Cars that dice with the player: (car idx, mean offset m, swing m, period s).
+const BATTLE: &[(usize, f32, f32, f32)] = &[(7, -4.0, 9.0, 22.0), (8, 14.0, 11.0, 31.0)];
 const FUEL_PER_LAP: f32 = 2.62;
 
 /// (position on lap, minimum speed m/s)
@@ -64,8 +66,27 @@ fn hash(n: u32) -> f32 {
     (x & 0xFFFF) as f32 / 65_535.0
 }
 
-fn is_gt4(i: usize) -> bool {
-    i >= 14
+struct DemoClass {
+    id: i32,
+    name: &'static str,
+    car: &'static str,
+    color: &'static str,
+    est_lap: f32,
+}
+
+const CLASSES: [DemoClass; 3] = [
+    DemoClass { id: 4074, name: "LMP2", car: "Prototype", color: "0xf04e7a", est_lap: 86.3 },
+    DemoClass { id: 4029, name: "GT3", car: "GT3 Evo", color: "0xffda59", est_lap: 92.1 },
+    DemoClass { id: 4048, name: "GT4", car: "GT4 Coupe", color: "0x33ceff", est_lap: 99.4 },
+];
+
+/// Cars 0-4 are LMP2, 5-14 GT3 (the player is 6), 15-21 GT4.
+fn class_of(i: usize) -> usize {
+    match i {
+        0..=4 => 0,
+        5..=14 => 1,
+        _ => 2,
+    }
 }
 
 impl Default for DemoSource {
@@ -95,15 +116,18 @@ impl DemoSource {
         let mut class_est = vec![0.0; n];
         let mut progress = vec![0.0; n];
         for i in 0..n {
-            let base = if is_gt4(i) { 99.4 } else { 92.1 };
+            let base = CLASSES[class_of(i)].est_lap;
             let target = base + hash(i as u32 + 7) * 2.4 + if i == PLAYER { 0.2 } else { 0.0 };
             pace[i] = ref_lap / target;
             class_est[i] = base;
             // Spread the field: GT3 ahead, GT4 a little behind, a few gaps for interest.
-            let order = if is_gt4(i) { i as f64 + 1.5 } else { i as f64 };
+            let order = if class_of(i) == 2 { i as f64 + 1.5 } else { i as f64 };
             progress[i] = 4.0 - order * 0.028 - hash(i as u32 + 99) as f64 * 0.01;
         }
         progress[PIT_CAR] = 3.02;
+        for &(i, base, _, _) in BATTLE {
+            progress[i] = progress[PLAYER] + (base / TRACK_M) as f64;
+        }
 
         let mut frame = RawFrame::with_capacity();
         frame.player_car_idx = PLAYER as i32;
@@ -169,10 +193,16 @@ impl DemoSource {
                 continue;
             }
             let pct = self.progress[i].fract() as f32;
-            let wobble = 1.0 + 0.004 * ((self.t as f32 * 0.05 + i as f32).sin());
-            let dp = (self.v_at(pct) * self.pace[i] * wobble * dt / TRACK_M) as f64;
             let before = lap_of(self.progress[i]);
-            self.progress[i] += dp;
+            if let Some(&(_, base, amp, period)) = BATTLE.iter().find(|b| b.0 == i) {
+                // Scripted battle: hover around the player so the radar has something to show.
+                let player = self.progress[PLAYER] + (self.v_at(self.progress[PLAYER].fract() as f32) * self.pace[PLAYER] * dt / TRACK_M) as f64;
+                let offset_m = base + amp * (self.t as f32 * std::f32::consts::TAU / period).sin();
+                self.progress[i] = player + (offset_m / TRACK_M) as f64;
+            } else {
+                let wobble = 1.0 + 0.004 * ((self.t as f32 * 0.05 + i as f32).sin());
+                self.progress[i] += (self.v_at(pct) * self.pace[i] * wobble * dt / TRACK_M) as f64;
+            }
             if lap_of(self.progress[i]) > before {
                 let lap_time = (self.t - self.lap_start[i]) as f32;
                 self.last[i] = lap_time;
@@ -204,11 +234,11 @@ impl DemoSource {
         let leader = order[0];
         let lap_current = (self.t - self.lap_start[PLAYER]) as f32;
         let delta_best = lap_current - self.cum_at(pct) * self.best[PLAYER];
-        let mut class_counts = [0i32; 2];
+        let mut class_counts = [0i32; 3];
 
         let f = &mut self.frame;
         for (pos, &i) in order.iter().enumerate() {
-            let class = is_gt4(i) as usize;
+            let class = class_of(i);
             class_counts[class] += 1;
             let p = self.progress[i];
             let pct = p.fract() as f32;
@@ -277,6 +307,14 @@ impl DemoSource {
         f.incidents = 2;
         f.on_pit_road = false;
         f.is_on_track = true;
+        // Readings from the last stop: a little hotter and more worn on the right.
+        f.tire_temp = [[78.0, 82.5, 86.0], [91.0, 88.5, 84.0], [80.5, 83.0, 85.5], [89.0, 87.0, 83.5]];
+        f.tire_wear = [[0.94, 0.93, 0.91], [0.86, 0.88, 0.9], [0.95, 0.94, 0.94], [0.89, 0.9, 0.92]];
+        f.tire_cold_pressure = [165.0, 165.0, 162.0, 162.0];
+        f.tire_compound = 0;
+        f.tire_sets_used = 2;
+        f.tire_sets_available = 3;
+        f.in_pit_stall = false;
         &self.frame
     }
 
@@ -304,11 +342,16 @@ DriverInfo:
  DriverCarEstLapTime: 92.1000
  DriverCarSLShiftRPM: 8100.000
  DriverCarRedLine: 8600.000
+ DriverTires:
+ - TireIndex: 0
+   TireCompoundType: "Hard"
+ - TireIndex: 1
+   TireCompoundType: "Wet"
  Drivers:
 "#,
         );
         for (i, name) in NAMES.iter().enumerate() {
-            let gt4 = is_gt4(i);
+            let class = &CLASSES[class_of(i)];
             let ir = 1200 + (hash(i as u32 + 11) * 3200.0) as i32;
             let lic = ["A", "B", "C"][(hash(i as u32 + 13) * 2.99) as usize];
             let lic_color = match lic {
@@ -320,10 +363,10 @@ DriverInfo:
             y.push_str(&format!(
                 " - CarIdx: {i}\n   UserName: {name}\n   AbbrevName: {abbrev}\n   CarNumber: \"{num}\"\n   CarScreenNameShort: {car}\n   CarClassID: {cid}\n   CarClassShortName: {cls}\n   CarClassColor: {col}\n   CarClassEstLapTime: {est:.4}\n   IRating: {ir}\n   LicString: {lic} {sr:.2}\n   LicColor: {lic_color}\n   IsSpectator: 0\n   CarIsPaceCar: 0\n",
                 num = 3 + i * 7 % 97,
-                car = if gt4 { "GT4 Coupe" } else { "GT3 Evo" },
-                cid = if gt4 { 4048 } else { 4029 },
-                cls = if gt4 { "GT4" } else { "GT3" },
-                col = if gt4 { "0x33ceff" } else { "0xffda59" },
+                car = class.car,
+                cid = class.id,
+                cls = class.name,
+                col = class.color,
                 est = self.class_est[i],
                 sr = 1.5 + hash(i as u32 + 17) * 2.9,
             ));

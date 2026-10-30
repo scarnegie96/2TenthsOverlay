@@ -33,6 +33,21 @@ const STATUS_CONNECTED: i32 = 1;
 const VAR_HEADER_SIZE: usize = 144;
 const MAX_BUFS: usize = 4;
 
+// Tire variables in LF, RF, LR, RR order; left / middle / right.
+const TIRE_TEMP_VARS: [[&str; 3]; 4] = [
+    ["LFtempCL", "LFtempCM", "LFtempCR"],
+    ["RFtempCL", "RFtempCM", "RFtempCR"],
+    ["LRtempCL", "LRtempCM", "LRtempCR"],
+    ["RRtempCL", "RRtempCM", "RRtempCR"],
+];
+const TIRE_WEAR_VARS: [[&str; 3]; 4] = [
+    ["LFwearL", "LFwearM", "LFwearR"],
+    ["RFwearL", "RFwearM", "RFwearR"],
+    ["LRwearL", "LRwearM", "LRwearR"],
+    ["RRwearL", "RRwearM", "RRwearR"],
+];
+const TIRE_PRESSURE_VARS: [&str; 4] = ["LFcoldPressure", "RFcoldPressure", "LRcoldPressure", "RRcoldPressure"];
+
 // Header field byte offsets.
 const H_STATUS: usize = 4;
 const H_SESSION_INFO_UPDATE: usize = 12;
@@ -329,6 +344,18 @@ impl Irsdk {
         f.incidents = self.i32("PlayerCarMyIncidentCount");
         f.track_temp = self.f32("TrackTempCrew");
         f.air_temp = self.f32("AirTemp");
+
+        for k in 0..4 {
+            for j in 0..3 {
+                f.tire_temp[k][j] = self.f32(TIRE_TEMP_VARS[k][j]);
+                f.tire_wear[k][j] = self.f32(TIRE_WEAR_VARS[k][j]);
+            }
+            f.tire_cold_pressure[k] = self.f32(TIRE_PRESSURE_VARS[k]);
+        }
+        f.tire_compound = self.i32("PlayerTireCompound");
+        f.tire_sets_used = self.i32("TireSetsUsed");
+        f.tire_sets_available = self.num("TireSetsAvailable", 0).map(|v| v as i32).unwrap_or(255);
+        f.in_pit_stall = self.bool("PlayerCarInPitStall");
 
         let n = MAX_CARS;
         f.car_lap.resize(n, 0);

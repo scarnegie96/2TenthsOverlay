@@ -1,71 +1,128 @@
 import type React from "react";
 import { opt, type WidgetConfig } from "../lib/config";
-import { gap as fmtGap, irating, lapTime } from "../lib/format";
+import { gap as fmtGap, irating } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { StandingRow } from "../lib/types";
+import { BestLap, ClassStripe, IRatingBadge, LastLap, strengthOfField } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { sessionAside } from "./Relative";
 
-/** Top of the order plus a window around the player when they're further back. */
-function pickRows(rows: StandingRow[], max: number): (StandingRow | "gap")[] {
+type Slot = StandingRow | "break";
+
+/** The top of a class plus a window around the player when they're further back. */
+function pickRows(rows: StandingRow[], max: number): Slot[] {
   if (rows.length <= max) return rows;
   const me = rows.findIndex((r) => r.isPlayer);
   if (me < max) return rows.slice(0, max);
   const around = Math.min(5, Math.floor(max / 2));
   const top = max - around;
   const start = Math.min(rows.length - around, me - Math.floor(around / 2));
-  return [...rows.slice(0, top), "gap", ...rows.slice(start, start + around)];
+  return [...rows.slice(0, top), "break", ...rows.slice(start, start + around)];
+}
+
+interface Group {
+  classId: number;
+  name: string;
+  color: string;
+  rows: StandingRow[];
+}
+
+/** Classes in running order (the class of the overall leader first). */
+function groupByClass(rows: StandingRow[]): Group[] {
+  const groups = new Map<number, Group>();
+  for (const r of rows) {
+    let g = groups.get(r.classId);
+    if (!g) {
+      g = { classId: r.classId, name: r.className, color: r.classColor, rows: [] };
+      groups.set(r.classId, g);
+    }
+    g.rows.push(r);
+  }
+  return [...groups.values()];
 }
 
 export function Standings({ config }: { config: WidgetConfig }) {
   const field = useLive((s) => s.field);
   const session = useLive((s) => s.session);
-  const max = opt(config, "rows", 14);
-  const myClassOnly = opt(config, "myClassOnly", true);
-  const gapMode = opt(config, "gapMode", "leader");
+  const myRows = opt(config, "rows", 10);
+  const otherRows = opt(config, "otherClassRows", 3);
+  const myClassOnly = opt(config, "myClassOnly", false);
+  const gapMode = opt<string>(config, "gapMode", "leader");
   const showLast = opt(config, "showLast", true);
-  const showIR = opt(config, "showIRating", false);
+  const showBest = opt(config, "showBest", true);
+  const showIR = opt(config, "showIRating", true);
 
-  let rows = field?.standings ?? [];
-  const playerClass = rows.find((r) => r.isPlayer)?.classId ?? session?.playerClassId;
-  const filterClass = myClassOnly && session?.multiclass && playerClass != null;
-  if (filterClass) rows = rows.filter((r) => r.classId === playerClass);
-  const shown = pickRows(rows, max);
-  const cols = ["22px 3px 34px 1fr", showIR && "34px", showLast && "auto", "58px"].filter(Boolean).join(" ");
-  const className = filterClass ? rows[0]?.className : null;
+  const all = field?.standings ?? [];
+  const playerClass = all.find((r) => r.isPlayer)?.classId ?? session?.playerClassId;
+  let groups = groupByClass(all);
+  if (myClassOnly) groups = groups.filter((g) => g.classId === playerClass);
+  const showClassHeads = groups.length > 1;
+
+  const cols = [
+    "24px 8px 34px minmax(0, 1fr)",
+    showIR && "40px",
+    "54px",
+    showLast && "62px",
+    showBest && "62px",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <Panel
-      className="standings"
-      title={session?.trackName || "Standings"}
-      aside={[className, sessionAside(field?.clock)].filter(Boolean).join("   ")}
-    >
-      {rows.length === 0 ? (
+    <Panel className="standings" title={session?.trackName || "Standings"} aside={sessionAside(field?.clock)}>
+      {all.length === 0 ? (
         <Empty>Standings appear when a session is running.</Empty>
       ) : (
         <div className="rows" style={{ "--cols": cols } as React.CSSProperties}>
-          {shown.map((r, k) =>
-            r === "gap" ? (
-              <div key={`g${k}`} className="row row-break" />
-            ) : (
-              <div key={r.carIdx} className={`row ${r.isPlayer ? "is-player" : ""}`}>
-                <span className="pos">{filterClass ? r.classPosition : r.position || "–"}</span>
-                <span className="class-bar" style={{ background: r.classColor }} />
-                <span className="num">{r.number}</span>
-                <span className="name">
-                  {r.name}
-                  {r.onPitRoad && <span className="tag">Pit</span>}
-                </span>
-                {showIR && <span className="ir">{irating(r.irating)}</span>}
-                {showLast && (
-                  <span className={`time ${r.classFastest && r.lastLap === r.bestLap ? "is-fastest" : ""}`}>
-                    {lapTime(r.lastLap)}
-                  </span>
+          <div className="row row-head">
+            <span />
+            <span />
+            <span />
+            <span />
+            {showIR && <span>iR</span>}
+            <span>{gapMode === "interval" ? "Int" : "Gap"}</span>
+            {showLast && <span>Last</span>}
+            {showBest && <span>Best</span>}
+          </div>
+          {groups.map((g) => {
+            const max = g.classId === playerClass ? myRows : otherRows;
+            const sof = strengthOfField(g.rows.map((r) => r.irating));
+            return (
+              <div key={g.classId} className="class-group" style={{ "--row-class": g.color } as React.CSSProperties}>
+                {showClassHeads && (
+                  <div className="class-head">
+                    <span className="class-name">{g.name || "Class"}</span>
+                    <span>
+                      {g.rows.length} cars{sof ? `   SoF ${irating(sof)}` : ""}
+                    </span>
+                  </div>
                 )}
-                <span className="gap">{gapCell(r, gapMode)}</span>
+                {pickRows(g.rows, max).map((r, k) =>
+                  r === "break" ? (
+                    <div key={`b${k}`} className="row row-break" />
+                  ) : (
+                    <div
+                      key={r.carIdx}
+                      className={`row ${r.isPlayer ? "is-player" : ""}`}
+                      style={{ "--row-class": r.classColor } as React.CSSProperties}
+                    >
+                      <span className="pos">{r.classPosition || r.position || "–"}</span>
+                      <ClassStripe color={r.classColor} />
+                      <span className="num">{r.number}</span>
+                      <span className="name">
+                        {r.name}
+                        {r.onPitRoad && <span className="tag">Pit</span>}
+                      </span>
+                      {showIR && <IRatingBadge value={r.irating} />}
+                      <span className="gap">{gapCell(r, gapMode)}</span>
+                      {showLast && <LastLap time={r.lastLap} flag={r.lastFlag} />}
+                      {showBest && <BestLap time={r.bestLap} fastest={r.classFastest} />}
+                    </div>
+                  ),
+                )}
               </div>
-            ),
-          )}
+            );
+          })}
         </div>
       )}
     </Panel>
@@ -75,6 +132,6 @@ export function Standings({ config }: { config: WidgetConfig }) {
 function gapCell(r: StandingRow, mode: string) {
   if (r.lapsDown > 0) return `+${r.lapsDown}L`;
   const v = mode === "interval" ? r.interval : r.gap;
-  if (v == null) return r.position === 1 || r.classPosition === 1 ? "Leader" : "";
-  return `+${fmtGap(v)}`;
+  if (v == null) return r.classPosition === 1 ? <span className="muted">Leader</span> : "";
+  return fmtGap(v);
 }

@@ -3,9 +3,11 @@ import type { WidgetConfig, WidgetId } from "../lib/config";
 import { Delta } from "./Delta";
 import { Fuel } from "./Fuel";
 import { Inputs } from "./Inputs";
+import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Spotter } from "./Spotter";
 import { Standings } from "./Standings";
+import { Tires } from "./Tires";
 
 export interface WidgetProps {
   config: WidgetConfig;
@@ -20,4 +22,6 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   delta: Delta,
   fuel: Fuel,
   spotter: Spotter,
+  radar: Radar,
+  tires: Tires,
 };

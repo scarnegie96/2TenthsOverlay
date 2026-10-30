@@ -23,9 +23,9 @@ export function Inputs({ config }: { config: WidgetConfig }) {
       <div className="inputs-body">
         <Trace seconds={seconds} />
         <div className="pedals">
-          {showClutch && <Bar label="C" value={tick?.clutch ?? 0} kind="clutch" />}
-          <Bar label="B" value={tick?.brake ?? 0} kind="brake" />
-          <Bar label="T" value={tick?.throttle ?? 0} kind="throttle" />
+          {showClutch && <Bar label="Clutch" value={tick?.clutch ?? 0} kind="clutch" />}
+          <Bar label="Brake" value={tick?.brake ?? 0} kind="brake" />
+          <Bar label="Throttle" value={tick?.throttle ?? 0} kind="throttle" />
         </div>
         <div className={`gearbox ${shift ? "is-shift" : ""}`}>
           <span className="gear">{gear(tick?.gear ?? 0)}</span>
@@ -43,11 +43,12 @@ export function Inputs({ config }: { config: WidgetConfig }) {
 function Bar({ label, value, kind }: { label: string; value: number; kind: string }) {
   const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
-    <div className={`bar bar-${kind}`}>
+    <div className={`bar bar-${kind} ${pct > 0 ? "is-active" : ""}`} aria-label={`${label} ${pct}%`}>
+      <span className="bar-pct">{pct}</span>
       <div className="bar-track">
         <div className="bar-fill" style={{ transform: `scaleY(${pct / 100})` }} />
       </div>
-      <span className="bar-label">{label}</span>
+      <span className="bar-label">{label[0]}</span>
     </div>
   );
 }

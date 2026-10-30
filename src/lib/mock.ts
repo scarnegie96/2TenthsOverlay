@@ -5,21 +5,33 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  FieldPayload, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload, TickPayload,
+  FieldPayload, LapFlag, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
+  TickPayload, TiresPayload,
 } from "./types";
 
 type Handler = (payload: unknown) => void;
 
 const CONFIG_KEY = "tenths.config";
-const LAP = 92;
-const N = 18;
+const TRACK_M = 5100;
 const PLAYER = 6;
 const NAMES = [
   "Lena Hoffmann", "Marco Bellini", "Tom Okafor", "Sakura Ito", "Jörg Lindqvist", "Diego Alvarez", "You",
-  "Priya Raman", "Callum Reid", "Noah Fischer", "Elif Demir", "Mateus Costa", "Rafael Duarte", "Ines Moreau",
-  "Kenji Sato", "Liam O'Brien", "Zoe Clarke", "Amara Nwosu",
+  "Priya Raman", "Callum Reid", "Noah Fischer", "Elif Demir", "Mateus Costa", "Owen Walsh", "Hannah Kowalski",
+  "Rafael Duarte", "Ines Moreau", "Kenji Sato", "Liam O'Brien", "Zoe Clarke", "Pieter de Vries", "Amara Nwosu",
 ];
+const N = NAMES.length;
+const CLASSES = [
+  { id: 4074, name: "LMP2", color: "#f04e7a", lap: 86.3 },
+  { id: 4029, name: "GT3", color: "#ffda59", lap: 92.1 },
+  { id: 4048, name: "GT4", color: "#33ceff", lap: 99.4 },
+];
+const classOf = (i: number) => (i <= 4 ? 0 : i <= 14 ? 1 : 2);
 const CORNERS = [0.06, 0.17, 0.31, 0.43, 0.52, 0.66, 0.79, 0.9];
+/** Cars that dice with the player: [car, mean offset m, swing m, period s] */
+const BATTLE: [number, number, number, number][] = [
+  [7, -4, 9, 22],
+  [8, 14, 11, 31],
+];
 
 const rand = (i: number) => {
   const x = Math.sin(i * 12.9898) * 43758.5453;
@@ -31,9 +43,12 @@ class Mock {
   private channel = new BroadcastChannel("tenths");
   private editMode = false;
   private t = 0;
-  private progress = Array.from({ length: N }, (_, i) => 7.6 - i * 0.03 - rand(i) * 0.01);
-  private pace = Array.from({ length: N }, (_, i) => LAP + (i >= 12 ? 7 : 0) + rand(i + 3) * 2);
-  private best = this.pace.map((p, i) => p - 0.4 + rand(i + 9) * 0.3);
+  private progress = Array.from({ length: N }, (_, i) => 7.6 - (i + (classOf(i) === 2 ? 1.5 : 0)) * 0.028 - rand(i) * 0.01);
+  private pace = Array.from({ length: N }, (_, i) => CLASSES[classOf(i)].lap + rand(i + 3) * 2.2);
+  private last = this.pace.map((p, i) => p + 0.2 + rand(i + 5) * 0.8);
+  private best = this.pace.map((p, i) => p + rand(i + 9) * 0.4);
+  private lapStart = Array.from({ length: N }, () => 0);
+  private sides = new Map<number, number>();
   private fuel = 31.4;
   private started = false;
 
@@ -43,6 +58,12 @@ class Mock {
       if (event === "edit-mode") this.editMode = payload as boolean;
       this.dispatch(event, payload);
     };
+    for (const [i, base] of BATTLE) this.progress[i] = this.progress[PLAYER] + base / TRACK_M;
+    // Give a few drivers a fresh personal best / class best so the colors show.
+    this.last[2] = this.best[2];
+    this.last[PLAYER] = this.best[PLAYER];
+    this.best[9] = Math.min(...this.best.slice(5, 15)) - 0.1;
+    this.last[9] = this.best[9];
   }
 
   on(event: string, handler: Handler): () => void {
@@ -82,11 +103,7 @@ class Mock {
         return;
       case "get_snapshot":
         return {
-          status: this.status(),
-          session: this.session(),
-          editMode: this.editMode,
-          overlayVisible: true,
-          demo: true,
+          status: this.status(), session: this.session(), editMode: this.editMode, overlayVisible: true, demo: true,
         } satisfies Snapshot;
       case "set_edit_mode":
         this.editMode = Boolean(args.enabled);
@@ -109,9 +126,9 @@ class Mock {
 
   private session(): SessionPayload {
     return {
-      trackName: "Demo Ring", trackConfig: "Grand Prix", trackLengthKm: 5.1, sessionType: "Race",
-      playerCarIdx: PLAYER, playerClassId: 1, carName: "GT3 Evo", fuelMaxLtr: 120, estLapTime: LAP,
-      shiftRpm: 8100, redlineRpm: 8600, multiclass: true,
+      trackName: "Demo Ring", trackConfig: "Grand Prix", trackLengthKm: TRACK_M / 1000, sessionType: "Race",
+      playerCarIdx: PLAYER, playerClassId: CLASSES[1].id, carName: "GT3 Evo", fuelMaxLtr: 120, estLapTime: 92.1,
+      shiftRpm: 8100, redlineRpm: 8600, multiclass: true, tireCompounds: ["Hard", "Wet"],
     };
   }
 
@@ -151,10 +168,50 @@ class Mock {
   private step(dt: number) {
     this.t += dt;
     for (let i = 0; i < N; i++) {
-      const pct = this.progress[i] % 1;
-      this.progress[i] += (dt / this.pace[i]) * (this.speedFactor(pct) / 0.82);
+      if (BATTLE.some(([b]) => b === i)) continue;
+      const before = Math.floor(this.progress[i]);
+      this.progress[i] += (dt / this.pace[i]) * (this.speedFactor(this.progress[i] % 1) / 0.82);
+      if (Math.floor(this.progress[i]) > before) {
+        const lap = this.t - this.lapStart[i];
+        if (this.lapStart[i] > 0) {
+          this.last[i] = lap;
+          this.best[i] = Math.min(this.best[i], lap);
+        }
+        this.lapStart[i] = this.t;
+      }
     }
-    this.fuel = Math.max(0, this.fuel - dt * (2.7 / LAP));
+    for (const [i, base, swing, period] of BATTLE) {
+      this.progress[i] = this.progress[PLAYER] + (base + swing * Math.sin((this.t * 2 * Math.PI) / period)) / TRACK_M;
+    }
+    this.fuel = Math.max(0, this.fuel - dt * (2.7 / 92));
+  }
+
+  private nearby(pct: number): { cars: NearbyCar[]; carLeftRight: number } {
+    const cars: NearbyCar[] = [];
+    for (let i = 0; i < N; i++) {
+      if (i === PLAYER) continue;
+      let d = (this.progress[i] % 1) - pct;
+      d -= Math.round(d);
+      const dist = d * TRACK_M;
+      if (Math.abs(dist) <= 60) cars.push({ carIdx: i, dist, side: 0, classColor: CLASSES[classOf(i)].color });
+    }
+    // In the mock, even-numbered cars are on our left, odd on our right.
+    let left = 0;
+    let right = 0;
+    for (const c of cars) {
+      const wanted = c.carIdx % 2 ? 1 : -1;
+      if (Math.abs(c.dist) < 5.5) {
+        c.side = wanted as 1 | -1;
+        if (wanted < 0) left++;
+        else right++;
+      } else if (Math.abs(c.dist) < 14 && this.sides.get(c.carIdx)) {
+        c.side = this.sides.get(c.carIdx) as 1 | -1;
+      }
+    }
+    this.sides = new Map(cars.filter((c) => c.side).map((c) => [c.carIdx, c.side]));
+    const carLeftRight =
+      left && right ? 4 : left > 1 ? 5 : right > 1 ? 6 : left ? 2 : right ? 3 : 1;
+    return { cars, carLeftRight };
   }
 
   private tick(): TickPayload {
@@ -165,79 +222,96 @@ class Mock {
     const braking = ahead < f - 0.01;
     const speed = 78 * f;
     const g = Math.min(6, Math.max(1, Math.ceil(speed / 13)));
-    let side: number = 1;
-    for (let i = 0; i < N; i++) {
-      if (i === PLAYER) continue;
-      let d = (this.progress[i] % 1) - pct;
-      d -= Math.round(d);
-      if (Math.abs(d) * 5100 < 6) side = i % 2 ? 3 : 2;
-    }
     const lapCurrent = pct * this.pace[PLAYER];
+    const near = this.nearby(pct);
     return {
       sessionTime: this.t, isOnTrack: true, onPitRoad: false, speed,
       rpm: 4200 + ((speed % 13) / 13) * 4300, gear: g,
-      throttle: braking ? 0 : ahead > f + 0.005 || f > 0.98 ? 1 : 0.45,
+      throttle: braking ? 0 : ahead > f + 0.005 || f > 0.98 ? 1 : 0.45 + Math.sin(this.t * 3) * 0.08,
       brake: braking ? Math.min(1, 0.6 + (f - ahead) * 8) : 0,
       clutch: 0, steering: Math.sin(pct * 40) * (1 - f) * 2,
       lap: Math.floor(p) + 1, lapDistPct: pct, lapCurrent,
-      lapLast: this.best[PLAYER] + 0.6, lapBest: this.best[PLAYER],
-      deltaBest: lapCurrent - pct * this.best[PLAYER] + Math.sin(this.t / 7) * 0.25,
-      fuelLevel: this.fuel, carLeftRight: side, incidents: 2,
+      lapLast: this.last[PLAYER], lapBest: this.best[PLAYER],
+      deltaBest: lapCurrent - pct * this.best[PLAYER] + Math.sin(this.t / 7) * 0.35,
+      fuelLevel: this.fuel, carLeftRight: near.carLeftRight, incidents: 2, nearby: near.cars,
     };
   }
 
   private driver(i: number) {
-    const gt4 = i >= 12;
     const lic = ["A", "B", "C"][Math.floor(rand(i + 13) * 3)];
+    const c = CLASSES[classOf(i)];
     return {
       carIdx: i, name: NAMES[i], abbrev: NAMES[i].split(" ").pop() ?? "", number: String(3 + ((i * 7) % 97)),
-      classId: gt4 ? 2 : 1, className: gt4 ? "GT4" : "GT3", classColor: gt4 ? "#33ceff" : "#ffda59",
-      irating: 1200 + Math.floor(rand(i + 11) * 3200), license: `${lic} ${(1.5 + rand(i + 17) * 2.9).toFixed(2)}`,
+      classId: c.id, className: c.name, classColor: c.color,
+      irating: 1200 + Math.floor(rand(i + 11) * 3800), license: `${lic} ${(1.5 + rand(i + 17) * 2.9).toFixed(2)}`,
       licenseColor: lic === "A" ? "#0153db" : lic === "B" ? "#00c702" : "#feec04",
+    };
+  }
+
+  private laps(i: number, classBest: number[]) {
+    const lastFlag: LapFlag =
+      Math.abs(this.last[i] - this.best[i]) < 0.0005
+        ? Math.abs(this.best[i] - classBest[classOf(i)]) < 0.0005 ? "fastest" : "personal"
+        : "none";
+    return {
+      lastLap: this.last[i], bestLap: this.best[i], lastFlag,
+      classFastest: Math.abs(this.best[i] - classBest[classOf(i)]) < 0.0005,
     };
   }
 
   private field(): FieldPayload {
     const order = [...Array(N).keys()].sort((a, b) => this.progress[b] - this.progress[a]);
+    const classBest = CLASSES.map((_, c) => Math.min(...this.best.filter((_, i) => classOf(i) === c)));
     const pos = new Map<number, number>();
     const classPos = new Map<number, number>();
-    const counts = [0, 0];
+    const counts = [0, 0, 0];
     order.forEach((i, k) => {
       pos.set(i, k + 1);
-      const c = i >= 12 ? 1 : 0;
-      classPos.set(i, ++counts[c]);
+      classPos.set(i, ++counts[classOf(i)]);
     });
     const me = this.progress[PLAYER];
-    const relative: RelativeRow[] = order.map((i) => {
-      let d = (this.progress[i] % 1) - (me % 1);
-      d -= Math.round(d);
-      const laps = Math.round(this.progress[i] - me - d);
-      return {
-        ...this.driver(i), position: pos.get(i)!, classPosition: classPos.get(i)!, gap: d * LAP,
-        lapStatus: Math.max(-1, Math.min(1, laps)) as -1 | 0 | 1, onPitRoad: false, isPlayer: i === PLAYER,
-      };
-    }).sort((a, b) => b.gap - a.gap);
+    const relative: RelativeRow[] = order
+      .map((i) => {
+        let d = (this.progress[i] % 1) - (me % 1);
+        d -= Math.round(d);
+        const laps = Math.round(this.progress[i] - me - d);
+        return {
+          ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
+          gap: d * 92.1, lapStatus: Math.max(-1, Math.min(1, laps)) as -1 | 0 | 1, onPitRoad: i === 20,
+          isPlayer: i === PLAYER,
+        };
+      })
+      .sort((a, b) => b.gap - a.gap);
 
     const leaders = new Map<number, number>();
     const prev = new Map<number, number>();
     const standings: StandingRow[] = order.map((i) => {
-      const c = i >= 12 ? 1 : 0;
+      const c = classOf(i);
       if (!leaders.has(c)) leaders.set(c, i);
       const lead = leaders.get(c)!;
       const ahead = prev.get(c);
       prev.set(c, i);
-      const lapsDown = Math.floor(this.progress[lead] - this.progress[i]);
       return {
-        ...this.driver(i), position: pos.get(i)!, classPosition: classPos.get(i)!, lap: Math.floor(this.progress[i]),
-        gap: lead === i ? null : (this.progress[lead] - this.progress[i]) * this.pace[i], lapsDown,
+        ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
+        lap: Math.floor(this.progress[i]),
+        gap: lead === i ? null : (this.progress[lead] - this.progress[i]) * this.pace[i],
+        lapsDown: Math.floor(this.progress[lead] - this.progress[i]),
         interval: ahead === undefined ? null : (this.progress[ahead] - this.progress[i]) * this.pace[i],
-        lastLap: this.best[i] + 0.3 + rand(i + Math.floor(this.progress[i])) * 0.8, bestLap: this.best[i],
-        classFastest: i === (c ? 13 : 3), onPitRoad: false, isPlayer: i === PLAYER,
+        onPitRoad: i === 20, isPlayer: i === PLAYER,
       };
     });
 
     const perLap = 2.7;
     const lapsToGo = 30 - Math.floor(this.progress[order[0]]) - 1 + (1 - (me % 1));
+    const tires: TiresPayload = {
+      corners: [
+        { temp: [78, 82.5, 86], wear: [0.94, 0.93, 0.91], coldPressure: 165 },
+        { temp: [91, 88.5, 84], wear: [0.86, 0.88, 0.9], coldPressure: 165 },
+        { temp: [80.5, 83, 85.5], wear: [0.95, 0.94, 0.94], coldPressure: 162 },
+        { temp: [89, 87, 83.5], wear: [0.89, 0.9, 0.92], coldPressure: 162 },
+      ],
+      compound: "Hard", setsUsed: 2, setsAvailable: 3, live: false, hasData: true,
+    };
     return {
       clock: {
         sessionType: "Race", timeRemain: null, lapsRemain: 30 - Math.floor(this.progress[order[0]]), totalLaps: 30,
@@ -249,6 +323,7 @@ class Mock {
         level: this.fuel, max: 120, perLap, lastLapUsed: 2.74, lapsOfFuel: this.fuel / perLap, lapsToGo,
         toFinish: lapsToGo * perLap - this.fuel, samples: 5,
       },
+      tires,
     };
   }
 }

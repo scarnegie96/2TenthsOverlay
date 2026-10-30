@@ -21,6 +21,7 @@ export interface SessionPayload {
   shiftRpm: number;
   redlineRpm: number;
   multiclass: boolean;
+  tireCompounds: string[];
 }
 
 export interface TickPayload {
@@ -43,6 +44,26 @@ export interface TickPayload {
   fuelLevel: number;
   carLeftRight: number;
   incidents: number;
+  nearby: NearbyCar[];
+}
+
+export interface NearbyCar {
+  carIdx: number;
+  /** metres, positive = ahead */
+  dist: number;
+  /** -1 left, 0 in line, 1 right */
+  side: -1 | 0 | 1;
+  classColor: string;
+}
+
+/** green = personal best, purple = fastest in class */
+export type LapFlag = "none" | "personal" | "fastest";
+
+export interface LapInfo {
+  lastLap: number | null;
+  bestLap: number | null;
+  lastFlag: LapFlag;
+  classFastest: boolean;
 }
 
 export interface DriverCell {
@@ -58,7 +79,7 @@ export interface DriverCell {
   licenseColor: string;
 }
 
-export interface RelativeRow extends DriverCell {
+export interface RelativeRow extends DriverCell, LapInfo {
   position: number;
   classPosition: number;
   gap: number;
@@ -67,16 +88,13 @@ export interface RelativeRow extends DriverCell {
   isPlayer: boolean;
 }
 
-export interface StandingRow extends DriverCell {
+export interface StandingRow extends DriverCell, LapInfo {
   position: number;
   classPosition: number;
   lap: number;
   gap: number | null;
   lapsDown: number;
   interval: number | null;
-  lastLap: number | null;
-  bestLap: number | null;
-  classFastest: boolean;
   onPitRoad: boolean;
   isPlayer: boolean;
 }
@@ -103,11 +121,32 @@ export interface SessionClock {
   strengthOfField: number | null;
 }
 
+export interface TireCorner {
+  /** °C, left / middle / right */
+  temp: [number, number, number];
+  /** tread remaining 0..1 */
+  wear: [number, number, number];
+  /** kPa, as set in the garage */
+  coldPressure: number;
+}
+
+export interface TiresPayload {
+  /** LF, RF, LR, RR */
+  corners: TireCorner[];
+  compound: string;
+  setsUsed: number;
+  setsAvailable: number | null;
+  /** In the pit box, so readings are current. */
+  live: boolean;
+  hasData: boolean;
+}
+
 export interface FieldPayload {
   clock: SessionClock;
   relative: RelativeRow[];
   standings: StandingRow[];
   fuel: FuelPayload;
+  tires: TiresPayload;
 }
 
 export interface Snapshot {

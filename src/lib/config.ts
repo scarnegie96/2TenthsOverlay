@@ -1,6 +1,6 @@
 import type { Units } from "./format";
 
-export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "fuel" | "spotter";
+export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "fuel" | "radar" | "tires" | "spotter";
 
 export interface WidgetConfig {
   enabled: boolean;
@@ -49,32 +49,35 @@ export const WIDGETS: WidgetMeta[] = [
     id: "relative",
     name: "Relative",
     description: "Cars around you on track, with the time gap to each.",
-    x: 1480, y: 600, enabled: true,
+    x: 1396, y: 600, enabled: true,
     options: [
       { key: "ahead", label: "Cars ahead", type: "number", default: 3, min: 1, max: 8 },
       { key: "behind", label: "Cars behind", type: "number", default: 3, min: 1, max: 8 },
       { key: "showIRating", label: "Show iRating", type: "toggle", default: true },
-      { key: "showLicense", label: "Show licence", type: "toggle", default: true },
+      { key: "showLicense", label: "Show license", type: "toggle", default: true },
+      { key: "showLastLap", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showPit", label: "Show cars in the pits", type: "toggle", default: true },
     ],
   },
   {
     id: "standings",
     name: "Standings",
-    description: "Race order with gaps and lap times. Always keeps you in view.",
-    x: 24, y: 200, enabled: true,
+    description: "Race order by class, with gaps, iRating and lap times. Always keeps you in view.",
+    x: 24, y: 160, enabled: true,
     options: [
-      { key: "rows", label: "Rows", type: "number", default: 14, min: 5, max: 40 },
-      { key: "myClassOnly", label: "My class only", type: "toggle", default: true, help: "In multi-class races" },
+      { key: "rows", label: "Rows for your class", type: "number", default: 10, min: 3, max: 40 },
+      { key: "otherClassRows", label: "Rows for other classes", type: "number", default: 3, min: 1, max: 20 },
+      { key: "myClassOnly", label: "My class only", type: "toggle", default: false, help: "Hide the other classes in multi-class races" },
       {
         key: "gapMode", label: "Gap column", type: "select", default: "leader",
         choices: [
-          { value: "leader", label: "Gap to leader" },
+          { value: "leader", label: "Gap to class leader" },
           { value: "interval", label: "Interval to car ahead" },
         ],
       },
-      { key: "showLast", label: "Show last lap", type: "toggle", default: true },
-      { key: "showIRating", label: "Show iRating", type: "toggle", default: false },
+      { key: "showIRating", label: "Show iRating", type: "toggle", default: true },
+      { key: "showLast", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
+      { key: "showBest", label: "Show best lap", type: "toggle", default: true },
     ],
   },
   {
@@ -102,16 +105,36 @@ export const WIDGETS: WidgetMeta[] = [
     id: "fuel",
     name: "Fuel",
     description: "Usage per lap, laps remaining and how much to add at your stop.",
-    x: 1560, y: 340, enabled: true,
+    x: 1580, y: 340, enabled: true,
     options: [
       { key: "marginLaps", label: "Safety margin", type: "number", default: 0.5, min: 0, max: 3, step: 0.25, suffix: "laps" },
     ],
   },
   {
+    id: "radar",
+    name: "Radar",
+    description: "Top-down view of the cars around you, with a warning when one is alongside.",
+    x: 850, y: 640, enabled: true,
+    options: [
+      { key: "range", label: "Range", type: "number", default: 20, min: 10, max: 50, step: 5, suffix: "m" },
+      { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Otherwise it only appears when a car is in range" },
+      { key: "classColors", label: "Color cars by class", type: "toggle", default: false, help: "Close cars still turn amber and red" },
+    ],
+  },
+  {
+    id: "tires",
+    name: "Tires",
+    description: "Temperature and tread for each tire. iRacing only updates these while you're in your pit box.",
+    x: 1580, y: 120, enabled: true,
+    options: [
+      { key: "showPressure", label: "Show cold pressure", type: "toggle", default: true },
+    ],
+  },
+  {
     id: "spotter",
     name: "Spotter",
-    description: "Lights up when a car is alongside you.",
-    x: 850, y: 760, enabled: true,
+    description: "Simple left and right lights when a car is alongside. The radar includes these too.",
+    x: 850, y: 760, enabled: false,
     options: [
       { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Otherwise it only appears when a car is alongside" },
     ],

@@ -69,6 +69,17 @@ pub struct RawFrame {
     pub track_temp: f32,
     pub air_temp: f32,
 
+    /// Tires in LF, RF, LR, RR order. iRacing only refreshes temps and wear
+    /// while the car sits in its pit box; on track they hold the last reading.
+    pub tire_temp: [[f32; 3]; 4],
+    /// Tread remaining, 0..1, for the left / middle / right of each tire.
+    pub tire_wear: [[f32; 3]; 4],
+    pub tire_cold_pressure: [f32; 4],
+    pub tire_compound: i32,
+    pub tire_sets_used: i32,
+    pub tire_sets_available: i32,
+    pub in_pit_stall: bool,
+
     pub car_lap: Vec<i32>,
     pub car_lap_completed: Vec<i32>,
     pub car_lap_dist_pct: Vec<f32>,
@@ -138,6 +149,8 @@ pub struct SessionPayload {
     pub shift_rpm: f32,
     pub redline_rpm: f32,
     pub multiclass: bool,
+    /// Tire compound names indexed by compound number, e.g. ["Hard", "Wet"].
+    pub tire_compounds: Vec<String>,
 }
 
 /// Sent every telemetry frame (60 Hz). Keep this small.
@@ -165,6 +178,19 @@ pub struct TickPayload {
     pub fuel_level: f32,
     pub car_left_right: i32,
     pub incidents: i32,
+    /// Cars within radar range, for the radar widget.
+    pub nearby: Vec<NearbyCar>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NearbyCar {
+    pub car_idx: i32,
+    /// Metres along the track, positive = ahead of the player.
+    pub dist: f32,
+    /// Best guess at the lane: -1 left, 0 in line, 1 right (from CarLeftRight).
+    pub side: i32,
+    pub class_color: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -182,6 +208,28 @@ pub struct DriverCell {
     pub license_color: String,
 }
 
+/// How a driver's last lap compares.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LapFlag {
+    #[default]
+    None,
+    /// Their own best lap of the session (green).
+    Personal,
+    /// The fastest lap in their class this session (purple).
+    Fastest,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LapInfo {
+    pub last_lap: Option<f32>,
+    pub best_lap: Option<f32>,
+    pub last_flag: LapFlag,
+    /// Holds the fastest lap in its class.
+    pub class_fastest: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelativeRow {
@@ -193,6 +241,8 @@ pub struct RelativeRow {
     pub gap: f32,
     /// +1 = a lap or more ahead of the player, -1 = a lap or more behind, 0 = same lap.
     pub lap_status: i32,
+    #[serde(flatten)]
+    pub laps: LapInfo,
     pub on_pit_road: bool,
     pub is_player: bool,
 }
@@ -210,10 +260,8 @@ pub struct StandingRow {
     pub laps_down: i32,
     /// Seconds to the car one place ahead in class.
     pub interval: Option<f32>,
-    pub last_lap: Option<f32>,
-    pub best_lap: Option<f32>,
-    /// Holds the fastest lap in its class.
-    pub class_fastest: bool,
+    #[serde(flatten)]
+    pub laps: LapInfo,
     pub on_pit_road: bool,
     pub is_player: bool,
 }
@@ -247,6 +295,32 @@ pub struct SessionClock {
     pub strength_of_field: Option<i32>,
 }
 
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TireCorner {
+    /// Carcass temperature °C, left / middle / right as seen from behind the car.
+    pub temp: [f32; 3],
+    /// Tread remaining 0..1, left / middle / right.
+    pub wear: [f32; 3],
+    /// Cold pressure set in the garage, kPa.
+    pub cold_pressure: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TiresPayload {
+    /// LF, RF, LR, RR
+    pub corners: Vec<TireCorner>,
+    pub compound: String,
+    pub sets_used: i32,
+    /// None when unlimited.
+    pub sets_available: Option<i32>,
+    /// True while values are live (car in its pit box).
+    pub live: bool,
+    /// False until iRacing has reported any reading this session.
+    pub has_data: bool,
+}
+
 /// Sent at 10 Hz: everything about the field and strategy.
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -255,4 +329,5 @@ pub struct FieldPayload {
     pub relative: Vec<RelativeRow>,
     pub standings: Vec<StandingRow>,
     pub fuel: FuelPayload,
+    pub tires: TiresPayload,
 }

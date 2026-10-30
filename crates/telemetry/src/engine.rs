@@ -13,6 +13,8 @@ const LAP_TIME_WINDOW: usize = 5;
 pub struct Engine {
     session: Option<SessionInfo>,
     fuel: FuelTracker,
+    /// Lane each nearby car was given last frame, so cars don't jump sides.
+    radar_sides: HashMap<i32, i32>,
 }
 
 impl Engine {
@@ -48,6 +50,7 @@ impl Engine {
             shift_rpm: s.shift_rpm,
             redline_rpm: s.redline_rpm,
             multiclass: s.is_multiclass(),
+            tire_compounds: s.tire_compounds.clone(),
         }
     }
 
@@ -86,6 +89,102 @@ impl Engine {
             fuel_level: f.fuel_level,
             car_left_right: f.car_left_right,
             incidents: f.incidents,
+            nearby: self.nearby(f),
+        }
+    }
+
+    /// Cars within `RADAR_RANGE_M` along the track, for the radar.
+    ///
+    /// iRacing only tells us *that* a car is alongside (CarLeftRight), not
+    /// its lateral position. So distance comes from lap position, and the
+    /// overlapping cars nearest to us are assigned to the side(s) iRacing reports.
+    fn nearby(&mut self, f: &RawFrame) -> Vec<NearbyCar> {
+        let Some(s) = &self.session else { return Vec::new() };
+        let track_m = s.track_length_km * 1000.0;
+        let p = f.player_car_idx;
+        if track_m <= 0.0 || !(0..MAX_CARS as i32).contains(&p) || f.lap_dist_pct < 0.0 {
+            return Vec::new();
+        }
+        let mut cars: Vec<NearbyCar> = s
+            .drivers
+            .iter()
+            .filter(|d| d.car_idx != p && visible_driver(d, f))
+            // Ignore cars on pit road unless we're on it too.
+            .filter(|d| f.on_pit_road || !f.car_on_pit_road[d.car_idx as usize])
+            .filter_map(|d| {
+                let mut frac = f.car_lap_dist_pct[d.car_idx as usize] - f.lap_dist_pct;
+                frac -= frac.round();
+                let dist = frac * track_m;
+                (dist.abs() <= RADAR_RANGE_M).then(|| NearbyCar {
+                    car_idx: d.car_idx,
+                    dist,
+                    side: 0,
+                    class_color: d.class_color.clone(),
+                })
+            })
+            .collect();
+        cars.sort_by(|a, b| a.dist.abs().total_cmp(&b.dist.abs()));
+
+        use car_left_right as clr;
+        let sides: &[i32] = match f.car_left_right {
+            clr::CAR_LEFT => &[-1],
+            clr::CAR_RIGHT => &[1],
+            clr::CAR_LEFT_RIGHT => &[-1, 1],
+            clr::TWO_CARS_LEFT => &[-1, -1],
+            clr::TWO_CARS_RIGHT => &[1, 1],
+            _ => &[],
+        };
+        let mut remaining: Vec<i32> = sides.to_vec();
+        let overlaps = |c: &NearbyCar| c.dist.abs() < CAR_LENGTH_M * 1.6;
+
+        // 1. Overlapping cars keep the side they had, if iRacing still reports a car there.
+        for c in cars.iter_mut().filter(|c| overlaps(c)) {
+            if let Some(&prev) = self.radar_sides.get(&c.car_idx) {
+                if let Some(k) = remaining.iter().position(|&s| s == prev) {
+                    c.side = remaining.remove(k);
+                }
+            }
+        }
+        // 2. Remaining reported sides go to the nearest unassigned overlapping cars.
+        for c in cars.iter_mut().filter(|c| overlaps(c) && c.side == 0) {
+            if remaining.is_empty() {
+                break;
+            }
+            c.side = remaining.remove(0);
+        }
+        // 3. A car that was beside us and has just pulled ahead or dropped back
+        //    is still in that lane, so keep it there while it's close.
+        for c in cars.iter_mut().filter(|c| c.side == 0 && c.dist.abs() < LANE_MEMORY_M) {
+            if let Some(&prev) = self.radar_sides.get(&c.car_idx) {
+                c.side = prev;
+            }
+        }
+
+        self.radar_sides = cars.iter().filter(|c| c.side != 0).map(|c| (c.car_idx, c.side)).collect();
+        cars
+    }
+
+    fn tires(&self, f: &RawFrame, s: &SessionInfo) -> TiresPayload {
+        let corners: Vec<TireCorner> = (0..4)
+            .map(|k| TireCorner {
+                temp: f.tire_temp[k],
+                // Reported as a 0..1 fraction; guard against a 0..100 build.
+                wear: f.tire_wear[k].map(|w| if w > 1.5 { w / 100.0 } else { w }),
+                cold_pressure: f.tire_cold_pressure[k],
+            })
+            .collect();
+        let has_data = corners.iter().any(|c| c.temp.iter().any(|t| *t > 0.0) || c.wear.iter().any(|w| *w > 0.0));
+        TiresPayload {
+            corners,
+            compound: s
+                .tire_compounds
+                .get(f.tire_compound.max(0) as usize)
+                .cloned()
+                .unwrap_or_default(),
+            sets_used: f.tire_sets_used,
+            sets_available: (f.tire_sets_available >= 0 && f.tire_sets_available < 255).then_some(f.tire_sets_available),
+            live: f.in_pit_stall,
+            has_data,
         }
     }
 
@@ -97,6 +196,7 @@ impl Engine {
             relative: self.relative(f, session),
             standings: self.standings(f, session),
             fuel: self.fuel.payload(f, session, self.is_race(f.session_num)),
+            tires: self.tires(f, session),
         }
     }
 
@@ -124,6 +224,7 @@ impl Engine {
         let race = self.is_race(f.session_num);
         let player_progress = f.car_lap[p] as f32 + f.car_lap_dist_pct[p];
         let player_frac = lap_time_fraction(f, p, player_class.map(|d| d.class_est_lap_time).unwrap_or(0.0));
+        let fastest = class_fastest(f, s);
 
         let mut rows: Vec<RelativeRow> = s
             .drivers
@@ -152,6 +253,7 @@ impl Engine {
                     class_position: f.car_class_position[i],
                     gap,
                     lap_status,
+                    laps: lap_info(f, d, &fastest),
                     on_pit_road: f.car_on_pit_road[i],
                     is_player: i == p,
                 }
@@ -171,17 +273,7 @@ impl Engine {
             .filter(|d| !d.is_spectator && !d.is_pace_car && (d.car_idx as usize) < MAX_CARS)
             .collect();
 
-        // Fastest lap per class.
-        let mut fastest: HashMap<i32, (i32, f32)> = HashMap::new();
-        for d in &entrants {
-            let best = f.car_best_lap[d.car_idx as usize];
-            if best > 0.0 {
-                let e = fastest.entry(d.class_id).or_insert((d.car_idx, best));
-                if best < e.1 {
-                    *e = (d.car_idx, best);
-                }
-            }
-        }
+        let fastest = class_fastest(f, s);
 
         let mut rows: Vec<StandingRow> = entrants
             .iter()
@@ -195,9 +287,7 @@ impl Engine {
                     gap: None,
                     laps_down: 0,
                     interval: None,
-                    last_lap: positive(f.car_last_lap[i]),
-                    best_lap: positive(f.car_best_lap[i]),
-                    class_fastest: fastest.get(&d.class_id).map(|x| x.0) == Some(d.car_idx),
+                    laps: lap_info(f, d, &fastest),
                     on_pit_road: f.car_on_pit_road[i],
                     is_player: d.car_idx == p,
                 }
@@ -206,8 +296,8 @@ impl Engine {
 
         // Unclassified cars (position 0) go to the back, ordered by best lap.
         rows.sort_by(|a, b| {
-            let ka = (a.position == 0, if a.position > 0 { a.position as f32 } else { a.best_lap.unwrap_or(f32::MAX) });
-            let kb = (b.position == 0, if b.position > 0 { b.position as f32 } else { b.best_lap.unwrap_or(f32::MAX) });
+            let ka = (a.position == 0, if a.position > 0 { a.position as f32 } else { a.laps.best_lap.unwrap_or(f32::MAX) });
+            let kb = (b.position == 0, if b.position > 0 { b.position as f32 } else { b.laps.best_lap.unwrap_or(f32::MAX) });
             ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
         });
 
@@ -233,10 +323,10 @@ impl Engine {
                     let pi = rows[prev].driver.car_idx as usize;
                     rows[idx].interval = Some((f.car_f2_time[i] - f.car_f2_time[pi]).max(0.0));
                 }
-            } else if let (Some(best), Some(leader_best)) = (rows[idx].best_lap, rows[leader].best_lap) {
+            } else if let (Some(best), Some(leader_best)) = (rows[idx].laps.best_lap, rows[leader].laps.best_lap) {
                 rows[idx].gap = (leader != idx).then_some(best - leader_best);
                 if let Some(&prev) = class_prev.get(&class) {
-                    if let Some(prev_best) = rows[prev].best_lap {
+                    if let Some(prev_best) = rows[prev].laps.best_lap {
                         rows[idx].interval = Some(best - prev_best);
                     }
                 }
@@ -244,6 +334,53 @@ impl Engine {
             class_prev.insert(class, idx);
         }
         rows
+    }
+}
+
+/// Car length used to decide when another car overlaps ours.
+const CAR_LENGTH_M: f32 = 4.7;
+const RADAR_RANGE_M: f32 = 60.0;
+/// How far a car can move away along the track and still be drawn in its last lane.
+const LANE_MEMORY_M: f32 = 14.0;
+/// Lap times within this many seconds count as the same lap.
+const LAP_EPS: f32 = 0.0005;
+
+/// Fastest lap per class: class id -> (car idx, time).
+fn class_fastest(f: &RawFrame, s: &SessionInfo) -> HashMap<i32, (i32, f32)> {
+    let mut fastest: HashMap<i32, (i32, f32)> = HashMap::new();
+    for d in s.drivers.iter().filter(|d| !d.is_spectator && !d.is_pace_car && (0..MAX_CARS as i32).contains(&d.car_idx)) {
+        let best = f.car_best_lap[d.car_idx as usize];
+        if best > 0.0 {
+            let e = fastest.entry(d.class_id).or_insert((d.car_idx, best));
+            if best < e.1 {
+                *e = (d.car_idx, best);
+            }
+        }
+    }
+    fastest
+}
+
+/// Last / best lap with purple (class fastest) and green (personal best) flags.
+fn lap_info(f: &RawFrame, d: &DriverInfo, fastest: &HashMap<i32, (i32, f32)>) -> LapInfo {
+    let i = d.car_idx as usize;
+    let last = positive(f.car_last_lap[i]);
+    let best = positive(f.car_best_lap[i]);
+    let class_best = fastest.get(&d.class_id).copied();
+    let last_flag = match (last, best) {
+        (Some(l), Some(b)) if (l - b).abs() < LAP_EPS => {
+            if class_best.is_some_and(|(_, t)| (l - t).abs() < LAP_EPS) {
+                LapFlag::Fastest
+            } else {
+                LapFlag::Personal
+            }
+        }
+        _ => LapFlag::None,
+    };
+    LapInfo {
+        last_lap: last,
+        best_lap: best,
+        last_flag,
+        class_fastest: class_best.map(|(c, _)| c) == Some(d.car_idx),
     }
 }
 
@@ -474,6 +611,58 @@ mod tests {
         f.lap_completed = 5;
         t.update(&f);
         assert_eq!(t.per_lap.len(), 2);
+    }
+
+    fn two_car_session() -> SessionInfo {
+        SessionInfo {
+            track_length_km: 5.0,
+            player_car_idx: 0,
+            drivers: (0..3)
+                .map(|i| DriverInfo { car_idx: i, class_id: 1, class_color: "#fff".into(), ..Default::default() })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn radar_places_overlapping_car_on_reported_side() {
+        let mut e = Engine::new();
+        e.set_session(two_car_session());
+        let mut f = RawFrame::with_capacity();
+        f.player_car_idx = 0;
+        f.lap_dist_pct = 0.5;
+        for i in 0..3 {
+            f.car_track_surface[i] = track_surface::ON_TRACK;
+        }
+        f.car_lap_dist_pct[0] = 0.5;
+        f.car_lap_dist_pct[1] = 0.5004; // 2 m ahead, alongside
+        f.car_lap_dist_pct[2] = 0.4960; // 20 m behind
+        f.car_left_right = car_left_right::CAR_RIGHT;
+        let near = e.nearby(&f);
+        assert_eq!(near.len(), 2);
+        let alongside = near.iter().find(|c| c.car_idx == 1).unwrap();
+        assert_eq!(alongside.side, 1);
+        assert!((alongside.dist - 2.0).abs() < 0.01);
+        let behind = near.iter().find(|c| c.car_idx == 2).unwrap();
+        assert_eq!(behind.side, 0);
+        assert!((behind.dist + 20.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn last_lap_flags() {
+        let s = two_car_session();
+        let mut f = RawFrame::with_capacity();
+        f.car_best_lap[0] = 90.0;
+        f.car_last_lap[0] = 90.0; // fastest in class
+        f.car_best_lap[1] = 91.0;
+        f.car_last_lap[1] = 91.0; // personal best only
+        f.car_best_lap[2] = 92.0;
+        f.car_last_lap[2] = 93.0; // nothing
+        let fastest = class_fastest(&f, &s);
+        let flag = |i: usize| lap_info(&f, &s.drivers[i], &fastest).last_flag;
+        assert_eq!(flag(0), LapFlag::Fastest);
+        assert_eq!(flag(1), LapFlag::Personal);
+        assert_eq!(flag(2), LapFlag::None);
     }
 
     #[test]
