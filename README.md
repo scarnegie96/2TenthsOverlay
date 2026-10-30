@@ -13,7 +13,7 @@ subscriptions, no third-party services, and every line of it is yours to change.
 | **Relative** | Cars around you on track with gaps, class, iRating, license and last lap. Cars lapping you or being lapped are colored. Your class's SoF is in the header. |
 | **Standings** | The field grouped by class with gaps, iRating, last and best laps. SoF per class, or for the whole field in single-class races. |
 | **Session** | Track and length, field size and SoF per class, time of day, air and track temperature, sky, track wetness, wind and humidity, your incidents against the limit and fast repairs left (off by default). |
-| **Delta** | A horizontal trace of your lap against a comparison lap, rising where you're faster and dipping where you're slower, with per-sector gains and losses. |
+| **Delta** | A horizontal trace of your lap against a comparison lap, rising where you're faster and dipping where you're slower, with per-sector gains and losses. Your best, optimal and last laps sit underneath. A simple mode shrinks it to just the live gap. |
 | **Coach** | One live cue at a time from an imported reference lap: brake in 50 m, brake now, brake harder or lighter, carry more speed, throttle now, shift down, turn in more. |
 | **Inputs** | Gear, speed, wheel angle, throttle/brake/clutch % and a scrolling input trace. The gear turns red at the shift point. With a reference lap loaded, a slimmer strip above shows the reference's inputs. |
 | **Car dynamics** | g-meter with your grip envelope, top/side/rear views of slip, pitch and roll, and a live understeer/oversteer bar. |
@@ -39,6 +39,12 @@ session optimal, last lap, or a lap you import. Import one under
 
 A reference is only used when its track and layout match the session.
 
+Along the bottom, the panel shows your best, optimal and last laps, with the
+one you're comparing against highlighted. Turn off **Delta → Show lap times**
+to hide them. Turn on **Delta → Simple pace readout** to swap the graph and
+sectors for one large number: how far ahead or behind the comparison lap you
+are right now.
+
 ### Notes
 
 - iRacing only updates tire temperatures and wear while your car is in its pit
@@ -52,6 +58,9 @@ A reference is only used when its track and layout match the session.
 - The shift point is where the car's own shift lights start blinking in the
   current gear (or are all lit, for cars without a blink point). Turn off
   **Inputs → Gear turns red to shift** to keep the gear yellow.
+- iRacing doesn't publish an optimal lap time, so the Delta panel's Optimal
+  adds up your best clean sectors this session. It can differ from the
+  all-time optimal in iRacing's own lap files.
 - In team events, the Session panel counts the team's incidents, since that's
   what the limit applies to.
 
