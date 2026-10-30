@@ -1,55 +1,67 @@
 # Tenths
 
-iRacing overlays you own. A Tauri 2 app for Windows that reads the iRacing SDK
-directly and draws a set of configurable widgets over the sim.
+iRacing overlays you own. Tenths is a Tauri 2 app for Windows that reads the
+iRacing SDK directly and draws a set of configurable widgets over the sim: no
+subscriptions, no third-party services, and every line of it is yours to change.
 
-Widgets so far: **Relative**, **Standings** (grouped by class), **Inputs**,
-**Delta**, **Coach**, **Car dynamics**, **Instruments**, **Fuel**, **Radar**, **Tires** and **Spotter**, all draggable,
-resizable and toggleable. Last laps are purple for the fastest in class and green
-for a personal best.
+![Tenths overlay in the demo race](docs/screenshot.png)
 
-The **Delta** widget is a horizontal strip comparing your lap with your best lap,
-optimal lap, session best, session optimal, last lap, or a lap you import from an
-iRacing `.ibt` telemetry file. The comparison rises above your lap's baseline where
-it's faster and dips below where it's slower, with per-sector gains and losses
-underneath. Import a lap under **Settings → Delta → Reference lap and coaching**:
-iRacing's saved best/optimal laps (`.blap`/`.olap` from `Documents\iRacing\lapfiles`)
-or a lap from an `.ibt`.
+## Widgets
 
-With a reference loaded you also get **coaching**: a slimmer strip grows out of
-the top of the Inputs panel showing the reference's gear, speed, trace, pedals
-and (for .ibt laps, which record steering) wheel, and the **Coach**
-widget gives one live cue at a time (brake in 50 m, brake now, braking early,
-brake harder or lighter, carry more speed, throttle now, shift down to 4th,
-better exit, turn in more, gaining or losing time).
+| Widget | What it shows |
+| --- | --- |
+| **Relative** | Cars around you on track with gaps, class, iRating, license and last lap. Cars lapping you or being lapped are colored. |
+| **Standings** | The field grouped by class with SoF, gaps, iRating, last and best laps. |
+| **Delta** | A horizontal trace of your lap against a comparison lap, rising where you're faster and dipping where you're slower, with per-sector gains and losses. |
+| **Coach** | One live cue at a time from an imported reference lap: brake in 50 m, brake now, brake harder or lighter, carry more speed, throttle now, shift down, turn in more. |
+| **Inputs** | Gear, speed, wheel angle, throttle/brake/clutch % and a scrolling input trace. With a reference lap loaded, a slimmer strip above shows the reference's inputs. |
+| **Car dynamics** | g-meter with your grip envelope, top/side/rear views of slip, pitch and roll, and a live understeer/oversteer bar. |
+| **Instruments** | Warning lights for every iRacing engine warning plus low fuel, engine gauges, and a brake bias dial that flashes when you adjust it. |
+| **Fuel** | Fuel per lap (average of the last 5 green laps), laps in the tank, laps to go and how much to add to finish. |
+| **Radar** | Transparent proximity radar with your car, nearby cars and side warnings. |
+| **Tires** | Temperatures, wear and pressures per corner, compound and sets left. |
+| **Spotter** | Big car-left / car-right warnings (off by default). |
 
-The **Car dynamics** panel has a g-meter (with a faint outline of the grip you've
-been using in each direction), top, side and rear views of the car showing slip,
-pitch and roll, and a live understeer/oversteer bar. Balance is learnt from your
-own driving, so it settles after a few corners.
+Last laps are purple for the fastest in class and green for a personal best.
 
-The **Instruments** panel has warning lights for every iRacing engine warning
-(oil pressure and temperature, water temperature, fuel pressure, stalled, pit
-limiter, rev limiter, required and optional repairs) plus a low fuel light worked
-out from your fuel use, engine gauges, and a brake bias dial that flashes when you
-adjust it.
+### Delta and reference laps
 
-A note on tires: iRacing only updates tire temperatures and wear while your car
-is in its pit box. On track the Tires widget shows the reading from your last stop.
+The Delta widget compares against your best lap, optimal lap, session best,
+session optimal, last lap, or a lap you import. Import one under
+**Settings → Delta → Reference lap and coaching**:
 
-## Running it on Windows
+- **`.blap` / `.olap`**: iRacing's saved best and optimal laps, from
+  `Documents\iRacing\lapfiles`. These don't record steering, so there's no
+  reference wheel or steering cues.
+- **`.ibt`**: iRacing telemetry files. Pick any complete lap; these include
+  steering.
+
+A reference is only used when its track and layout match the session.
+
+### Notes
+
+- iRacing only updates tire temperatures and wear while your car is in its pit
+  box. On track, the Tires widget shows the reading from your last stop.
+- Low fuel is worked out by Tenths: under 2 laps of fuel, or under 8% of the
+  tank before there's a per-lap figure.
+- Gauges a car doesn't model read "–", and so does brake bias on cars without
+  an adjustable bias.
+
+## Install and run (Windows)
 
 One-time setup:
 
 1. Install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
    with the "Desktop development with C++" workload.
 2. Install Rust from [rustup.rs](https://rustup.rs) (the default MSVC toolchain).
-3. Install Node.js 20 or newer.
+3. Install [Node.js](https://nodejs.org) 20 or newer, and [Git](https://git-scm.com).
 4. WebView2 is already on Windows 10/11. If it's missing, install the Evergreen runtime.
 
-Then, from this folder:
+Then:
 
 ```powershell
+git clone https://github.com/YOUR-USERNAME/tenths.git
+cd tenths
 npm install
 npm run tauri dev      # run with hot reload
 npm run tauri build    # installer in target\release\bundle\nsis\
@@ -61,26 +73,35 @@ over exclusive fullscreen.
 ## Using it
 
 The overlay covers your primary monitor and lets every click pass through to
-iRacing. A tray icon opens the settings window.
+iRacing. A tray icon opens the settings window and quits the app.
 
-| Shortcut           | Does                                     |
-| ------------------ | ---------------------------------------- |
-| `Ctrl + Shift + E` | Edit layout: drag to move, corner or −/+ to resize, Hide to turn a widget off. `Esc` finishes. |
-| `Ctrl + Shift + H` | Show or hide all overlays                |
+| Shortcut           | Does |
+| ------------------ | ---- |
+| `Ctrl + Shift + E` | Edit layout: drag to move, drag the corner or use −/+ to resize, Hide to turn a widget off. `Esc` finishes. |
+| `Ctrl + Shift + H` | Show or hide all overlays |
 
-Every widget can be shown or hidden, resized (50–300%) and faded from
-**Settings**, either on its own page or all at once under **General → Widgets**.
-Widgets are pinned to the nearest screen edge or the centre, so a layout made
-at 1080p lands in the same places at 1440p or 4K. On a 1440p screen, try
-setting every widget to 125% to get about the same size they'd have at 1080p.
+### Layout and screen sizes
 
-Turn on **General → Use the demo race** to lay things out without iRacing running.
-Settings are saved to `%APPDATA%\dev.tenths.overlay\config.json`.
+- Every widget can be shown or hidden, resized (50–300%) and faded in
+  **Settings**, on its own page or all at once under **General → Widgets**.
+- Widgets snap to screen edges and to each other while you drag.
+- Each widget is pinned to its nearest screen edge or the centre, so a layout
+  made at 1080p lands in the same places at 1440p or 4K. Resizing grows a
+  widget away from the edge it's pinned to.
+- On a 1440p screen at 100% Windows scaling, set every widget to 125% to get
+  about the size they'd have at 1080p. If Windows scaling is already 125%,
+  leave them at 100%.
 
-## Working on the UI from a Mac
+Turn on **General → Use the demo race** to lay things out without iRacing
+running. **General → Reset layout** puts everything back to the defaults.
 
-The front end runs in a normal browser with a fake race, so you can work on
-widgets anywhere:
+Settings are saved to `%APPDATA%\dev.tenths.overlay\config.json`, and the
+imported reference lap to `reference.json` in the same folder.
+
+## Working on it from a Mac or Linux
+
+The front end runs in a normal browser with a fake 22-car, 3-class race, so you
+can work on widgets anywhere:
 
 ```bash
 npm install
@@ -88,12 +109,13 @@ npm run dev
 ```
 
 Open `http://localhost:1420/overlay.html` and `http://localhost:1420/settings.html`
-side by side. Add `?speed=6` to the overlay URL to fast-forward the fake race. The two tabs stay in sync. Press `E` in the overlay to edit the layout.
+side by side. The two tabs stay in sync. Add `?speed=6` to the overlay URL to
+fast-forward the fake race, and press `E` in the overlay to edit the layout.
 
-The Rust side builds only on Windows, apart from the core crate:
+The Tauri app builds only on Windows, but the core crate builds anywhere:
 
 ```bash
-cargo test -p telemetry                                    # engine + parser tests, any OS
+cargo test -p telemetry                                    # engine and parser tests
 cargo check -p telemetry --features typecheck-windows      # type-check the Windows SDK reader
 cargo run -p telemetry --example dump                      # print demo-race output as JSON
 cargo run -p telemetry --example radar                     # what the radar sees, once a second
@@ -101,6 +123,9 @@ cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt t
 cargo run -p telemetry --example inspect_lap -- lap.blap   # list the corners the coach finds in a lap
 cargo run -p telemetry --example coach_demo                # how often each cue fires in the demo
 ```
+
+Before committing, run `npm run build` (type-checks the front end) and
+`cargo clippy --workspace --all-targets`.
 
 ## Project layout
 
@@ -121,10 +146,11 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
 src-tauri/            Windows, tray, hotkeys, click-through, config file
 src/
   lib/                Types, config schema, bridge to Rust (or browser mock)
-  overlay/            Transparent overlay, drag, snap and resize
+  overlay/            Transparent overlay: drag, snap, resize, screen anchoring
   widgets/            One file per widget
   settings/           Settings window
+docs/ARCHITECTURE.md  How data flows, the maths behind each widget, adding a widget
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how data flows and how to
-add a widget.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how data flows, how each
+number is worked out, and how to add a widget.
