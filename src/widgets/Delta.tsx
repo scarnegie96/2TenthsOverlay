@@ -3,6 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { BINS, deltaHistory } from "../lib/deltaHistory";
 import { lapTime, signed, speed as toSpeed, speedUnit } from "../lib/format";
 import { useLive } from "../lib/store";
+import { cssColor, paletteKey, withAlpha } from "../lib/theme";
 import type { DeltaMode } from "../lib/types";
 import { Panel } from "./Panel";
 
@@ -200,6 +201,7 @@ function Split({ label, value }: { label: string; value: number | null }) {
 /** The lap graph, drawn on a canvas every animation frame. */
 function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const palette = useLive((s) => paletteKey(s.config.general));
 
   useEffect(() => {
     const el = canvas.current!;
@@ -209,13 +211,11 @@ function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean 
     el.height = GRAPH_H * dpr;
     ctx.scale(dpr, dpr);
 
-    const css = getComputedStyle(el);
-    const color = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    const gain = color("--gain", "#4be08f");
-    const loss = color("--loss", "#ff5468");
-    const ink = color("--ink", "#e9eef3");
-    const ink3 = color("--ink-3", "#6d7c8d");
-    const font = color("--font", "sans-serif");
+    const gain = cssColor(el, "var(--gain)");
+    const loss = cssColor(el, "var(--loss)");
+    const ink = cssColor(el, "var(--ink)");
+    const ink3 = cssColor(el, "var(--ink-3)");
+    const font = getComputedStyle(el).getPropertyValue("--font").trim() || "sans-serif";
 
     const plotH = GRAPH_H - LABEL_H;
     const mid = plotH / 2;
@@ -269,11 +269,11 @@ function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean 
         const x0 = start * GRAPH_W;
         const x1 = end * GRAPH_W;
         if (i % 2 === 1) {
-          ctx.fillStyle = "rgba(233, 238, 243, 0.035)";
+          ctx.fillStyle = withAlpha(ink, 0.035);
           ctx.fillRect(x0, 0, x1 - x0, plotH);
         }
         if (i === deltaHistory.currentSector) {
-          ctx.fillStyle = "rgba(233, 238, 243, 0.05)";
+          ctx.fillStyle = withAlpha(ink, 0.05);
           ctx.fillRect(x0, 0, x1 - x0, plotH);
         }
         if (x1 - x0 >= 12) {
@@ -286,7 +286,7 @@ function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean 
       if (showPrevious) {
         const { path } = tracePath(h.previous);
         ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = "rgba(233, 238, 243, 0.4)";
+        ctx.strokeStyle = withAlpha(ink, 0.4);
         ctx.lineWidth = 1.25;
         ctx.stroke(path);
         ctx.setLineDash([]);
@@ -308,8 +308,8 @@ function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean 
           ctx.rect(0, top, GRAPH_W, height);
           ctx.clip();
           const grad = ctx.createLinearGradient(0, top === 0 ? 0 : plotH, 0, mid);
-          grad.addColorStop(0, hexAlpha(col, 0.55));
-          grad.addColorStop(1, hexAlpha(col, 0.12));
+          grad.addColorStop(0, withAlpha(col, 0.55));
+          grad.addColorStop(1, withAlpha(col, 0.12));
           ctx.fillStyle = grad;
           ctx.fill(area);
           ctx.strokeStyle = col;
@@ -321,7 +321,7 @@ function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean 
       }
 
       // Baseline: our current lap.
-      ctx.fillStyle = "rgba(233, 238, 243, 0.55)";
+      ctx.fillStyle = withAlpha(ink, 0.55);
       ctx.fillRect(0, Math.round(mid) - 0.5, GRAPH_W, 1);
 
       // Where we are now.
@@ -339,14 +339,8 @@ function Graph({ mode, showPrevious }: { mode: DeltaMode; showPrevious: boolean 
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [mode, showPrevious]);
+  }, [mode, showPrevious, palette]);
 
   return <canvas ref={canvas} className="ds-graph" style={{ width: GRAPH_W, height: GRAPH_H }} />;
 }
 
-function hexAlpha(color: string, alpha: number) {
-  const m = /^#([0-9a-f]{6})$/i.exec(color);
-  if (!m) return color;
-  const n = parseInt(m[1], 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}

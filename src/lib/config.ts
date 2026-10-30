@@ -1,4 +1,5 @@
 import type { Units } from "./format";
+import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "coach" | "dynamics" | "instruments" | "fuel" | "radar" | "tires"
@@ -30,6 +31,9 @@ export interface GeneralConfig {
   units: Units;
   /** When widgets are drawn outside of edit mode. */
   showWhen: "connected" | "onTrack";
+  theme: Theme;
+  /** Colors changed from the theme's defaults, kept separately for each theme. */
+  colors: Record<Theme, Partial<Record<ColorKey, string>>>;
 }
 
 export interface AppConfig {
@@ -243,7 +247,7 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected" },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {} } },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }
@@ -264,7 +268,9 @@ export function normalizeConfig(raw: unknown): AppConfig {
       };
     }
   }
-  return { version: 1, general: { ...base.general, ...(saved.general ?? {}) }, widgets };
+  const general = { ...base.general, ...(saved.general ?? {}) };
+  general.colors = { ...base.general.colors, ...(saved.general?.colors ?? {}) };
+  return { version: 1, general, widgets };
 }
 
 export function opt<T extends number | boolean | string>(w: WidgetConfig, key: string, fallback: T): T {

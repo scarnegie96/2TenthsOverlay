@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { useLive } from "../lib/store";
+import { cssColor, paletteKey, withAlpha } from "../lib/theme";
 import type { TickPayload } from "../lib/types";
 import { Panel } from "./Panel";
 
@@ -166,6 +167,7 @@ function Balance({ value, live }: { value: number | null; live: boolean }) {
  */
 function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const palette = useLive((s) => paletteKey(s.config.general));
 
   useEffect(() => {
     const el = canvas.current!;
@@ -175,13 +177,11 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
     el.height = METER * dpr;
     ctx.scale(dpr, dpr);
 
-    const css = getComputedStyle(el);
-    const v = (n: string, f: string) => css.getPropertyValue(n).trim() || f;
-    const ink = v("--ink", "#e9eef3");
-    const ink3 = v("--ink-3", "#6d7c8d");
-    const line = v("--line-strong", "rgba(146,170,196,.32)");
-    const attention = v("--attention", "#ffb547");
-    const font = v("--font", "sans-serif");
+    const ink = cssColor(el, "var(--ink)");
+    const ink3 = cssColor(el, "var(--ink-3)");
+    const line = cssColor(el, "var(--line-strong)");
+    const attention = cssColor(el, "var(--attention)");
+    const font = getComputedStyle(el).getPropertyValue("--font").trim() || "sans-serif";
 
     const c = METER / 2;
     const r = c - 8;
@@ -250,16 +250,16 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
         if (i === 0) ctx.moveTo(px, py);
         else ctx.lineTo(px, py);
       }
-      ctx.fillStyle = "rgba(233, 238, 243, 0.07)";
+      ctx.fillStyle = withAlpha(ink, 0.07);
       ctx.fill();
-      ctx.strokeStyle = "rgba(233, 238, 243, 0.25)";
+      ctx.strokeStyle = withAlpha(ink, 0.25);
       ctx.stroke();
 
       // Fading trail.
       const now = trail.length ? trail[trail.length - 1].t : 0;
       for (let i = 1; i < trail.length; i++) {
         const age = (now - trail[i].t) / TRAIL_S;
-        ctx.strokeStyle = `rgba(255, 181, 71, ${0.65 * (1 - age)})`;
+        ctx.strokeStyle = withAlpha(attention, 0.65 * (1 - age));
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(c + trail[i - 1].x * scale, c + trail[i - 1].y * scale);
@@ -288,7 +288,7 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
       cancelAnimationFrame(raf);
       unsub();
     };
-  }, [maxG, felt]);
+  }, [maxG, felt, palette]);
 
   return <canvas ref={canvas} className="dyn-gmeter" style={{ width: METER, height: METER }} />;
 }

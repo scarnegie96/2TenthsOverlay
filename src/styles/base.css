@@ -1,22 +1,24 @@
-/* Design tokens shared by the overlay and settings windows.
+/* Design tokens shared by the overlay and settings windows, dark by default
+ * with a light theme below.
  *
  * Color language borrows from motorsport timing screens:
  *   purple = fastest, green = gaining / throttle, red = losing / brake,
  *   amber = attention, blue = a car you're lapping.
  */
 :root {
+  color-scheme: dark;
   --font: "Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
 
+  /* The colors below can each be changed in Settings (src/lib/theme.ts keeps
+     the same defaults); everything else is mixed from them. */
   --ink: #e9eef3;
   --ink-2: #a7b4c2;
   --ink-3: #6d7c8d;
 
-  --panel: rgba(13, 19, 27, 0.84);
   --panel-solid: #0d131b;
   --panel-raised: #151e29;
-  --line: rgba(146, 170, 196, 0.16);
-  --line-strong: rgba(146, 170, 196, 0.32);
-  --grid: rgba(233, 238, 243, 0.07);
+  --edge: #92aac4;
+  --wheel: #c9d1da;
 
   --fastest: #b98cff;
   --gain: #4be08f;
@@ -24,14 +26,52 @@
   --attention: #ffb547;
   --lapped: #6fb7ff;
   --lapping: #ff9a6b;
-  --player: rgba(233, 238, 243, 0.12);
 
   --throttle: var(--gain);
   --brake: var(--loss);
   --clutch: #6fb7ff;
 
+  /* Not changeable: what insets and wells darken towards, and how solid panels are. */
+  --well: #000;
+  --panel-alpha: 84%;
+
+  --panel: color-mix(in srgb, var(--panel-solid) var(--panel-alpha), transparent);
+  --line: color-mix(in srgb, var(--edge) 16%, transparent);
+  --line-strong: color-mix(in srgb, var(--edge) 32%, transparent);
+  --grid: color-mix(in srgb, var(--ink) 7%, transparent);
+  --player: color-mix(in srgb, var(--ink) 12%, transparent);
+
+  /* The imported reference lap, muted so it reads as secondary to your own. */
+  --ghost-throttle: color-mix(in srgb, var(--throttle) 55%, var(--ink-3));
+  --ghost-brake: color-mix(in srgb, var(--brake) 55%, var(--ink-3));
+  --ghost-attention: color-mix(in srgb, var(--attention) 70%, var(--ink-3));
+  --ghost-wheel: color-mix(in srgb, var(--wheel) 55%, var(--ink-3));
+
   --radius: 6px;
   --row-h: 26px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink: #141c25;
+  --ink-2: #46525f;
+  --ink-3: #76828f;
+
+  --panel-solid: #f4f6f9;
+  --panel-raised: #ffffff;
+  --edge: #40556d;
+  --wheel: #3a4654;
+
+  --fastest: #8248e0;
+  --gain: #11a058;
+  --loss: #df2f47;
+  --attention: #d48300;
+  --lapped: #1c78d0;
+  --lapping: #dc6128;
+  --clutch: #1c78d0;
+
+  --well: #5d6f85;
+  --panel-alpha: 90%;
 }
 
 *,

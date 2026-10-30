@@ -145,7 +145,7 @@ export function WidgetFrame({ id, config, editing, screen, others, onRect, onGui
               <button title="Smaller" disabled={scale <= MIN_SCALE} onClick={() => nudgeScale(-0.1)}>−</button>
               <span className="frame-scale">{Math.round(scale * 100)}%</span>
               <button title="Bigger" disabled={scale >= MAX_SCALE} onClick={() => nudgeScale(0.1)}>+</button>
-              <button className="frame-hide" title="Hide this widget (turn it back on in Settings)" onClick={() => onCommit(id, { enabled: false })}>
+              <button className="frame-hide" title="Hide this widget (turn it back on from Widgets in the edit bar)" onClick={() => onCommit(id, { enabled: false })}>
                 Hide
               </button>
             </span>

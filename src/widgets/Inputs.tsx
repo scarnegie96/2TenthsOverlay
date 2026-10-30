@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { gear, speed, type Units } from "../lib/format";
 import { useLive } from "../lib/store";
+import { cssColor, paletteKey } from "../lib/theme";
 import type { TickPayload } from "../lib/types";
 import { Panel } from "./Panel";
 
@@ -150,6 +151,7 @@ function Wheel({ angle }: { angle: number }) {
 /** Rolling throttle/brake trace drawn on a canvas, outside React's render loop. */
 function Trace({ seconds, source }: { seconds: number; source: Source }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const palette = useLive((s) => paletteKey(s.config.general));
   const height = source === "reference" ? GHOST_TRACE_H : TRACE_H;
 
   useEffect(() => {
@@ -160,10 +162,9 @@ function Trace({ seconds, source }: { seconds: number; source: Source }) {
     el.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    const css = getComputedStyle(el);
-    const throttleColor = css.getPropertyValue("--throttle").trim() || "#4be08f";
-    const brakeColor = css.getPropertyValue("--brake").trim() || "#ff5468";
-    const gridColor = css.getPropertyValue("--grid").trim() || "rgba(255,255,255,.07)";
+    const throttleColor = cssColor(el, "var(--throttle)");
+    const brakeColor = cssColor(el, "var(--brake)");
+    const gridColor = cssColor(el, "var(--grid)");
 
     const samples: { t: number; th: number | null; br: number | null }[] = [];
     let raf = 0;
@@ -239,7 +240,7 @@ function Trace({ seconds, source }: { seconds: number; source: Source }) {
       cancelAnimationFrame(raf);
       unsub();
     };
-  }, [seconds, source, height]);
+  }, [seconds, source, height, palette]);
 
   return <canvas ref={canvas} className="trace" style={{ width: TRACE_W, height }} />;
 }

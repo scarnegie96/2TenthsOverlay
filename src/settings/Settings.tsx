@@ -6,9 +6,10 @@ import {
 } from "../lib/config";
 import { lapTime } from "../lib/format";
 import { updateConfig, useLive } from "../lib/store";
+import { COLOR_GROUPS, THEME_COLORS, effectiveColor, type ColorKey, type Theme } from "../lib/theme";
 import type { IbtSummary } from "../lib/types";
 
-type Pane = "general" | WidgetId;
+type Pane = "general" | "appearance" | WidgetId;
 
 export function Settings() {
   const [pane, setPane] = useState<Pane>("general");
@@ -23,6 +24,9 @@ export function Settings() {
         <NavItem active={pane === "general"} onClick={() => setPane("general")}>
           General
         </NavItem>
+        <NavItem active={pane === "appearance"} onClick={() => setPane("appearance")}>
+          Appearance
+        </NavItem>
         <div className="nav-heading">Widgets</div>
         {WIDGETS.map((w) => (
           <NavItem key={w.id} active={pane === w.id} onClick={() => setPane(w.id)}>
@@ -31,7 +35,9 @@ export function Settings() {
           </NavItem>
         ))}
       </nav>
-      <main className="pane">{pane === "general" ? <GeneralPane /> : <WidgetPane id={pane} />}</main>
+      <main className="pane">
+        {pane === "general" ? <GeneralPane /> : pane === "appearance" ? <AppearancePane /> : <WidgetPane id={pane} />}
+      </main>
     </div>
   );
 }
@@ -144,6 +150,70 @@ function GeneralPane() {
         </Field>
       </Section>
       {!isTauri && <p className="note">Browser preview: settings are saved in this browser only.</p>}
+    </>
+  );
+}
+
+const THEMES: { value: Theme; label: string }[] = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+];
+
+function AppearancePane() {
+  const g = useLive((s) => s.config.general);
+  const own = g.colors[g.theme] ?? {};
+  const changed = Object.keys(own).length;
+  const setColors = (colors: Partial<Record<ColorKey, string>>) => setGeneral({ colors: { ...g.colors, [g.theme]: colors } });
+  const setColor = (key: ColorKey, value: string | null) => {
+    const next = { ...own };
+    if (value && value.toLowerCase() !== THEME_COLORS[g.theme][key]) next[key] = value;
+    else delete next[key];
+    setColors(next);
+  };
+  const themeName = g.theme === "dark" ? "dark" : "light";
+
+  return (
+    <>
+      <h1>Appearance</h1>
+      <p className="lede">The theme and colors apply to the overlays and this window.</p>
+      <Section title="Theme">
+        <Field label="Theme" help="Light panels can be easier to read over bright tracks and daytime skies.">
+          <div className="segmented">
+            {THEMES.map((t) => (
+              <button key={t.value} className={g.theme === t.value ? "is-on" : ""} onClick={() => setGeneral({ theme: t.value })}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </Section>
+      {COLOR_GROUPS.map((group) => (
+        <Section key={group.title} title={group.title}>
+          {group.colors.map((c) => {
+            const value = effectiveColor(g, c.key);
+            const custom = Boolean(own[c.key]);
+            const follows = c.follows && !custom ? COLOR_GROUPS.flatMap((x) => x.colors).find((x) => x.key === c.follows) : null;
+            return (
+              <Field key={c.key} label={c.label} help={[c.help, follows && `Matches ${follows.label.toLowerCase()} until you change it`].filter(Boolean).join(". ") || undefined}>
+                <button className="btn btn-quiet" disabled={!custom} onClick={() => setColor(c.key, null)}>
+                  Default
+                </button>
+                <label className="swatch" style={{ background: value }}>
+                  <input type="color" value={value} aria-label={c.label} onChange={(e) => setColor(c.key, e.target.value)} />
+                </label>
+                <code className="swatch-hex">{value}</code>
+              </Field>
+            );
+          })}
+        </Section>
+      ))}
+      <Section title="Reset">
+        <Field label={`Reset the ${themeName} theme's colors`} help={changed ? `${changed} color${changed === 1 ? "" : "s"} changed. The other theme keeps its own.` : "Nothing changed yet."}>
+          <button className="btn btn-danger" disabled={!changed} onClick={() => setColors({})}>
+            Reset colors
+          </button>
+        </Field>
+      </Section>
     </>
   );
 }

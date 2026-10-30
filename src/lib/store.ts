@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api, on } from "./bridge";
 import { type AppConfig, defaultConfig, normalizeConfig } from "./config";
+import { applyTheme } from "./theme";
 import type { FieldPayload, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
 
 interface LiveState {
@@ -30,6 +31,10 @@ export const useLive = create<LiveState>(() => ({
 /** Subscribes this window to everything the backend sends. Call once per window. */
 export async function connect(opts: { telemetry: boolean }) {
   const set = useLive.setState;
+  applyTheme(useLive.getState().config.general);
+  useLive.subscribe((s, prev) => {
+    if (s.config.general !== prev.config.general) applyTheme(s.config.general);
+  });
 
   await Promise.all([
     on<StatusPayload>("status", (status) => set({ status })),

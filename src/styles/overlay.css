@@ -67,6 +67,57 @@
   font-weight: 700;
   cursor: pointer;
 }
+.edit-bar .edit-widgets-btn {
+  background: var(--panel-raised);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-variant-numeric: tabular-nums;
+}
+.edit-bar .edit-widgets-btn.is-open {
+  box-shadow: inset 0 0 0 1.5px var(--ink-2);
+}
+
+/* Every widget, so hidden ones can be turned back on while editing. */
+.edit-widgets {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 4px;
+  padding: 8px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+.edit-bar .edit-widget {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  background: transparent;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.edit-bar .edit-widget:hover {
+  background: var(--panel-raised);
+}
+.edit-bar .edit-widget.is-on {
+  color: var(--ink);
+}
+.edit-widget-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink-3);
+}
+.edit-widget.is-on .edit-widget-check {
+  border-color: var(--gain);
+  background: var(--gain) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.2l2.6 2.6L11 4.4' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
 
 .guide {
   position: fixed;
@@ -96,7 +147,7 @@
 }
 .frame.is-editing {
   cursor: grab;
-  outline: 1px dashed rgba(255, 181, 71, 0.75);
+  outline: 1px dashed color-mix(in srgb, var(--attention) 75%, transparent);
   outline-offset: 3px;
 }
 .frame.is-editing:active {
@@ -392,7 +443,7 @@
   min-width: 34px;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(233, 238, 243, 0.88);
+  background: color-mix(in srgb, var(--ink) 88%, transparent);
   color: var(--panel-solid);
   font-size: 12px;
   font-weight: 700;
@@ -509,15 +560,14 @@
   border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: inset 0 2px 0 var(--fastest);
 }
-/* Muted palette so the reference reads as secondary to your own strip.
-   (Plain hex values: the trace canvas reads these variables directly.) */
+/* Muted palette so the reference reads as secondary to your own strip. */
 .inputs-ghost {
-  --throttle: #6fae8b;
-  --brake: #c0707b;
-  --ghost-ink: #a3adb8;
+  --throttle: var(--ghost-throttle);
+  --brake: var(--ghost-brake);
+  --ghost-ink: var(--ink-2);
 }
 .inputs-ghost .hud-gear {
-  color: #c9a664;
+  color: var(--ghost-attention);
 }
 .inputs-ghost .hud-speed-value,
 .inputs-ghost .bar.is-active .bar-pct {
@@ -525,14 +575,14 @@
 }
 .inputs-ghost .wheel-rim,
 .inputs-ghost .wheel-spoke {
-  stroke: #8e99a5;
+  stroke: var(--ghost-wheel);
 }
 .inputs-ghost .wheel-spoke:nth-of-type(2),
 .inputs-ghost .wheel-hub {
-  fill: #8e99a5;
+  fill: var(--ghost-wheel);
 }
 .inputs-ghost .wheel-mark {
-  stroke: #c0707b;
+  stroke: var(--ghost-brake);
 }
 .inputs-ghost .inputs-body {
   height: 82px;
@@ -607,21 +657,21 @@
 }
 .wheel-rim {
   fill: none;
-  stroke: #c9d1da;
+  stroke: var(--wheel);
   stroke-width: 8;
 }
 .wheel-spoke {
   fill: none;
-  stroke: #c9d1da;
+  stroke: var(--wheel);
   stroke-width: 7;
   stroke-linejoin: round;
 }
 .wheel-spoke:nth-of-type(2) {
-  fill: #c9d1da;
+  fill: var(--wheel);
   stroke-width: 2;
 }
 .wheel-hub {
-  fill: #c9d1da;
+  fill: var(--wheel);
 }
 .wheel-mark {
   fill: none;
@@ -633,7 +683,7 @@
   display: block;
   flex-shrink: 0;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.22);
+  background: color-mix(in srgb, var(--well) 22%, transparent);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -669,7 +719,7 @@
   flex: 1;
   width: 100%;
   border-radius: 3px;
-  background: rgba(233, 238, 243, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   box-shadow: inset 0 0 0 1px var(--line);
   overflow: hidden;
 }
@@ -707,7 +757,7 @@
   gap: 2px;
   padding: 4px 0 3px;
   border-radius: 5px;
-  color: rgba(233, 238, 243, 0.16);
+  color: color-mix(in srgb, var(--ink) 16%, transparent);
   transition: color 0.12s, background 0.12s;
 }
 .dash-icon {
@@ -778,7 +828,7 @@
 .dash-gauge-bar {
   height: 6px;
   border-radius: 3px;
-  background: rgba(233, 238, 243, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   overflow: hidden;
 }
 .dash-gauge-bar span {
@@ -824,7 +874,7 @@
 }
 .bias-track {
   fill: none;
-  stroke: rgba(233, 238, 243, 0.1);
+  stroke: color-mix(in srgb, var(--ink) 10%, transparent);
   stroke-width: 7;
   stroke-linecap: round;
 }
@@ -943,7 +993,7 @@
   gap: 2px;
   padding: 4px 0 5px;
   border-radius: 5px;
-  background: rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--well) 20%, transparent);
 }
 .dyn-view-svg {
   width: 84px;
@@ -964,14 +1014,14 @@
   color: var(--ink);
 }
 .dyn-car {
-  fill: #c9d1da;
+  fill: var(--wheel);
 }
 .dyn-car-detail {
-  fill: rgba(13, 19, 27, 0.55);
+  fill: color-mix(in srgb, var(--panel-solid) 55%, transparent);
 }
 .dyn-wheel {
   fill: #2a3442;
-  stroke: #8e99a5;
+  stroke: var(--ghost-wheel);
   stroke-width: 1.2;
 }
 .is-sliding .dyn-car {
@@ -1022,8 +1072,8 @@
   border-radius: 5px;
   background: linear-gradient(90deg,
       color-mix(in srgb, var(--lapped) 55%, transparent),
-      rgba(233, 238, 243, 0.08) 40%,
-      rgba(233, 238, 243, 0.08) 60%,
+      color-mix(in srgb, var(--ink) 8%, transparent) 40%,
+      color-mix(in srgb, var(--ink) 8%, transparent) 60%,
       color-mix(in srgb, var(--attention) 55%, transparent));
 }
 .dyn-balance-mid {
@@ -1160,7 +1210,7 @@
   align-self: center;
   padding: 2px 8px;
   border-radius: 4px;
-  background: rgba(233, 238, 243, 0.1);
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-2);
@@ -1195,7 +1245,7 @@
 .ds-graph {
   display: block;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.25);
+  background: color-mix(in srgb, var(--well) 25%, transparent);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .ds-empty {
@@ -1205,7 +1255,7 @@
   place-items: center;
   font-size: 14px;
   color: var(--ink-2);
-  background: rgba(13, 19, 27, 0.55);
+  background: color-mix(in srgb, var(--panel-solid) 55%, transparent);
   border-radius: 4px;
 }
 
@@ -1225,20 +1275,20 @@
   font-weight: 700;
   overflow: hidden;
   white-space: nowrap;
-  background: rgba(233, 238, 243, 0.06);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
   color: var(--ink);
 }
 .ds-sector.is-done.is-gain {
-  background: color-mix(in srgb, var(--gain) 62%, #0d131b);
+  background: color-mix(in srgb, var(--gain) 62%, var(--panel-solid));
 }
 .ds-sector.is-done.is-loss {
-  background: color-mix(in srgb, var(--loss) 58%, #0d131b);
+  background: color-mix(in srgb, var(--loss) 58%, var(--panel-solid));
 }
 .ds-sector.is-done.is-even {
-  background: rgba(233, 238, 243, 0.18);
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
 }
 .ds-sector.is-current {
-  background: rgba(233, 238, 243, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   box-shadow: inset 0 0 0 1.5px var(--ink-2);
 }
 .ds-sector.is-current.is-gain {
@@ -1255,7 +1305,7 @@
   width: 190px;
   padding: 10px 12px 10px;
   border-left: 1px solid var(--line);
-  background: rgba(233, 238, 243, 0.03);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
 }
 .ds-side-sector {
   display: flex;
@@ -1285,7 +1335,7 @@
   gap: 1px;
   padding: 4px 0 5px;
   border-radius: 4px;
-  background: rgba(233, 238, 243, 0.06);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 .ds-split-wide {
   grid-column: 1 / -1;
@@ -1339,7 +1389,7 @@
   color: var(--ink-2);
 }
 .ds-lapt.is-active {
-  background: rgba(233, 238, 243, 0.07);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
   box-shadow: inset 0 2px 0 var(--ink-2);
 }
 .ds-lapt.is-active .ds-lapt-value {
@@ -1404,7 +1454,7 @@
   flex: 1;
   height: 8px;
   border-radius: 4px;
-  background: rgba(233, 238, 243, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   overflow: hidden;
 }
 .tank-fill {
@@ -1520,12 +1570,12 @@
   height: 80px;
 }
 .spotter-car rect {
-  fill: rgba(13, 19, 27, 0.7);
+  fill: color-mix(in srgb, var(--panel-solid) 70%, transparent);
   stroke: var(--ink-2);
   stroke-width: 2;
 }
 .spotter-car rect.glass {
-  fill: rgba(233, 238, 243, 0.18);
+  fill: color-mix(in srgb, var(--ink) 18%, transparent);
   stroke: none;
 }
 .spotter-side {
@@ -1539,19 +1589,21 @@
 .spotter-side span {
   width: 9px;
   border-radius: 5px;
-  background: rgba(13, 19, 27, 0.55);
+  background: color-mix(in srgb, var(--panel-solid) 55%, transparent);
   border: 1px solid var(--line-strong);
 }
 .spotter-side.is-on span:last-child,
 .spotter-side.is-double span {
   background: var(--attention);
   border-color: var(--attention);
-  box-shadow: 0 0 14px rgba(255, 181, 71, 0.55);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--attention) 55%, transparent);
 }
 
 /* ---------- Radar ------------------------------------------------------------- */
 
 .radar {
+  /* No panel behind it, so it keeps light marks on dark outlines in either theme. */
+  --ink: #e9eef3;
   width: 236px;
   height: 236px;
   transition: opacity 0.25s;
@@ -1594,7 +1646,7 @@
 }
 .radar-side.is-on {
   stroke: var(--attention);
-  filter: drop-shadow(0 0 6px rgba(255, 181, 71, 0.9)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--attention) 90%, transparent)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
 }
 .radar-dist {
   fill: var(--ink);
@@ -1647,7 +1699,7 @@
 .tire-tread {
   height: 4px;
   border-radius: 2px;
-  background: rgba(233, 238, 243, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   overflow: hidden;
 }
 .tire-tread span {

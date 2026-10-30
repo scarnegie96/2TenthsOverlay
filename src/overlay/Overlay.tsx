@@ -12,6 +12,8 @@ export function Overlay() {
   const connected = useLive((s) => s.status?.connected ?? false);
   const onTrack = useLive((s) => s.tick?.isOnTrack ?? false);
   const [guides, setGuides] = useState<Guide[]>([]);
+  // The list of every widget, for turning hidden ones back on without opening Settings.
+  const [picker, setPicker] = useState(false);
   const rects = useRef(new Map<WidgetId, Rect>());
   const [screen, setScreen] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
 
@@ -50,7 +52,28 @@ export function Overlay() {
       {editing && (
         <div className="edit-bar">
           <span>Drag to move. Drag the corner, or use − and +, to resize.</span>
+          <button
+            className={`edit-widgets-btn ${picker ? "is-open" : ""}`}
+            aria-expanded={picker}
+            onClick={() => setPicker((p) => !p)}
+          >
+            Widgets {WIDGETS.filter((m) => config.widgets[m.id].enabled).length}/{WIDGETS.length}
+          </button>
           <button onClick={() => void api.setEditMode(false)}>Done</button>
+          {picker && (
+            <div className="edit-widgets" role="group" aria-label="Show or hide widgets">
+              {WIDGETS.map((m) => {
+                const on = config.widgets[m.id].enabled;
+                return (
+                  <button key={m.id} role="switch" aria-checked={on} className={`edit-widget ${on ? "is-on" : ""}`}
+                    title={m.description} onClick={() => commit(m.id, { enabled: !on })}>
+                    <span className="edit-widget-check" aria-hidden />
+                    {m.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       {guides.map((g, i) => (
