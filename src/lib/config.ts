@@ -118,7 +118,7 @@ export const WIDGETS: WidgetMeta[] = [
     x: 850, y: 640, enabled: true,
     options: [
       { key: "range", label: "Range", type: "number", default: 20, min: 10, max: 50, step: 5, suffix: "m" },
-      { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Otherwise it only appears when a car is in range" },
+      { key: "alwaysShow", label: "Always visible", type: "toggle", default: true, help: "Turn off to hide it until a car is in range" },
       { key: "classColors", label: "Color cars by class", type: "toggle", default: false, help: "Close cars still turn amber and red" },
     ],
   },

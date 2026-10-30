@@ -19,11 +19,12 @@ export function Radar({ config, editing }: { config: WidgetConfig; editing: bool
   const nearby = useLive((s) => s.tick?.nearby);
   const clr = useLive((s) => s.tick?.carLeftRight ?? CarLeftRight.Off);
   const range = opt(config, "range", 20);
-  const always = opt(config, "alwaysShow", false);
+  const always = opt(config, "alwaysShow", true);
   const classColors = opt(config, "classColors", false);
 
   const scale = RADIUS / range;
-  const cars = (nearby ?? []).filter((c) => Math.abs(c.dist) <= range + CAR_LEN);
+  // Keep whole cars inside the radius so they never collide with the distance labels.
+  const cars = (nearby ?? []).filter((c) => Math.abs(c.dist) <= range - CAR_LEN / 2);
   const left = clr === CarLeftRight.CarLeft || clr === CarLeftRight.CarLeftRight || clr === CarLeftRight.TwoCarsLeft;
   const right = clr === CarLeftRight.CarRight || clr === CarLeftRight.CarLeftRight || clr === CarLeftRight.TwoCarsRight;
   const visible = editing || always || cars.length > 0;
@@ -36,20 +37,12 @@ export function Radar({ config, editing }: { config: WidgetConfig; editing: bool
   return (
     <div className={`radar ${visible ? "" : "is-hidden"}`}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden>
+        {/* No background: just the cars and side arcs over the game. */}
         <defs>
-          <radialGradient id="radar-bg">
-            <stop offset="0%" stopColor="rgba(13,19,27,0.88)" />
-            <stop offset="78%" stopColor="rgba(13,19,27,0.78)" />
-            <stop offset="100%" stopColor="rgba(13,19,27,0)" />
-          </radialGradient>
           <clipPath id="radar-clip">
             <circle cx={C} cy={C} r={RADIUS + 4} />
           </clipPath>
         </defs>
-        <circle cx={C} cy={C} r={RADIUS + 8} fill="url(#radar-bg)" />
-        <circle className="radar-ring" cx={C} cy={C} r={RADIUS} />
-        <circle className="radar-ring is-inner" cx={C} cy={C} r={RADIUS / 2} />
-        <line className="radar-axis" x1={C} y1={C - RADIUS} x2={C} y2={C + RADIUS} />
 
         <SideWarning side="left" on={left} />
         <SideWarning side="right" on={right} />
