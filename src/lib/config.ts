@@ -2,11 +2,21 @@ import type { Units } from "./format";
 
 export type WidgetId = "relative" | "standings" | "inputs" | "delta" | "coach" | "dynamics" | "instruments" | "fuel" | "radar" | "tires" | "spotter";
 
+export type AnchorX = "l" | "c" | "r";
+export type AnchorY = "t" | "m" | "b";
+
 export interface WidgetConfig {
   enabled: boolean;
-  /** CSS px from the top-left of the overlay */
+  /**
+   * Offset in CSS px from the anchor: from the left/top edge, from the
+   * right/bottom edge, or of the widget's centre from the screen centre.
+   * Without an anchor, x/y are absolute on a 1920x1080 screen (the defaults
+   * and layouts saved by older versions); the overlay anchors them on first move.
+   */
   x: number;
   y: number;
+  ax?: AnchorX;
+  ay?: AnchorY;
   scale: number;
   opacity: number;
   options: Record<string, number | boolean | string>;
@@ -125,7 +135,7 @@ export const WIDGETS: WidgetMeta[] = [
     id: "coach",
     name: "Coach",
     description: "Live coaching against your imported reference lap: brake points, pressure, apex speed, throttle, gear and line.",
-    x: 760, y: 228, enabled: true,
+    x: 760, y: 270, enabled: true,
     options: [
       { key: "showDetail", label: "Show the reason", type: "toggle", default: true, help: "The line under the cue, like \"Reference brakes 30 m later\"" },
       { key: "showStats", label: "Show delta and speed", type: "toggle", default: true },

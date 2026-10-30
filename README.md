@@ -65,8 +65,14 @@ iRacing. A tray icon opens the settings window.
 
 | Shortcut           | Does                                     |
 | ------------------ | ---------------------------------------- |
-| `Ctrl + Shift + E` | Edit layout: drag to move, corner to resize. `Esc` finishes. |
+| `Ctrl + Shift + E` | Edit layout: drag to move, corner or −/+ to resize, Hide to turn a widget off. `Esc` finishes. |
 | `Ctrl + Shift + H` | Show or hide all overlays                |
+
+Every widget can be shown or hidden, resized (50–300%) and faded from
+**Settings**, either on its own page or all at once under **General → Widgets**.
+Widgets are pinned to the nearest screen edge or the centre, so a layout made
+at 1080p lands in the same places at 1440p or 4K. On a 1440p screen, try
+setting every widget to 125% to get about the same size they'd have at 1080p.
 
 Turn on **General → Use the demo race** to lay things out without iRacing running.
 Settings are saved to `%APPDATA%\dev.tenths.overlay\config.json`.

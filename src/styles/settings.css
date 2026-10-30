@@ -337,3 +337,48 @@ kbd {
   color: var(--loss);
   font-size: 14px;
 }
+
+/* ---------- Widgets quick controls ------------------------------------------ */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.segmented button {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--line-strong);
+  background: var(--panel-raised);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.segmented button:first-child {
+  border-left: 0;
+}
+.segmented button:hover {
+  color: var(--ink);
+  background: var(--panel);
+}
+.segmented button.is-on {
+  background: var(--ink);
+  color: var(--panel-solid);
+}
+
+.widget-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px 24px;
+  padding: 12px 0 4px;
+}
+.widget-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  cursor: pointer;
+}

@@ -134,6 +134,8 @@ function GeneralPane() {
         </p>
       </Section>
 
+      <WidgetsSection />
+
       <Section title="Layout">
         <Field label="Reset every widget" help="Puts all widgets back to their default size, position and options.">
           <button className="btn btn-danger" onClick={() => updateConfig((c) => ({ ...defaultConfig(), general: c.general }))}>
@@ -144,6 +146,51 @@ function GeneralPane() {
       {!isTauri && <p className="note">Browser preview: settings are saved in this browser only.</p>}
     </>
   );
+}
+
+const SCALE_PRESETS = [0.75, 1, 1.25, 1.5, 2];
+
+/** Quick show/hide for every panel, and one size for all of them. */
+function WidgetsSection() {
+  const widgets = useLive((s) => s.config.widgets);
+  const scales = new Set(WIDGETS.map((m) => widgets[m.id].scale));
+  const common = scales.size === 1 ? [...scales][0] : null;
+  const setAll = (patch: Partial<WidgetConfig>) =>
+    updateConfig((c) => ({
+      ...c,
+      widgets: Object.fromEntries(Object.entries(c.widgets).map(([k, w]) => [k, { ...w, ...patch }])) as AppConfig["widgets"],
+    }));
+  return (
+    <Section title="Widgets">
+      <Field label="Size of every widget" help="Sets all widgets to the same size. At 1440p, 125% looks about the same as 100% at 1080p.">
+        <div className="segmented">
+          {SCALE_PRESETS.map((v) => (
+            <button key={v} className={common === v ? "is-on" : ""} onClick={() => setAll({ scale: v })}>
+              {Math.round(v * 100)}%
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div className="widget-toggles">
+        {WIDGETS.map((m) => (
+          <label key={m.id} className="widget-toggle">
+            <span>{m.name}</span>
+            <Toggle checked={widgets[m.id].enabled} onChange={(enabled) => setWidget(m.id, (x) => ({ ...x, enabled }))} />
+          </label>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+const ANCHOR_WORDS = {
+  l: "left", c: "centre", r: "right", t: "top", m: "middle", b: "bottom",
+} as const;
+
+function positionHelp(w: WidgetConfig) {
+  if (!w.ax || !w.ay) return "Default spot, placed for your screen size. Drag it in edit mode to move it.";
+  const where = w.ax === "c" && w.ay === "m" ? "centre" : `${ANCHOR_WORDS[w.ay]} ${ANCHOR_WORDS[w.ax]}`;
+  return `Pinned to the ${where} of the screen, so it stays in place at any resolution. Drag it in edit mode to move it.`;
 }
 
 function setWidget(id: WidgetId, mutate: (w: WidgetConfig) => WidgetConfig) {
@@ -170,8 +217,8 @@ function WidgetPane({ id }: { id: WidgetId }) {
           <Slider value={w.opacity} min={0.2} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`}
             onChange={(opacity) => setWidget(id, (x) => ({ ...x, opacity }))} />
         </Field>
-        <Field label="Position" help={`${w.x}, ${w.y} from the top left. Drag it in edit mode to move it.`}>
-          <button className="btn" onClick={() => setWidget(id, (x) => ({ ...x, x: meta.x, y: meta.y, scale: 1 }))}>
+        <Field label="Position" help={positionHelp(w)}>
+          <button className="btn" onClick={() => setWidget(id, (x) => ({ ...x, x: meta.x, y: meta.y, ax: undefined, ay: undefined, scale: 1 }))}>
             Reset position
           </button>
         </Field>

@@ -13,6 +13,14 @@ export function Overlay() {
   const onTrack = useLive((s) => s.tick?.isOnTrack ?? false);
   const [guides, setGuides] = useState<Guide[]>([]);
   const rects = useRef(new Map<WidgetId, Rect>());
+  const [screen, setScreen] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+
+  useEffect(() => {
+    // The overlay window follows the monitor, so this changes with resolution or display scaling.
+    const resize = () => setScreen({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -41,7 +49,7 @@ export function Overlay() {
     <div className={`overlay ${editing ? "is-editing" : ""} ${isTauri ? "" : "is-preview"}`}>
       {editing && (
         <div className="edit-bar">
-          <span>Drag widgets to move them. Drag the corner handle to resize.</span>
+          <span>Drag to move. Drag the corner, or use − and +, to resize.</span>
           <button onClick={() => void api.setEditMode(false)}>Done</button>
         </div>
       )}
@@ -55,6 +63,7 @@ export function Overlay() {
             id={m.id}
             config={config.widgets[m.id]}
             editing={editing}
+            screen={screen}
             others={() => [...rects.current].filter(([k]) => k !== m.id).map(([, r]) => r)}
             onRect={onRect}
             onGuides={setGuides}

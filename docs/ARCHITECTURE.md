@@ -121,7 +121,19 @@ quoted before parsing, because iRacing doesn't escape them.
   only what they need, so a 60 Hz tick doesn't re-render the standings.
 - The input trace draws to a canvas from a store subscription, outside React.
 - `overlay/WidgetFrame.tsx` positions each widget with `translate + scale` and
-  handles drag, snapping to screen and widget edges, and corner resize.
+  handles drag, snapping to screen and widget edges, corner resize, and the
+  edit-mode label (−/+ size, Hide).
+- **Resolution independence** (`overlay/anchor.ts`): a widget's position is
+  saved as an anchor (`ax`: left/centre/right, `ay`: top/middle/bottom, picked
+  from the third of the screen its centre is in) plus an offset from that edge
+  or from the screen centre. At any screen size the widget keeps that offset,
+  and is pulled back on screen if it would hang off. Configs without an anchor
+  (the defaults, and layouts from before anchoring) are absolute positions on
+  a 1920x1080 screen at 100% size and get anchored from there, so 1080p looks
+  exactly as designed. Dragging works in absolute pixels and re-anchors on
+  release. Resizing grows a widget away from its pinned edge. The overlay
+  window is the monitor's physical size, so CSS pixels follow Windows display
+  scaling (2560x1440 at 125% is a 2048x1152 overlay).
 
 ## Adding a widget
 

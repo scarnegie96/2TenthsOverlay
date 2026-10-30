@@ -44,7 +44,7 @@
 
 .edit-bar {
   position: fixed;
-  top: 16px;
+  top: 40%; /* the clear band between the top widgets and the radar in the default layout */
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -124,9 +124,65 @@
 .frame:has(.inputs-stack.has-ghost) .frame-label {
   bottom: calc(100% + 84px);
 }
-.frame-label span {
+.frame-label.is-below {
+  bottom: auto;
+  top: 100%;
+  transform-origin: 0 0;
+  margin: 6px 0 0;
+}
+.frame-label {
+  align-items: center;
+}
+.frame-name {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+.frame-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line-strong);
+  cursor: default;
+}
+.frame-tools button {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.frame-tools button:hover:not(:disabled) {
+  background: var(--panel-raised);
+}
+.frame-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.frame-tools .frame-hide {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+  border-left: 1px solid var(--line-strong);
+  border-radius: 0 4px 4px 0;
+}
+.frame-tools .frame-hide:hover {
+  color: var(--loss);
+}
+.frame-scale {
+  min-width: 38px;
+  text-align: center;
   color: var(--ink-3);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .frame-handle {
