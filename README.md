@@ -8,6 +8,12 @@ Widgets so far: **Relative**, **Standings** (grouped by class), **Inputs**,
 resizable and toggleable. Last laps are purple for the fastest in class and green
 for a personal best.
 
+The **Delta** widget is a horizontal strip comparing your lap with your best lap,
+optimal lap, session best, session optimal, last lap, or a lap you import from an
+iRacing `.ibt` telemetry file. The comparison rises above your lap's baseline where
+it's faster and dips below where it's slower, with per-sector gains and losses
+underneath. Import a lap under **Settings → Delta → Reference lap**.
+
 A note on tires: iRacing only updates tire temperatures and wear while your car
 is in its pit box. On track the Tires widget shows the reading from your last stop.
 
@@ -56,7 +62,7 @@ npm run dev
 ```
 
 Open `http://localhost:1420/overlay.html` and `http://localhost:1420/settings.html`
-side by side. The two tabs stay in sync. Press `E` in the overlay to edit the layout.
+side by side. Add `?speed=6` to the overlay URL to fast-forward the fake race. The two tabs stay in sync. Press `E` in the overlay to edit the layout.
 
 The Rust side builds only on Windows, apart from the core crate:
 
@@ -65,6 +71,7 @@ cargo test -p telemetry                                    # engine + parser tes
 cargo check -p telemetry --features typecheck-windows      # type-check the Windows SDK reader
 cargo run -p telemetry --example dump                      # print demo-race output as JSON
 cargo run -p telemetry --example radar                     # what the radar sees, once a second
+cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt to try importing
 ```
 
 ## Project layout
@@ -73,7 +80,10 @@ cargo run -p telemetry --example radar                     # what the radar sees
 crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   irsdk.rs            Shared-memory reader (our own, about 300 lines)
   session.rs          Session YAML parser, tolerant of iRacing's quirks
-  engine.rs           Relative gaps, standings, fuel maths, SoF
+  engine.rs           Relative gaps, standings, fuel maths, SoF, deltas
+  vars.rs             Variable header parsing shared by live data and .ibt files
+  ibt.rs              .ibt telemetry file reader: finds complete laps
+  reference.rs        Imported comparison lap and delta against it
   demo.rs             Fake 22-car, 3-class race with a scripted battle for the radar
   runner.rs           Telemetry thread: 60 Hz tick, 10 Hz field
 src-tauri/            Windows, tray, hotkeys, click-through, config file

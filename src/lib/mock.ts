@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  FieldPayload, LapFlag, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
+  Deltas, FieldPayload, LapFlag, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
   TickPayload, TiresPayload,
 } from "./types";
 
@@ -51,11 +51,15 @@ class Mock {
   private sides = new Map<number, number>();
   private fuel = 31.4;
   private started = false;
+  private reference: ReferencePayload = {
+    loaded: false, trackName: "", trackConfig: "", carName: "", driver: "", lapTime: 0, source: "", matchesTrack: false,
+  };
 
   constructor() {
     this.channel.onmessage = (e) => {
       const { event, payload } = e.data as { event: string; payload: unknown };
       if (event === "edit-mode") this.editMode = payload as boolean;
+      if (event === "reference") this.reference = payload as ReferencePayload;
       this.dispatch(event, payload);
     };
     for (const [i, base] of BATTLE) this.progress[i] = this.progress[PLAYER] + base / TRACK_M;
@@ -103,8 +107,31 @@ class Mock {
         return;
       case "get_snapshot":
         return {
-          status: this.status(), session: this.session(), editMode: this.editMode, overlayVisible: true, demo: true,
+          status: this.status(), session: this.session(), reference: this.reference, editMode: this.editMode,
+          overlayVisible: true, demo: true,
         } satisfies Snapshot;
+      case "inspect_ibt":
+        return {
+          trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach",
+          laps: [
+            { lap: 3, lapTime: 92.884, clean: true },
+            { lap: 4, lapTime: 92.412, clean: true },
+            { lap: 5, lapTime: 95.106, clean: false },
+            { lap: 6, lapTime: 92.655, clean: true },
+          ],
+        };
+      case "load_reference":
+        this.reference = {
+          loaded: true, trackName: "Demo Ring", trackConfig: "Grand Prix", carName: "GT3 Evo", driver: "Coach",
+          lapTime: [0, 0, 0, 92.884, 92.412, 95.106, 92.655][Number(args.lap)] ?? 92.4, source: String(args.path),
+          matchesTrack: true,
+        };
+        this.broadcast("reference", this.reference);
+        return;
+      case "clear_reference":
+        this.reference = { ...this.reference, loaded: false, matchesTrack: false };
+        this.broadcast("reference", this.reference);
+        return;
       case "set_edit_mode":
         this.editMode = Boolean(args.enabled);
         this.broadcast("edit-mode", this.editMode);
@@ -129,6 +156,7 @@ class Mock {
       trackName: "Demo Ring", trackConfig: "Grand Prix", trackLengthKm: TRACK_M / 1000, sessionType: "Race",
       playerCarIdx: PLAYER, playerClassId: CLASSES[1].id, carName: "GT3 Evo", fuelMaxLtr: 120, estLapTime: 92.1,
       shiftRpm: 8100, redlineRpm: 8600, multiclass: true, tireCompounds: ["Hard", "Wet"],
+      sectors: [0, 0.12, 0.25, 0.4, 0.58, 0.72, 0.86],
     };
   }
 
@@ -141,8 +169,10 @@ class Mock {
     }, 0);
     let last = performance.now();
     let fieldAt = 0;
+    // ?speed=4 in the URL fast-forwards the fake race (handy for lap-based widgets).
+    const speedUp = Math.max(1, Math.min(20, Number(new URLSearchParams(location.search).get("speed")) || 1));
     const loop = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000);
+      const dt = Math.min(0.1, (now - last) / 1000) * speedUp;
       last = now;
       this.step(dt);
       this.dispatch("tick", this.tick());
@@ -232,8 +262,22 @@ class Mock {
       clutch: 0, steering: Math.sin(pct * 40) * (1 - f) * 2,
       lap: Math.floor(p) + 1, lapDistPct: pct, lapCurrent,
       lapLast: this.last[PLAYER], lapBest: this.best[PLAYER],
-      deltaBest: lapCurrent - pct * this.best[PLAYER] + Math.sin(this.t / 7) * 0.35,
+      deltas: this.deltas(pct, Math.floor(p)),
       fuelLevel: this.fuel, carLeftRight: near.carLeftRight, incidents: 2, nearby: near.cars,
+    };
+  }
+
+  /** Plausible delta curves: start at 0 on the line, wander, finish at an offset. */
+  private deltas(pct: number, lap: number): Deltas {
+    const curve = (end: number, phase: number) =>
+      end * pct + 0.28 * Math.sin(Math.PI * pct) * Math.sin(2 * Math.PI * 2.3 * pct + lap * 1.7 + phase);
+    return {
+      best: curve(0.35, 0),
+      optimal: curve(0.62, 0.8),
+      sessionBest: curve(0.08, 1.9),
+      sessionOptimal: curve(0.27, 2.6),
+      last: curve(-0.21, 3.4),
+      reference: this.reference.loaded ? curve(0.44, 4.1) : null,
     };
   }
 

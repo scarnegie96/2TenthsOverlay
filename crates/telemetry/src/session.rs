@@ -51,6 +51,8 @@ pub struct SessionInfo {
     pub sessions: Vec<SessionDef>,
     /// Compound names by index (DriverInfo.DriverTires).
     pub tire_compounds: Vec<String>,
+    /// Sector start points as lap fractions (SplitTimeInfo.Sectors).
+    pub sectors: Vec<f32>,
 }
 
 impl SessionInfo {
@@ -166,6 +168,15 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
         redline_rpm: float(&driver_info["DriverCarRedLine"]).unwrap_or(0.0) as f32,
         drivers,
         sessions,
+        sectors: {
+            let mut v: Vec<f32> = root["SplitTimeInfo"]["Sectors"]
+                .as_sequence()
+                .map(|seq| seq.iter().filter_map(|x| float(&x["SectorStartPct"]).map(|f| f as f32)).collect())
+                .unwrap_or_default();
+            v.sort_by(|a, b| a.total_cmp(b));
+            v.dedup();
+            v
+        },
         tire_compounds: driver_info["DriverTires"]
             .as_sequence()
             .map(|seq| {
@@ -262,6 +273,14 @@ WeekendInfo:
  TrackDisplayName: Circuit de Spa-Francorchamps
  TrackConfigName: Grand Prix Pits
  TrackLength: 6.93 km
+SplitTimeInfo:
+ Sectors:
+ - SectorNum: 0
+   SectorStartPct: 0.000000
+ - SectorNum: 1
+   SectorStartPct: 0.312400
+ - SectorNum: 2
+   SectorStartPct: 0.689900
 SessionInfo:
  Sessions:
  - SessionNum: 0
@@ -329,6 +348,8 @@ DriverInfo:
         assert!(info.driver(0).unwrap().is_pace_car);
         assert!(info.is_multiclass());
         assert_eq!(info.tire_compounds, vec!["Hard", "Wet"]);
+        assert_eq!(info.sectors.len(), 3);
+        assert!((info.sectors[1] - 0.3124).abs() < 1e-4);
 
         let race = info.session(2).unwrap();
         assert_eq!(race.laps, Some(25));

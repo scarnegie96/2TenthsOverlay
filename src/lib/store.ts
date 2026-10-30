@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import { api, on } from "./bridge";
 import { type AppConfig, defaultConfig, normalizeConfig } from "./config";
-import type { FieldPayload, SessionPayload, StatusPayload, TickPayload } from "./types";
+import type { FieldPayload, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
 
 interface LiveState {
   status: StatusPayload | null;
   session: SessionPayload | null;
+  reference: ReferencePayload | null;
   tick: TickPayload | null;
   field: FieldPayload | null;
   editMode: boolean;
@@ -17,6 +18,7 @@ interface LiveState {
 export const useLive = create<LiveState>(() => ({
   status: null,
   session: null,
+  reference: null,
   tick: null,
   field: null,
   editMode: false,
@@ -32,6 +34,7 @@ export async function connect(opts: { telemetry: boolean }) {
   await Promise.all([
     on<StatusPayload>("status", (status) => set({ status })),
     on<SessionPayload>("session", (session) => set({ session })),
+    on<ReferencePayload>("reference", (reference) => set({ reference })),
     on<FieldPayload>("field", (field) => set({ field })),
     on<boolean>("edit-mode", (editMode) => set({ editMode })),
     on<boolean>("overlay-visible", (overlayVisible) => set({ overlayVisible })),
@@ -47,6 +50,7 @@ export async function connect(opts: { telemetry: boolean }) {
   set({
     status: snap.status ?? useLive.getState().status,
     session: snap.session ?? useLive.getState().session,
+    reference: snap.reference ?? useLive.getState().reference,
     editMode: snap.editMode,
     overlayVisible: snap.overlayVisible,
     config: normalizeConfig(saved),

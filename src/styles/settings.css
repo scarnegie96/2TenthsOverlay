@@ -283,3 +283,57 @@ kbd {
   font-size: 14px;
   color: var(--ink-3);
 }
+
+/* ---------- Reference lap picker ---------------------------------------------- */
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lap-picker {
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.lap-picker .note {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+}
+.lap-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.lap-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 2px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-raised);
+  text-align: left;
+  cursor: pointer;
+}
+.lap-option .muted {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.lap-option b.is-fastest {
+  color: var(--fastest);
+}
+.lap-option.is-chosen {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.lap-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.error {
+  margin: 10px 0 0;
+  color: var(--loss);
+  font-size: 14px;
+}

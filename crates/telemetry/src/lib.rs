@@ -13,9 +13,12 @@
 
 pub mod demo;
 pub mod engine;
+pub mod ibt;
 pub mod model;
+pub mod reference;
 pub mod runner;
 pub mod session;
+pub mod vars;
 
 #[cfg(any(windows, feature = "typecheck-windows"))]
 pub mod irsdk;

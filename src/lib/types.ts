@@ -22,6 +22,45 @@ export interface SessionPayload {
   redlineRpm: number;
   multiclass: boolean;
   tireCompounds: string[];
+  /** Where each timing sector starts, as a fraction of the lap. */
+  sectors: number[];
+}
+
+/** Seconds versus each comparison lap at this point of the lap. Positive = slower. */
+export interface Deltas {
+  best: number | null;
+  optimal: number | null;
+  sessionBest: number | null;
+  sessionOptimal: number | null;
+  last: number | null;
+  reference: number | null;
+}
+
+export type DeltaMode = keyof Deltas;
+
+export interface ReferencePayload {
+  loaded: boolean;
+  trackName: string;
+  trackConfig: string;
+  carName: string;
+  driver: string;
+  lapTime: number;
+  source: string;
+  matchesTrack: boolean;
+}
+
+export interface IbtLap {
+  lap: number;
+  lapTime: number;
+  clean: boolean;
+}
+
+export interface IbtSummary {
+  trackName: string;
+  trackConfig: string;
+  carName: string;
+  driver: string;
+  laps: IbtLap[];
 }
 
 export interface TickPayload {
@@ -40,7 +79,7 @@ export interface TickPayload {
   lapCurrent: number;
   lapLast: number | null;
   lapBest: number | null;
-  deltaBest: number | null;
+  deltas: Deltas;
   fuelLevel: number;
   carLeftRight: number;
   incidents: number;
@@ -152,6 +191,7 @@ export interface FieldPayload {
 export interface Snapshot {
   status: StatusPayload | null;
   session: SessionPayload | null;
+  reference: ReferencePayload | null;
   editMode: boolean;
   overlayVisible: boolean;
   demo: boolean;

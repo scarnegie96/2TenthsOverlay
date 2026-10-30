@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Event listening and app commands for both windows",
   "windows": ["overlay", "settings"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }

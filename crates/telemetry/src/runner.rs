@@ -6,17 +6,19 @@
 //! * `session` – when the session info changes
 //! * `status`  – when the connection changes
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::demo::DemoSource;
 use crate::engine::Engine;
 use crate::model::*;
+use crate::reference::ReferenceLap;
 
 pub trait Sink: Send + 'static {
     fn status(&self, status: &StatusPayload);
+    fn reference(&self, reference: &ReferencePayload);
     fn session(&self, session: &SessionPayload);
     fn tick(&self, tick: &TickPayload);
     fn field(&self, field: &FieldPayload);
@@ -26,6 +28,16 @@ pub trait Sink: Send + 'static {
 pub struct RunnerControl {
     pub demo: Arc<AtomicBool>,
     pub stop: Arc<AtomicBool>,
+    /// Imported comparison lap. Bump `reference_rev` after changing it.
+    pub reference: Arc<Mutex<Option<ReferenceLap>>>,
+    pub reference_rev: Arc<AtomicU64>,
+}
+
+impl RunnerControl {
+    pub fn set_reference(&self, reference: Option<ReferenceLap>) {
+        *self.reference.lock().unwrap() = reference;
+        self.reference_rev.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 enum Source {
@@ -59,7 +71,16 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
         }
     };
 
+    let mut reference_rev = u64::MAX;
+
     while !control.stop.load(Ordering::Relaxed) {
+        let rev = control.reference_rev.load(Ordering::Relaxed);
+        if rev != reference_rev {
+            reference_rev = rev;
+            engine.set_reference(control.reference.lock().unwrap().clone());
+            sink.reference(&engine.reference_payload());
+        }
+
         let want_demo = control.demo.load(Ordering::Relaxed);
 
         // Switch sources when the demo toggle changes.
@@ -132,6 +153,8 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
             last_session_num = frame.session_num;
             if engine.session().is_some() {
                 sink.session(&engine.session_payload(&frame));
+                // Whether the reference matches depends on the track.
+                sink.reference(&engine.reference_payload());
             }
         }
 

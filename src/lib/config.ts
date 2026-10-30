@@ -95,11 +95,29 @@ export const WIDGETS: WidgetMeta[] = [
   {
     id: "delta",
     name: "Delta",
-    description: "Live time against your best lap.",
-    x: 780, y: 120, enabled: true,
+    description: "Your lap against a comparison lap, round the whole lap and sector by sector. The comparison rises above the line where it's faster and dips below where it's slower.",
+    x: 572, y: 24, enabled: true,
     options: [
-      { key: "range", label: "Bar range", type: "number", default: 1, min: 0.2, max: 5, step: 0.1, suffix: "s" },
-      { key: "showLaps", label: "Show last and best lap", type: "toggle", default: true },
+      {
+        key: "compareTo", label: "Compare against", type: "select", default: "best",
+        choices: [
+          { value: "best", label: "Best lap" },
+          { value: "optimal", label: "Optimal lap (best sectors)" },
+          { value: "sessionBest", label: "Session best" },
+          { value: "sessionOptimal", label: "Session optimal" },
+          { value: "last", label: "Last lap" },
+          { value: "reference", label: "Reference lap (imported)" },
+        ],
+      },
+      {
+        key: "sectors", label: "Sectors", type: "select", default: "track",
+        choices: [
+          { value: "track", label: "Track sectors from iRacing" },
+          { value: "mini", label: "Equal mini sectors" },
+        ],
+      },
+      { key: "miniSectors", label: "Number of mini sectors", type: "number", default: 12, min: 4, max: 30 },
+      { key: "showPrevious", label: "Show last lap's line", type: "toggle", default: true, help: "Dashed, for comparing this lap with the one before" },
     ],
   },
   {

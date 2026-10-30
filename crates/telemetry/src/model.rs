@@ -58,8 +58,8 @@ pub struct RawFrame {
     pub lap_current: f32,
     pub lap_last: f32,
     pub lap_best: f32,
-    pub delta_best: f32,
-    pub delta_best_ok: bool,
+    /// Live deltas from iRacing (the engine fills in `reference`).
+    pub deltas: Deltas,
 
     pub fuel_level: f32,
     pub fuel_level_pct: f32,
@@ -151,6 +151,23 @@ pub struct SessionPayload {
     pub multiclass: bool,
     /// Tire compound names indexed by compound number, e.g. ["Hard", "Wet"].
     pub tire_compounds: Vec<String>,
+    /// Where each timing sector starts, as a fraction of the lap (first is 0).
+    pub sectors: Vec<f32>,
+}
+
+/// The imported comparison lap currently loaded.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferencePayload {
+    pub loaded: bool,
+    pub track_name: String,
+    pub track_config: String,
+    pub car_name: String,
+    pub driver: String,
+    pub lap_time: f32,
+    pub source: String,
+    /// True when it's for the track and layout of the current session.
+    pub matches_track: bool,
 }
 
 /// Sent every telemetry frame (60 Hz). Keep this small.
@@ -174,12 +191,31 @@ pub struct TickPayload {
     pub lap_current: f32,
     pub lap_last: Option<f32>,
     pub lap_best: Option<f32>,
-    pub delta_best: Option<f32>,
+    /// Seconds versus each comparison lap at this point of the lap; positive = slower.
+    pub deltas: Deltas,
     pub fuel_level: f32,
     pub car_left_right: i32,
     pub incidents: i32,
     /// Cars within radar range, for the radar widget.
     pub nearby: Vec<NearbyCar>,
+}
+
+/// Live delta against each kind of comparison lap. None when iRacing (or the
+/// reference) has nothing valid to compare against yet.
+#[derive(Debug, Clone, Copy, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Deltas {
+    /// iRacing's "best lap" reference.
+    pub best: Option<f32>,
+    /// Best sectors stitched together.
+    pub optimal: Option<f32>,
+    /// Your best lap this session.
+    pub session_best: Option<f32>,
+    pub session_optimal: Option<f32>,
+    /// Your previous lap.
+    pub last: Option<f32>,
+    /// An imported lap (.ibt), computed by us.
+    pub reference: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize)]

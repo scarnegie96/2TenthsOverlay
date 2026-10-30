@@ -55,6 +55,21 @@ quoted before parsing, because iRacing doesn't escape them.
 - **Tires**: `LFtempCL/CM/CR`, `LFwearL/M/R` etc. are only refreshed by iRacing
   while `PlayerCarInPitStall` is true. The widget labels readings as live or
   from the last stop. Compound names come from `DriverInfo.DriverTires`.
+- **Delta**: iRacing gives live deltas against best lap, optimal lap, session
+  best, session optimal and last lap (`LapDeltaTo…`; note the last-lap variable is
+  really spelled `LapDeltaToSessionLastlLap`). All are sent every tick, so the
+  widget can switch instantly. For an imported lap we compute it ourselves: our
+  lap time so far minus the reference's time at the same lap position.
+- **Reference laps**: `ibt.rs` reads `.ibt` files (same layout as live memory plus
+  a 32-byte disk header), splits the samples into laps that run line to line
+  without resets, and times each crossing by interpolating between samples.
+  `reference.rs` stores the chosen lap as elapsed time at every 0.1% of the lap,
+  saved as `reference.json` in the app data folder. It's only used when the track
+  and layout match the session.
+- **Sectors**: track sectors come from `SplitTimeInfo.Sectors` in the session
+  YAML; the widget can use equal mini sectors instead. The front end
+  (`src/lib/deltaHistory.ts`) records the delta curve per lap and the gain or loss
+  per sector, for every comparison at once.
 - **Fuel**: average of the last 5 green laps. A lap is skipped if you joined
   mid-lap, visited pit road or refuelled. Laps to go come from
   `SessionLapsRemainEx` in lap races, or time remaining divided by average lap

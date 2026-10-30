@@ -33,9 +33,8 @@
 
 .preview-hint {
   position: fixed;
-  left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
+  left: 12px;
+  bottom: 12px;
   font-size: 13px;
   color: rgba(233, 238, 243, 0.7);
   background: rgba(0, 0, 0, 0.35);
@@ -519,68 +518,175 @@
   background: var(--clutch);
 }
 
-/* ---------- Delta ------------------------------------------------------------- */
+/* ---------- Delta strip --------------------------------------------------------- */
 
-.delta {
-  width: 360px;
-  padding: 8px 12px 9px;
-  text-align: center;
+.delta-strip {
+  display: flex;
+  align-items: stretch;
 }
-.delta-value {
-  font-size: 40px;
+.ds-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+.ds-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  height: 30px;
+  white-space: nowrap;
+}
+.ds-mode {
+  align-self: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(233, 238, 243, 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.ds-ref {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.ds-lap {
+  font-size: 26px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.01em;
-  transition: color 0.2s;
 }
-.delta.is-gain .delta-value {
+.ds-total {
+  margin-left: auto;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-2);
+}
+.delta-strip.is-gain .ds-total {
   color: var(--gain);
 }
-.delta.is-loss .delta-value {
+.delta-strip.is-loss .ds-total {
   color: var(--loss);
 }
-.delta-bar {
+
+.ds-graph-wrap {
   position: relative;
-  height: 8px;
-  margin-top: 7px;
+}
+.ds-graph {
+  display: block;
   border-radius: 4px;
-  background: rgba(233, 238, 243, 0.08);
-  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
-.delta-fill {
+.ds-empty {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  background: var(--ink-3);
-}
-.delta.is-gain .delta-fill {
-  background: var(--gain);
-}
-.delta.is-loss .delta-fill {
-  background: var(--loss);
-}
-.delta-zero {
-  position: absolute;
-  left: calc(50% - 1px);
-  top: -2px;
-  bottom: -2px;
-  width: 2px;
-  background: var(--ink);
-}
-.delta-laps {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 7px;
+  inset: 0 0 14px;
+  display: grid;
+  place-items: center;
   font-size: 14px;
+  color: var(--ink-2);
+  background: rgba(13, 19, 27, 0.55);
+  border-radius: 4px;
+}
+
+.ds-sectors {
+  display: flex;
+  gap: 2px;
+  width: 640px;
+  height: 24px;
+}
+.ds-sector {
+  flex-basis: 0;
+  min-width: 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  white-space: nowrap;
+  background: rgba(233, 238, 243, 0.06);
+  color: var(--ink);
+}
+.ds-sector.is-done.is-gain {
+  background: color-mix(in srgb, var(--gain) 62%, #0d131b);
+}
+.ds-sector.is-done.is-loss {
+  background: color-mix(in srgb, var(--loss) 58%, #0d131b);
+}
+.ds-sector.is-done.is-even {
+  background: rgba(233, 238, 243, 0.18);
+}
+.ds-sector.is-current {
+  background: rgba(233, 238, 243, 0.08);
+  box-shadow: inset 0 0 0 1.5px var(--ink-2);
+}
+.ds-sector.is-current.is-gain {
+  color: var(--gain);
+}
+.ds-sector.is-current.is-loss {
+  color: var(--loss);
+}
+
+.ds-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 190px;
+  padding: 10px 12px 10px;
+  border-left: 1px solid var(--line);
+  background: rgba(233, 238, 243, 0.03);
+}
+.ds-side-sector {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+}
+.ds-side-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.ds-side-num {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 0.9;
+}
+.ds-side-splits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.ds-split {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 0 5px;
+  border-radius: 4px;
+  background: rgba(233, 238, 243, 0.06);
+}
+.ds-split.is-gain {
+  background: color-mix(in srgb, var(--gain) 22%, transparent);
+}
+.ds-split.is-loss {
+  background: color-mix(in srgb, var(--loss) 22%, transparent);
+}
+.ds-split-label {
+  font-size: 11px;
   color: var(--ink-3);
 }
-.delta-laps b {
-  color: var(--ink-2);
-  font-weight: 600;
-  margin-left: 4px;
+.ds-split-value {
+  font-size: 16px;
+  font-weight: 700;
 }
-.delta-laps b.is-best {
-  color: var(--fastest);
+.ds-split.is-gain .ds-split-value {
+  color: var(--gain);
+}
+.ds-split.is-loss .ds-split-value {
+  color: var(--loss);
 }
 
 /* ---------- Fuel -------------------------------------------------------------- */

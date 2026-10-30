@@ -25,12 +25,12 @@ use windows_sys::Win32::System::Memory::{
 };
 use windows_sys::Win32::System::Threading::{OpenEventW, WaitForSingleObject, SYNCHRONIZATION_SYNCHRONIZE};
 
-use crate::model::{RawFrame, MAX_CARS};
+use crate::model::{Deltas, RawFrame, MAX_CARS};
+use crate::vars::{self, VarHeader, VAR_HEADER_SIZE};
 
 const MEM_MAP_NAME: &str = "Local\\IRSDKMemMapFileName";
 const DATA_VALID_EVENT_NAME: &str = "Local\\IRSDKDataValidEvent";
 const STATUS_CONNECTED: i32 = 1;
-const VAR_HEADER_SIZE: usize = 144;
 const MAX_BUFS: usize = 4;
 
 // Tire variables in LF, RF, LR, RR order; left / middle / right.
@@ -58,48 +58,6 @@ const H_VAR_HEADER_OFFSET: usize = 28;
 const H_NUM_BUF: usize = 32;
 const H_BUF_LEN: usize = 36;
 const H_VAR_BUF: usize = 48; // 4 x 16 bytes
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VarType {
-    Char,
-    Bool,
-    Int,
-    BitField,
-    Float,
-    Double,
-}
-
-impl VarType {
-    fn from_raw(v: i32) -> Option<Self> {
-        Some(match v {
-            0 => Self::Char,
-            1 => Self::Bool,
-            2 => Self::Int,
-            3 => Self::BitField,
-            4 => Self::Float,
-            5 => Self::Double,
-            _ => return None,
-        })
-    }
-
-    fn size(self) -> usize {
-        match self {
-            Self::Char | Self::Bool => 1,
-            Self::Int | Self::BitField | Self::Float => 4,
-            Self::Double => 8,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct VarHeader {
-    pub name: String,
-    pub var_type: VarType,
-    pub offset: usize,
-    pub count: usize,
-    pub desc: String,
-    pub unit: String,
-}
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -181,30 +139,12 @@ impl Irsdk {
     }
 
     fn load_var_headers(&mut self) {
-        let num = self.header_i32(H_NUM_VARS);
-        let base_off = self.header_i32(H_VAR_HEADER_OFFSET) as usize;
-        let mut vars = HashMap::with_capacity(num.max(0) as usize);
-        for i in 0..num.max(0) as usize {
-            let off = base_off + i * VAR_HEADER_SIZE;
-            let mut raw = [0u8; VAR_HEADER_SIZE];
-            unsafe { ptr::copy_nonoverlapping(self.base().add(off), raw.as_mut_ptr(), VAR_HEADER_SIZE) };
-            let ty = i32::from_le_bytes(raw[0..4].try_into().unwrap());
-            let offset = i32::from_le_bytes(raw[4..8].try_into().unwrap());
-            let count = i32::from_le_bytes(raw[8..12].try_into().unwrap());
-            let Some(var_type) = VarType::from_raw(ty) else { continue };
-            let name = cstr(&raw[16..48]);
-            let header = VarHeader {
-                name: name.clone(),
-                var_type,
-                offset: offset.max(0) as usize,
-                count: count.max(1) as usize,
-                desc: cstr(&raw[48..112]),
-                unit: cstr(&raw[112..144]),
-            };
-            vars.insert(name, header);
-        }
-        self.vars = vars;
-        self.num_vars = num;
+        let num = self.header_i32(H_NUM_VARS).max(0) as usize;
+        let base_off = self.header_i32(H_VAR_HEADER_OFFSET).max(0) as usize;
+        let mut raw = vec![0u8; num * VAR_HEADER_SIZE];
+        unsafe { ptr::copy_nonoverlapping(self.base().add(base_off), raw.as_mut_ptr(), raw.len()) };
+        self.vars = vars::parse_headers(&raw, num);
+        self.num_vars = num as i32;
     }
 
     fn copy_latest_buffer(&mut self) -> bool {
@@ -271,19 +211,7 @@ impl Irsdk {
 
     /// Reads element `idx` of a variable as f64 regardless of its declared type.
     pub fn num(&self, name: &str, idx: usize) -> Option<f64> {
-        let v = self.vars.get(name)?;
-        if idx >= v.count {
-            return None;
-        }
-        let at = v.offset + idx * v.var_type.size();
-        let b = self.buf.get(at..at + v.var_type.size())?;
-        Some(match v.var_type {
-            VarType::Char | VarType::Bool => b[0] as f64,
-            VarType::Int => i32::from_le_bytes(b.try_into().ok()?) as f64,
-            VarType::BitField => u32::from_le_bytes(b.try_into().ok()?) as f64,
-            VarType::Float => f32::from_le_bytes(b.try_into().ok()?) as f64,
-            VarType::Double => f64::from_le_bytes(b.try_into().ok()?),
-        })
+        vars::read_num(&self.buf, self.vars.get(name)?, idx)
     }
 
     pub fn f32(&self, name: &str) -> f32 {
@@ -335,8 +263,16 @@ impl Irsdk {
         f.lap_current = self.f32("LapCurrentLapTime");
         f.lap_last = self.f32("LapLastLapTime");
         f.lap_best = self.f32("LapBestLapTime");
-        f.delta_best = self.f32("LapDeltaToBestLap");
-        f.delta_best_ok = self.bool("LapDeltaToBestLap_OK");
+        let delta = |name: &str, ok: &str| self.bool(ok).then(|| self.f32(name));
+        f.deltas = Deltas {
+            best: delta("LapDeltaToBestLap", "LapDeltaToBestLap_OK"),
+            optimal: delta("LapDeltaToOptimalLap", "LapDeltaToOptimalLap_OK"),
+            session_best: delta("LapDeltaToSessionBestLap", "LapDeltaToSessionBestLap_OK"),
+            session_optimal: delta("LapDeltaToSessionOptimalLap", "LapDeltaToSessionOptimalLap_OK"),
+            // (sic) iRacing's variable name really has the extra "l".
+            last: delta("LapDeltaToSessionLastlLap", "LapDeltaToSessionLastlLap_OK"),
+            reference: None,
+        };
 
         f.fuel_level = self.f32("FuelLevel");
         f.fuel_level_pct = self.f32("FuelLevelPct");
@@ -392,9 +328,4 @@ impl Drop for Irsdk {
             CloseHandle(self.map);
         }
     }
-}
-
-fn cstr(bytes: &[u8]) -> String {
-    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-    String::from_utf8_lossy(&bytes[..end]).into_owned()
 }

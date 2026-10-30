@@ -4,6 +4,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::model::*;
+use crate::reference::ReferenceLap;
 use crate::session::{DriverInfo, SessionInfo};
 
 const FUEL_WINDOW: usize = 5;
@@ -15,6 +16,8 @@ pub struct Engine {
     fuel: FuelTracker,
     /// Lane each nearby car was given last frame, so cars don't jump sides.
     radar_sides: HashMap<i32, i32>,
+    /// Imported comparison lap, if any.
+    reference: Option<ReferenceLap>,
 }
 
 impl Engine {
@@ -30,8 +33,37 @@ impl Engine {
         self.session.as_ref()
     }
 
+    /// Clears everything learned from the current session. Keeps the reference lap.
     pub fn reset(&mut self) {
-        *self = Self::default();
+        let reference = self.reference.take();
+        *self = Self { reference, ..Self::default() };
+    }
+
+    pub fn set_reference(&mut self, reference: Option<ReferenceLap>) {
+        self.reference = reference;
+    }
+
+    fn reference_matches(&self) -> bool {
+        match (&self.reference, &self.session) {
+            (Some(r), Some(s)) => r.matches(&s.track_name, &s.track_config),
+            _ => false,
+        }
+    }
+
+    pub fn reference_payload(&self) -> ReferencePayload {
+        match &self.reference {
+            None => ReferencePayload::default(),
+            Some(r) => ReferencePayload {
+                loaded: true,
+                track_name: r.track_name.clone(),
+                track_config: r.track_config.clone(),
+                car_name: r.car_name.clone(),
+                driver: r.driver.clone(),
+                lap_time: r.lap_time,
+                source: r.source.clone(),
+                matches_track: self.reference_matches(),
+            },
+        }
     }
 
     pub fn session_payload(&self, frame: &RawFrame) -> SessionPayload {
@@ -51,6 +83,7 @@ impl Engine {
             redline_rpm: s.redline_rpm,
             multiclass: s.is_multiclass(),
             tire_compounds: s.tire_compounds.clone(),
+            sectors: s.sectors.clone(),
         }
     }
 
@@ -85,12 +118,18 @@ impl Engine {
             lap_current: f.lap_current,
             lap_last: positive(f.lap_last),
             lap_best: positive(f.lap_best),
-            delta_best: if f.delta_best_ok { Some(f.delta_best) } else { None },
+            deltas: Deltas { reference: self.reference_delta(f), ..f.deltas },
             fuel_level: f.fuel_level,
             car_left_right: f.car_left_right,
             incidents: f.incidents,
             nearby: self.nearby(f),
         }
+    }
+
+    fn reference_delta(&self, f: &RawFrame) -> Option<f32> {
+        let r = self.reference.as_ref()?;
+        let usable = f.is_on_track && f.lap_current > 0.0 && (0.0..=1.0).contains(&f.lap_dist_pct) && self.reference_matches();
+        usable.then(|| r.delta(f.lap_dist_pct, f.lap_current))
     }
 
     /// Cars within `RADAR_RANGE_M` along the track, for the radar.

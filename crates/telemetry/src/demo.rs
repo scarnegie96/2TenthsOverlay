@@ -200,7 +200,14 @@ impl DemoSource {
                 let offset_m = base + amp * (self.t as f32 * std::f32::consts::TAU / period).sin();
                 self.progress[i] = player + (offset_m / TRACK_M) as f64;
             } else {
-                let wobble = 1.0 + 0.004 * ((self.t as f32 * 0.05 + i as f32).sin());
+                let mut wobble = 1.0 + 0.004 * ((self.t as f32 * 0.05 + i as f32).sin());
+                if i == PLAYER {
+                    // Gain in some corners and lose in others, differently each lap,
+                    // so the delta graph has something to show.
+                    let lap = self.progress[i].floor() as f32;
+                    wobble *= 1.0 + 0.012 * (pct * std::f32::consts::TAU * 3.0 + lap * 1.7).sin()
+                        + 0.006 * (pct * std::f32::consts::TAU * 7.0 + lap * 0.6).sin();
+                }
                 self.progress[i] += (self.v_at(pct) * self.pace[i] * wobble * dt / TRACK_M) as f64;
             }
             if lap_of(self.progress[i]) > before {
@@ -233,7 +240,16 @@ impl DemoSource {
         order.sort_by(|&a, &b| self.progress[b].total_cmp(&self.progress[a]));
         let leader = order[0];
         let lap_current = (self.t - self.lap_start[PLAYER]) as f32;
-        let delta_best = lap_current - self.cum_at(pct) * self.best[PLAYER];
+        // Each comparison lap is our reference pace profile scaled to its lap time.
+        let at = |lap_time: f32| lap_current - self.cum_at(pct) * lap_time;
+        let deltas = crate::model::Deltas {
+            best: Some(at(self.best[PLAYER] - 0.35)),
+            optimal: Some(at(self.best[PLAYER] - 0.6)),
+            session_best: Some(at(self.best[PLAYER])),
+            session_optimal: Some(at(self.best[PLAYER] - 0.25)),
+            last: Some(at(self.last[PLAYER])),
+            reference: None,
+        };
         let mut class_counts = [0i32; 3];
 
         let f = &mut self.frame;
@@ -300,8 +316,7 @@ impl DemoSource {
         f.lap_current = lap_current;
         f.lap_last = self.last[PLAYER];
         f.lap_best = self.best[PLAYER];
-        f.delta_best = delta_best;
-        f.delta_best_ok = true;
+        f.deltas = deltas;
         f.fuel_level = self.fuel;
         f.fuel_level_pct = self.fuel / 120.0;
         f.incidents = 2;
@@ -318,7 +333,7 @@ impl DemoSource {
         &self.frame
     }
 
-    fn session_yaml(&self) -> String {
+    pub fn session_yaml(&self) -> String {
         let mut y = String::from(
             r#"---
 WeekendInfo:
@@ -326,6 +341,22 @@ WeekendInfo:
  TrackDisplayName: Demo Ring
  TrackConfigName: Grand Prix
  TrackLength: 5.10 km
+SplitTimeInfo:
+ Sectors:
+ - SectorNum: 0
+   SectorStartPct: 0.000000
+ - SectorNum: 1
+   SectorStartPct: 0.120000
+ - SectorNum: 2
+   SectorStartPct: 0.250000
+ - SectorNum: 3
+   SectorStartPct: 0.400000
+ - SectorNum: 4
+   SectorStartPct: 0.580000
+ - SectorNum: 5
+   SectorStartPct: 0.720000
+ - SectorNum: 6
+   SectorStartPct: 0.860000
 SessionInfo:
  Sessions:
  - SessionNum: 0
@@ -375,6 +406,27 @@ DriverInfo:
     }
 }
 
+/// Drives the demo for `laps` laps and records the player's car as an .ibt.
+pub fn record_ibt(demo: &mut DemoSource, laps: f32) -> Vec<u8> {
+    let yaml = demo.session_yaml();
+    let mut rows = Vec::new();
+    let dt = 1.0 / 60.0;
+    let steps = (laps * 92.0 / dt) as usize;
+    for _ in 0..steps {
+        let f = demo.step(dt);
+        rows.push(vec![
+            f.session_time,
+            f.lap as f64,
+            f.lap_dist_pct as f64,
+            1.0,
+            0.0,
+            3.0,
+            f.speed as f64,
+        ]);
+    }
+    crate::ibt::write(&yaml, crate::ibt::LAP_COLUMNS, &rows)
+}
+
 fn speed_at(pct: f32) -> f32 {
     let mut v = V_MAX;
     for &(c, vc) in CORNERS {
@@ -412,6 +464,33 @@ fn gearbox(speed: f32) -> (i32, f32) {
 mod tests {
     use super::*;
     use crate::engine::Engine;
+
+    #[test]
+    fn imported_lap_gives_live_delta() {
+        // Record a few demo laps to an .ibt, import the first complete one,
+        // then drive on and check the reference delta behaves.
+        let mut demo = DemoSource::new();
+        let file = crate::ibt::IbtFile::from_bytes(record_ibt(&mut demo, 3.2)).unwrap();
+        let laps = file.summary().laps;
+        assert!(laps.len() >= 2, "complete laps: {}", laps.len());
+        let reference = file.reference(laps[0].lap, "demo.ibt").unwrap();
+        assert!((80.0..110.0).contains(&reference.lap_time));
+
+        let mut engine = Engine::new();
+        engine.set_session(crate::session::parse(&demo.session_yaml()).unwrap());
+        engine.set_reference(Some(reference));
+        assert!(engine.reference_payload().matches_track);
+        let mut seen = 0;
+        for _ in 0..60 * 120 {
+            let f = demo.step(1.0 / 60.0).clone();
+            let t = engine.tick(&f);
+            if let Some(d) = t.deltas.reference {
+                seen += 1;
+                assert!(d.abs() < 5.0, "delta {d} at {}", f.lap_dist_pct);
+            }
+        }
+        assert!(seen > 60 * 100);
+    }
 
     #[test]
     fn demo_runs_through_engine() {

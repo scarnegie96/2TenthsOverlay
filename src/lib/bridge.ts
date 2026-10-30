@@ -3,7 +3,7 @@
 //  * in a plain browser (`npm run dev`, e.g. on a Mac) -> a local mock with a fake race,
 //    so the UI can be worked on without Windows or iRacing.
 
-import type { Snapshot } from "./types";
+import type { IbtSummary, Snapshot } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -35,4 +35,19 @@ export const api = {
   setOverlayVisible: (visible: boolean) => call<void>("set_overlay_visible", { visible }),
   setDemo: (enabled: boolean) => call<void>("set_demo", { enabled }),
   openSettings: () => call<void>("open_settings"),
+  /** Asks for an .ibt file. Returns its path, or null if cancelled. */
+  pickIbt: async (): Promise<string | null> => {
+    if (!isTauri) return "demo.ibt";
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const picked = await open({
+      multiple: false,
+      directory: false,
+      title: "Choose an iRacing telemetry file",
+      filters: [{ name: "iRacing telemetry", extensions: ["ibt"] }],
+    });
+    return typeof picked === "string" ? picked : null;
+  },
+  inspectIbt: (path: string) => call<IbtSummary>("inspect_ibt", { path }),
+  loadReference: (path: string, lap: number) => call<void>("load_reference", { path, lap }),
+  clearReference: () => call<void>("clear_reference"),
 };

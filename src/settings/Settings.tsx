@@ -4,7 +4,9 @@ import {
   WIDGETS, defaultConfig, defaultWidgetConfig, widgetMeta,
   type AppConfig, type GeneralConfig, type OptionSpec, type WidgetConfig, type WidgetId,
 } from "../lib/config";
+import { lapTime } from "../lib/format";
 import { updateConfig, useLive } from "../lib/store";
+import type { IbtSummary } from "../lib/types";
 
 type Pane = "general" | WidgetId;
 
@@ -187,7 +189,112 @@ function WidgetPane({ id }: { id: WidgetId }) {
           </Field>
         </Section>
       )}
+      {id === "delta" && <ReferenceSection />}
     </>
+  );
+}
+
+/** Import a lap from an iRacing .ibt telemetry file to compare against. */
+function ReferenceSection() {
+  const reference = useLive((s) => s.reference);
+  const [file, setFile] = useState<{ path: string; summary: IbtSummary } | null>(null);
+  const [chosen, setChosen] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pick = () =>
+    run(async () => {
+      const path = await api.pickIbt();
+      if (!path) return;
+      const summary = await api.inspectIbt(path);
+      if (!summary.laps.length) throw new Error("That file has no complete laps. Record at least one full lap from line to line.");
+      const fastest = [...summary.laps].sort((a, b) => Number(b.clean) - Number(a.clean) || a.lapTime - b.lapTime)[0];
+      setFile({ path, summary });
+      setChosen(fastest.lap);
+    });
+
+  const use = () =>
+    run(async () => {
+      if (!file || chosen == null) return;
+      await api.loadReference(file.path, chosen);
+      setFile(null);
+    });
+
+  const fastestTime = file ? Math.min(...file.summary.laps.map((l) => l.lapTime)) : 0;
+
+  return (
+    <Section title="Reference lap">
+      <Field
+        label={reference?.loaded ? "Comparing against" : "No reference lap"}
+        help={
+          reference?.loaded
+            ? [
+                `${lapTime(reference.lapTime)} by ${reference.driver || "unknown driver"} in the ${reference.carName || "car"}`,
+                `${reference.trackName}${reference.trackConfig ? `, ${reference.trackConfig}` : ""}`,
+                reference.matchesTrack ? null : "Not this track, so it's paused until you drive there.",
+              ]
+                .filter(Boolean)
+                .join(". ")
+            : "Import a lap from an iRacing telemetry file (.ibt). In the car, Alt+L starts and stops recording; files are saved in Documents\\iRacing\\telemetry."
+        }
+      >
+        {reference?.loaded && (
+          <button className="btn" disabled={busy} onClick={() => run(() => api.clearReference())}>
+            Remove
+          </button>
+        )}
+        <button className="btn btn-primary" disabled={busy} onClick={pick}>
+          {reference?.loaded ? "Import another lap" : "Import .ibt file"}
+        </button>
+      </Field>
+
+      {file && (
+        <div className="lap-picker">
+          <p className="note">
+            {file.summary.trackName}
+            {file.summary.trackConfig ? `, ${file.summary.trackConfig}` : ""}. {file.summary.carName}, driven by{" "}
+            {file.summary.driver || "unknown"}. Pick a lap:
+          </p>
+          <div className="lap-list" role="radiogroup" aria-label="Laps in this file">
+            {file.summary.laps.map((l) => (
+              <button
+                key={l.lap}
+                role="radio"
+                aria-checked={chosen === l.lap}
+                className={`lap-option ${chosen === l.lap ? "is-chosen" : ""}`}
+                onClick={() => setChosen(l.lap)}
+              >
+                <span>Lap {l.lap}</span>
+                <b className={l.lapTime === fastestTime ? "is-fastest" : ""}>{lapTime(l.lapTime)}</b>
+                <span className="muted">{l.clean ? "Clean" : "Pit or off track"}</span>
+              </button>
+            ))}
+          </div>
+          <div className="lap-actions">
+            <button className="btn" onClick={() => setFile(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={busy || chosen == null} onClick={use}>
+              Use lap {chosen}
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <p className="error">{error}</p>}
+      {!isTauri && <p className="note">Browser preview: importing uses a sample file.</p>}
+    </Section>
   );
 }
 
