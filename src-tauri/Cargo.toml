@@ -2,6 +2,7 @@
 name = "tenths"
 version = "0.3.0"
 description = "iRacing overlays you own"
+license = "GPL-3.0-or-later"
 edition = "2021"
 
 [lib]

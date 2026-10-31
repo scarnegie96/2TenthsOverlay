@@ -2,6 +2,7 @@
 name = "telemetry"
 version = "0.1.0"
 edition = "2021"
+license = "GPL-3.0-or-later"
 description = "iRacing SDK reader, demo simulator and derived-data engine. No Tauri dependency."
 
 [features]

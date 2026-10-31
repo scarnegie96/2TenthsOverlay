@@ -617,3 +617,18 @@ docs/ARCHITECTURE.md  How data flows, the maths behind each widget, adding a wid
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how data flows, how each
 number is worked out, and how to add a widget.
+
+## License
+
+Tenths is free software: you can redistribute it and change it under the terms
+of the [GNU General Public License](LICENSE) as published by the Free Software
+Foundation, either version 3 of the License or (at your option) any later
+version. In short: use it, change it and share it as you like, and if you share
+a changed version, share its source under the same license. It comes with no
+warranty.
+
+The bundled fonts, Barlow Semi Condensed and Titillium Web, are under the SIL
+Open Font License 1.1.
+
+Tenths isn't affiliated with or endorsed by iRacing.com Motorsport Simulations,
+LLC. iRacing is their trademark.
