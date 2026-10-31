@@ -3,6 +3,7 @@
 
 mod controllers;
 mod controls;
+mod displays;
 mod profiles;
 
 use std::fs;
@@ -15,12 +16,16 @@ use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
+
+use displays::{Display, Displays};
 use tauri_plugin_global_shortcut::ShortcutState;
 use telemetry::ibt::IbtSummary;
 use telemetry::lapfile;
 use telemetry::reference::ReferenceLap;
 use telemetry::{FieldPayload, PitCommand, ReferencePayload, RunnerControl, SessionPayload, Sink, StatusPayload, TickPayload};
 
+/// The overlay window on the primary display; others are `overlay-2`… (displays.rs).
+/// App-wide jobs (layout and pit shortcuts) go to this one only.
 pub(crate) const OVERLAY: &str = "overlay";
 const SETTINGS: &str = "settings";
 
@@ -36,10 +41,10 @@ struct Snapshot {
     demo: bool,
 }
 
-struct AppState {
+pub(crate) struct AppState {
     control: RunnerControl,
-    edit_mode: AtomicBool,
-    overlay_visible: AtomicBool,
+    pub(crate) edit_mode: AtomicBool,
+    pub(crate) overlay_visible: AtomicBool,
     latest: Arc<Mutex<Snapshot>>,
     config_lock: Mutex<()>,
 }
@@ -64,8 +69,8 @@ impl Sink for TauriSink {
         let _ = self.app.emit("session", session);
     }
     fn tick(&self, tick: &TickPayload) {
-        // 60 Hz data only goes to the overlay.
-        let _ = self.app.emit_to(OVERLAY, "tick", tick);
+        // 60 Hz data only goes to the overlays.
+        displays::emit_overlays(&self.app, "tick", tick);
     }
     fn field(&self, field: &FieldPayload) {
         let _ = self.app.emit("field", field);
@@ -182,6 +187,18 @@ fn set_overlay_visible(app: AppHandle, visible: bool) {
     apply_overlay_visible(&app, visible);
 }
 
+/// The connected displays, primary first.
+#[tauri::command]
+fn get_displays(state: State<Displays>) -> Vec<Display> {
+    state.list.lock().unwrap().clone()
+}
+
+/// Which display the calling overlay window covers (None for other windows).
+#[tauri::command]
+fn my_display(window: WebviewWindow, state: State<Displays>) -> Option<String> {
+    state.windows.lock().unwrap().get(window.label()).cloned()
+}
+
 #[tauri::command]
 fn set_demo(app: AppHandle, state: State<AppState>, enabled: bool) {
     state.control.demo.store(enabled, Ordering::Relaxed);
@@ -278,21 +295,20 @@ fn suspend_controls(app: AppHandle, suspended: bool) {
 // Window behaviour
 // ---------------------------------------------------------------------------
 
-fn overlay(app: &AppHandle) -> Option<WebviewWindow> {
-    app.get_webview_window(OVERLAY)
-}
-
-/// Edit mode makes the overlay take the mouse so widgets can be dragged.
+/// Edit mode makes the overlays take the mouse so widgets can be dragged.
 /// Outside edit mode every click goes straight through to iRacing.
 fn apply_edit_mode(app: &AppHandle, enabled: bool) {
     let state = app.state::<AppState>();
     state.edit_mode.store(enabled, Ordering::Relaxed);
-    if let Some(w) = overlay(app) {
+    if enabled && !state.overlay_visible.load(Ordering::Relaxed) {
+        apply_overlay_visible(app, true);
+    }
+    for w in displays::overlays(app) {
         let _ = w.set_ignore_cursor_events(!enabled);
-        if enabled {
-            if !state.overlay_visible.load(Ordering::Relaxed) {
-                apply_overlay_visible(app, true);
-            }
+    }
+    if enabled {
+        // Keys (Escape to finish) go to the primary display's overlay.
+        if let Some(w) = app.get_webview_window(OVERLAY) {
             let _ = w.set_focus();
         }
     }
@@ -302,19 +318,10 @@ fn apply_edit_mode(app: &AppHandle, enabled: bool) {
 fn apply_overlay_visible(app: &AppHandle, visible: bool) {
     let state = app.state::<AppState>();
     state.overlay_visible.store(visible, Ordering::Relaxed);
-    if let Some(w) = overlay(app) {
+    for w in displays::overlays(app) {
         let _ = if visible { w.show() } else { w.hide() };
     }
     let _ = app.emit("overlay-visible", visible);
-}
-
-/// Cover the primary monitor with the transparent overlay window.
-fn fit_overlay_to_monitor(w: &WebviewWindow) {
-    let monitor = w.primary_monitor().ok().flatten().or_else(|| w.current_monitor().ok().flatten());
-    if let Some(m) = monitor {
-        let _ = w.set_position(*m.position());
-        let _ = w.set_size(*m.size());
-    }
 }
 
 fn show_settings(app: &AppHandle) {
@@ -397,6 +404,7 @@ pub fn run() {
                 .build(),
         )
         .manage(controls::Controls::default())
+        .manage(Displays::default())
         .manage(AppState {
             control: control.clone(),
             edit_mode: AtomicBool::new(false),
@@ -411,6 +419,8 @@ pub fn run() {
             set_edit_mode,
             set_overlay_visible,
             set_demo,
+            get_displays,
+            my_display,
             open_settings,
             pit_command,
             set_pit_active,
@@ -430,11 +440,9 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            if let Some(w) = overlay(&handle) {
-                fit_overlay_to_monitor(&w);
-                w.set_ignore_cursor_events(true)?;
-                w.show()?;
-            }
+            // An overlay window over every display, kept in step as monitors come and go.
+            displays::sync(&handle);
+            displays::watch(handle.clone());
             build_tray(&handle)?;
             let buttons = handle.clone();
             controllers::spawn(move |press| controls::on_button(&buttons, press));

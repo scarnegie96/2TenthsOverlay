@@ -140,15 +140,20 @@ const PREVIEW_KEYS: Record<string, PitAction> = {
  * the car, takes the pit hotkeys and runs them; and, if asked, sets the fuel
  * as you enter the pit lane.
  */
-export function usePitControl() {
+/**
+ * Pit hotkeys and auto fuel. Pass `owner` false in all but one window: with
+ * an overlay on every display, only the primary display's sends commands, so
+ * nothing is sent twice.
+ */
+export function usePitControl(owner = true) {
   const enabled = useLive((s) => s.config.widgets.pitstop.enabled);
   const connected = useLive((s) => s.status?.connected ?? false);
   const onTrack = useLive((s) => s.tick?.isOnTrack ?? false);
-  const live = enabled && connected && onTrack;
+  const live = owner && enabled && connected && onTrack;
 
   useEffect(() => {
-    void api.setPitActive(live);
-  }, [live]);
+    if (owner) void api.setPitActive(live);
+  }, [owner, live]);
 
   useEffect(() => {
     if (!live) return;

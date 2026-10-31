@@ -8,6 +8,7 @@ import {
   ACTIONS, buttonLabel, defaultControls, fullLabel, keyLabel, sameButton, sameKey,
   type ActionId, type ControlBinding, type KeyBinding,
 } from "../lib/controls";
+import { displayName, widgetDisplay } from "../lib/displays";
 import { lapTime } from "../lib/format";
 import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import { COLOR_GROUPS, THEMES, THEME_COLORS, effectiveColor, type ColorKey } from "../lib/theme";
@@ -563,6 +564,9 @@ function bareKey(k: KeyBinding): boolean {
 function WidgetPane({ id }: { id: WidgetId }) {
   const meta = widgetMeta(id);
   const w = useLive((s) => s.config.widgets[id]);
+  const displays = useLive((s) => s.displays);
+  const on = widgetDisplay(w, displays);
+  const away = w.display && !displays.some((d) => d.key === w.display);
 
   return (
     <>
@@ -580,8 +584,20 @@ function WidgetPane({ id }: { id: WidgetId }) {
           <Slider value={w.opacity} min={0.2} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`}
             onChange={(opacity) => setWidget(id, (x) => ({ ...x, opacity }))} />
         </Field>
+        {displays.length > 1 && (
+          <Field
+            label="Screen"
+            help={away ? "Its screen isn't connected, so it's on the main one for now. It goes back when that screen is." : "Which display it shows on. You can also drag it across in edit mode."}
+          >
+            <select className="select" value={on ?? ""} onChange={(e) => setWidget(id, (x) => ({ ...x, display: e.target.value }))}>
+              {displays.map((d) => (
+                <option key={d.key} value={d.key}>{displayName(d)}</option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Position" help={positionHelp(w)}>
-          <button className="btn" onClick={() => setWidget(id, (x) => ({ ...x, x: meta.x, y: meta.y, ax: undefined, ay: undefined, scale: 1 }))}>
+          <button className="btn" onClick={() => setWidget(id, (x) => ({ ...x, x: meta.x, y: meta.y, ax: undefined, ay: undefined, display: undefined, scale: 1 }))}>
             Reset position
           </button>
         </Field>

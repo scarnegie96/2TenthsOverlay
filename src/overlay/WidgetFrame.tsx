@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { widgetMeta, type WidgetConfig, type WidgetId } from "../lib/config";
+import { cssSize, dropOnto, nextDisplay } from "../lib/displays";
+import type { Display } from "../lib/types";
 import { COMPONENTS } from "../widgets/registry";
 import { clampOnScreen, resolvePosition, toAnchored, type Size } from "./anchor";
 import { snap, type Guide, type Rect } from "./snapping";
@@ -16,6 +18,9 @@ interface Props {
   editing: boolean;
   /** Size of the overlay in CSS px. */
   screen: Size;
+  /** The display this overlay window covers, and all of them (for moving between screens). */
+  display: Display | null;
+  displays: Display[];
   /** Screen rects of the other visible widgets, for snapping. */
   others: () => Rect[];
   onRect: (id: WidgetId, rect: Rect | null) => void;
@@ -24,7 +29,7 @@ interface Props {
 }
 
 type Drag =
-  | { mode: "move"; px: number; py: number; x: number; y: number }
+  | { mode: "move"; px: number; py: number; x: number; y: number; moved: boolean }
   | { mode: "scale"; px: number; py: number; scale: number; w: number };
 
 /**
@@ -32,7 +37,7 @@ type Drag =
  * edge or centre (see anchor.ts), so layouts carry over between 1080p, 1440p
  * and 4K. While dragging we work in absolute pixels and re-anchor on release.
  */
-export function WidgetFrame({ id, config, editing, screen, others, onRect, onGuides, onCommit }: Props) {
+export function WidgetFrame({ id, config, editing, screen, display, displays, others, onRect, onGuides, onCommit }: Props) {
   const Widget = COMPONENTS[id];
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -40,6 +45,8 @@ export function WidgetFrame({ id, config, editing, screen, others, onRect, onGui
   const [natural, setNatural] = useState<Size | null>(null);
   // While dragging we render from local state and only save on release.
   const [live, setLive] = useState<{ x: number; y: number; scale: number } | null>(null);
+  // While dragging past the edge onto another display: its number, for the hint.
+  const [leaving, setLeaving] = useState<number | null>(null);
 
   const scale = live?.scale ?? config.scale;
   const size: Size = natural ? { w: natural.w * scale, h: natural.h * scale } : { w: 0, h: 0 };
@@ -80,7 +87,7 @@ export function WidgetFrame({ id, config, editing, screen, others, onRect, onGui
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = isHandle
       ? { mode: "scale", px: e.clientX, py: e.clientY, scale, w: size.w }
-      : { mode: "move", px: e.clientX, py: e.clientY, x, y };
+      : { mode: "move", px: e.clientX, py: e.clientY, x, y, moved: false };
     e.preventDefault();
   };
 
@@ -88,20 +95,54 @@ export function WidgetFrame({ id, config, editing, screen, others, onRect, onGui
     const d = drag.current;
     if (!d) return;
     if (d.mode === "move") {
+      d.moved = true;
       const s = snap({ x: d.x + e.clientX - d.px, y: d.y + e.clientY - d.py, w: size.w, h: size.h }, others(), screen);
       setLive({ x: s.x, y: s.y, scale });
       onGuides(s.guides);
+      setLeaving(crossing(e)?.display.number ?? null);
     } else {
       setLive({ x, y, scale: clampScale(d.scale * ((d.w + e.clientX - d.px) / d.w)) });
     }
   };
 
-  const up = () => {
+  /**
+   * The pointer is past this window's edge and over another display: where the
+   * widget would land there. The window keeps the pointer while a button is
+   * held, so it still sees it over the other screen.
+   */
+  const crossing = (e: { clientX: number; clientY: number }) => {
+    const d = drag.current;
+    if (!d || d.mode !== "move" || !display || displays.length < 2) return null;
+    const inside = e.clientX >= 0 && e.clientY >= 0 && e.clientX < screen.w && e.clientY < screen.h;
+    if (inside) return null;
+    return dropOnto(display, e.clientX, e.clientY, { x: d.px - d.x, y: d.py - d.y }, displays);
+  };
+
+  const up = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!drag.current) return;
+    const across = drag.current.mode === "move" && drag.current.moved ? crossing(e) : null;
     drag.current = null;
     onGuides([]);
-    if (live) save(live.x, live.y, live.scale);
+    setLeaving(null);
+    if (across) {
+      // Dropped on another display: anchor it there, at the same scale.
+      const sz = natural ? { w: natural.w * scale, h: natural.h * scale } : size;
+      const target = cssSize(across.display);
+      const p = clampOnScreen(across.left, across.top, sz, target);
+      onCommit(id, { ...toAnchored(p.x, p.y, sz, target), scale, display: across.display.key });
+    } else if (live) {
+      save(live.x, live.y, live.scale);
+    }
     setLive(null);
+  };
+
+  /** Sends the widget to the next display, at the same spot relative to its edges. */
+  const next = nextDisplay(display?.key ?? null, displays);
+  const toNextDisplay = () => {
+    if (!next || !natural) return;
+    // Anchor it on this screen first, so it lands in the matching place on the other.
+    const anchored = toAnchored(x, y, size, screen);
+    onCommit(id, { ...anchored, display: next.key });
   };
 
   /** Resize from the edge the widget is pinned to, so it grows into the screen. */
@@ -122,7 +163,7 @@ export function WidgetFrame({ id, config, editing, screen, others, onRect, onGui
   return (
     <div
       ref={ref}
-      className={`frame ${editing ? "is-editing" : ""}`}
+      className={`frame ${editing ? "is-editing" : ""} ${leaving ? "is-leaving" : ""}`}
       style={{
         transform: `translate3d(${x}px, ${y}px, 0) scale(${scale})`,
         opacity: editing ? Math.max(config.opacity, 0.85) : config.opacity,
@@ -145,12 +186,22 @@ export function WidgetFrame({ id, config, editing, screen, others, onRect, onGui
               <button title="Smaller" disabled={scale <= MIN_SCALE} onClick={() => nudgeScale(-0.1)}>−</button>
               <span className="frame-scale">{Math.round(scale * 100)}%</span>
               <button title="Bigger" disabled={scale >= MAX_SCALE} onClick={() => nudgeScale(0.1)}>+</button>
+              {next && (
+                <button className="frame-display" title={`Move to display ${next.number}`} onClick={toNextDisplay}>
+                  ⇥ {next.number}
+                </button>
+              )}
               <button className="frame-hide" title="Hide this widget (turn it back on from Widgets in the edit bar)" onClick={() => onCommit(id, { enabled: false })}>
                 Hide
               </button>
             </span>
           </div>
           <div className="frame-handle" style={{ transform: `scale(${1 / scale})` }} title="Drag to resize" />
+          {leaving && (
+            <div className="frame-leaving" style={{ transform: `translate(-50%, -50%) scale(${1 / scale})` }}>
+              Release to move to display {leaving}
+            </div>
+          )}
         </>
       )}
     </div>

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api, isTauri, on } from "./bridge";
 import { type AppConfig, defaultConfig, normalizeConfig } from "./config";
 import { THEMES, applyTheme, type Theme } from "./theme";
-import type { FieldPayload, ProfileSummary, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
+import type { Display, FieldPayload, ProfileSummary, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
 
 interface LiveState {
   status: StatusPayload | null;
@@ -16,6 +16,10 @@ interface LiveState {
   configLoaded: boolean;
   /** Saved layouts, by name. */
   profiles: ProfileSummary[];
+  /** Connected displays, primary first. */
+  displays: Display[];
+  /** The display this overlay window covers (null in Settings). */
+  myDisplay: string | null;
 }
 
 export const useLive = create<LiveState>(() => ({
@@ -29,6 +33,8 @@ export const useLive = create<LiveState>(() => ({
   config: defaultConfig(),
   configLoaded: false,
   profiles: [],
+  displays: [],
+  myDisplay: null,
 }));
 
 /** Subscribes this window to everything the backend sends. Call once per window. */
@@ -51,6 +57,11 @@ export async function connect(opts: { telemetry: boolean }) {
     on<boolean>("edit-mode", (editMode) => set({ editMode })),
     on<boolean>("overlay-visible", (overlayVisible) => set({ overlayVisible })),
     on<ProfileSummary[]>("profiles-changed", (profiles) => set({ profiles })),
+    on<Display[]>("displays-changed", (displays) => {
+      set({ displays });
+      // Windows can swap displays when the primary changes, so ask again.
+      void api.myDisplay().then((myDisplay) => set({ myDisplay })).catch(() => {});
+    }),
     on<unknown>("config-changed", (raw) => {
       // Ignore echoes while this window still has edits waiting to be saved.
       if (savePending) return;
@@ -59,7 +70,13 @@ export async function connect(opts: { telemetry: boolean }) {
     opts.telemetry ? on<TickPayload>("tick", (tick) => set({ tick })) : Promise.resolve(),
   ]);
 
-  const [snap, saved, profiles] = await Promise.all([api.snapshot(), api.loadConfig(), api.listProfiles().catch(() => [])]);
+  const [snap, saved, profiles, displays, myDisplay] = await Promise.all([
+    api.snapshot(),
+    api.loadConfig(),
+    api.listProfiles().catch(() => []),
+    api.getDisplays().catch(() => []),
+    api.myDisplay().catch(() => null),
+  ]);
   set({
     status: snap.status ?? useLive.getState().status,
     session: snap.session ?? useLive.getState().session,
@@ -69,6 +86,8 @@ export async function connect(opts: { telemetry: boolean }) {
     config: normalizeConfig(saved),
     configLoaded: true,
     profiles,
+    displays,
+    myDisplay,
   });
   return useLive.getState().config;
 }

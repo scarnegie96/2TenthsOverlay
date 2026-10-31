@@ -21,6 +21,11 @@ export interface WidgetConfig {
   y: number;
   ax?: AnchorX;
   ay?: AnchorY;
+  /**
+   * Which display it's on (a display key, e.g. "\\.\DISPLAY2"). Missing, or
+   * a display that isn't connected, means the primary display.
+   */
+  display?: string;
   scale: number;
   opacity: number;
   options: Record<string, number | boolean | string>;

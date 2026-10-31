@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CarStatus, CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
+  CarStatus, CoachPayload, Display, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
   StatusPayload, TickPayload, TiresPayload,
 } from "./types";
 
@@ -246,6 +246,13 @@ class Mock {
         return;
       case "list_controllers":
         return [];
+      case "get_displays":
+        return previewDisplays();
+      case "my_display": {
+        // ?display=2 pretends this tab is the overlay on the second display.
+        const n = Number(new URLSearchParams(location.search).get("display") || 1);
+        return previewDisplays()[n - 1]?.key ?? previewDisplays()[0].key;
+      }
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }
@@ -755,3 +762,15 @@ if (typeof window !== "undefined") {
 }
 
 export const mock = new Mock();
+
+/**
+ * Browser preview displays: one, or with ?displays=2 a second screen to the
+ * right at 150% scaling, to try moving widgets between screens (open
+ * overlay.html?displays=2 and overlay.html?displays=2&display=2 side by side).
+ */
+function previewDisplays(): Display[] {
+  const two = new URLSearchParams(location.search).get("displays") === "2";
+  const main: Display = { key: "\\\\.\\DISPLAY1", number: 1, primary: true, x: 0, y: 0, width: 1920, height: 1080, scale: 1 };
+  if (!two) return [main];
+  return [main, { key: "\\\\.\\DISPLAY2", number: 2, primary: false, x: 1920, y: 0, width: 3840, height: 2160, scale: 1.5 }];
+}

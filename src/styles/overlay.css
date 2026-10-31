@@ -286,6 +286,44 @@
 .frame-tools .frame-hide:hover {
   color: var(--loss);
 }
+.frame-tools .frame-display {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+  border-left: 1px solid var(--line-strong);
+  border-radius: 0;
+  white-space: nowrap;
+}
+.frame-tools .frame-display:hover {
+  color: var(--attention);
+}
+/* Dragged past the edge onto another display. */
+.frame.is-leaving {
+  outline-color: var(--attention);
+  outline-style: solid;
+}
+.frame-leaving {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  padding: 6px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--panel-solid);
+  background: var(--attention);
+  pointer-events: none;
+}
+.edit-bar .edit-display {
+  font-weight: 700;
+  color: var(--attention);
+  white-space: nowrap;
+}
+.edit-bar.is-secondary b {
+  color: var(--attention);
+}
 .frame-scale {
   min-width: 38px;
   text-align: center;

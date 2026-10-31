@@ -185,8 +185,33 @@ fuel amount of 0 keeps the amount already set.
 
 ## The app shell (`src-tauri`)
 
-- **overlay** window: transparent, borderless, always on top, sized to the
-  primary monitor, ignoring the mouse. Edit mode turns mouse capture on.
+- **overlay** windows (`displays.rs`): one per display, each transparent,
+  borderless, always on top, sized to its monitor and ignoring the mouse
+  (edit mode turns mouse capture on for all of them). `overlay` from
+  tauri.conf.json covers the primary display; others are built as
+  `overlay-2`, `overlay-3`… (numbered main first, then left to right, top to
+  bottom). One window per display rather than one across the desktop keeps
+  each at its monitor's own scale factor, which a spanning window can't do
+  on mixed-DPI setups, and avoids compositing a desktop-sized transparent
+  surface. A thread polls the monitors every 2 s and adds, moves or closes
+  windows to match, then emits `displays-changed`. The `tick` goes to every
+  overlay (`emit_overlays`); layout and pit shortcuts still go to `overlay`
+  only, and in the front end only the primary display's window sends
+  controls and pit commands, so nothing happens once per screen. The
+  capability file lists `overlay-*` so new windows get events and commands.
+- **Displays in the front end** (`src/lib/displays.ts`): a display's key is
+  Windows' device name (`\\.\DISPLAY2`), which survives rearranging.
+  `get_displays` lists them and `my_display` tells a window which it covers.
+  A widget's `display` picks its window; missing or unplugged means the
+  primary, so nothing is lost. Its anchored position is within that display.
+  Moving between displays: the edit label's button re-anchors it on the next
+  display at the same offsets; dragging past the window edge works because
+  the window keeps the pointer while the button is held, so on release
+  `dropOnto` turns the pointer into desktop pixels (window origin + client
+  position × scale), finds the display under it and converts back to that
+  display's CSS pixels, keeping where the widget was held. In the browser
+  preview, `?displays=2` adds a second display and `&display=2` makes a tab
+  its overlay.
 - **settings** window: normal window. Closing it hides it; the tray icon brings
   it back, and Quit lives in the tray menu.
 - Config is a JSON file owned by the front end (`src/lib/config.ts`). Rust only
@@ -250,4 +275,4 @@ fuel amount of 0 keeps the amount already set.
 - Coach cues for lateral line, using the sideways-position channel in .blap
   files, and audio for the brake countdown.
 - Show each car's tire compound in the relative (`CarIdxTireCompound`), e.g. wets.
-- Profiles per car or series, and multi-monitor placement.
+- Profiles per car or series.
