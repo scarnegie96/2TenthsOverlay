@@ -142,8 +142,12 @@ fuel amount of 0 keeps the amount already set.
   per sector, for every comparison at once.
 - **Fuel**: average of the last 5 green laps. A lap is skipped if you joined
   mid-lap, visited pit road or refuelled. Laps to go come from
-  `SessionLapsRemainEx` in lap races, or time remaining divided by average lap
-  time (plus the lap you finish on) in timed races.
+  `SessionLapsRemainEx` in lap races. In timed races `laps_to_go()` works
+  out when the overall leader finishes (by default the white flag at the first
+  crossing after the clock runs out, then one more lap: `TIMED_FINISH`; not yet
+  confirmed against a recording, see `examples/timed_finish.rs`) and counts your
+  laps to the first crossing after that. Practice and qualifying end at your
+  first crossing after zero.
 - **Places gained / lost** (`grid.rs`): iRacing publishes no starting grid,
   so in race sessions we keep each car's class position while
   `SessionState` is before racing (the grid), fill in cars first classified
@@ -177,9 +181,11 @@ fuel amount of 0 keeps the amount already set.
   profile of `CarIdxEstTime` against `CarIdxLapDistPct` (200 points round
   the lap, learned from every car on track, wrapping across the line). Loss
   = lane time minus racing time. Only stops that stood in the box for 0.5 to
-  120 s count; tows and cars that weren't seen on track first (pit-lane
-  starts) don't. Per class, once there are 2 stops, the average of those no
-  more than 1.5x the median is sent as `field.pitLoss`. The Standings adds
+  120 s count, and only if the car drove in: on track the frame before, moving
+  at most 1% of the lap, onto pit road rather than straight into the stall. So
+  tows, resets and pit-lane starts don't count. Per class, once there are 2
+  stops, the average of those between 0.5x and 1.5x the median is sent as
+  `field.pitLoss`. The Standings adds
   that to your gap to the class leader and counts which cars' gaps are
   smaller: those come out ahead of you. Nothing shows outside races, before
   there's an average, or while you're in the pit lane.
@@ -302,3 +308,26 @@ fuel amount of 0 keeps the amount already set.
   files, and audio for the brake countdown.
 - Show each car's tire compound in the relative (`CarIdxTireCompound`), e.g. wets.
 - Profiles per car or series.
+
+## Robustness notes (0.4.1)
+
+- **Shared memory** (`irsdk.rs`, `shm.rs`): the view's size comes from
+  `VirtualQuery` at open, and every read (header, variable list, data buffer,
+  session YAML) is checked against it: negative values, overflow, past the end
+  or over 16 MB skip that read. The variable list is re-read whenever the
+  variable count, header offset or buffer size change, and after every
+  disconnect.
+- **Lap files** (`laps.rs`): kept in memory per car and track; a background
+  thread writes the newest copy (temporary file, then rename). Dropping the
+  lap log finishes queued writes. A lap whose official time equals the
+  previous one is recognised by matching our own timing within 0.25 s.
+- **Demo pacing** (`runner.rs`): a deadline clock at 60 Hz, stepping the demo
+  by the real time elapsed (at most 0.1 s).
+- **Config** (`src-tauri/src/lib.rs`, `src/lib/config.ts`): an unreadable
+  `config.json` is renamed `config.corrupt-<UTC date>.json` and reported by
+  `config_notice`; `reference.json` is written atomically. `normalizeConfig`
+  checks every field of saved and imported layouts and falls back to defaults.
+- **Controls** (`controllers.rs`, `controls.rs`): a controller's id is its
+  VID/PID/interface, with the USB instance added only when an identical device
+  is also connected. Presses match the exact id first, then the same model.
+  Closing Settings during a capture resumes the hotkeys from Rust.

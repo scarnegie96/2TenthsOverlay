@@ -103,7 +103,8 @@ position, how far behind the car ahead you'd be and how far ahead of the car
 behind. Tenths times every car's stops (pit entry to exit, minus the time
 the same stretch takes at racing speed) and uses your class's average, so
 nothing shows until at least two real stops in your class have been timed.
-Drive-throughs, tows and long repair stops are left out. The estimate
+Drive-throughs, tows, resets to the pits and unusually long or short stops are
+left out. The estimate
 assumes a typical stop; a longer fuel fill or repairs mean you'd come out
 further back. It's hidden while you're in the pit lane.
 
@@ -270,6 +271,9 @@ while editing.
 
 Fuel in the tank, use per lap (the average of your last 5 green laps), laps
 the tank will last, laps to go, and how much to add at your stop to finish.
+In timed races, laps to go runs until the overall leader takes the flag (the
+white flag once the clock runs out, then one more lap), so it never leaves you
+a lap short if you're behind the leader.
 
 *Options*: a safety margin in laps.
 
@@ -444,8 +448,10 @@ Every action has a key and a controller button:
 | Pit stop | Fuel, more fuel, less fuel, four tires, fast repair, tear-off, untick everything |
 
 Click a box and press the key, or the button on your wheel, button box or
-gamepad. `Esc` cancels and × clears it. Nothing else fires while it's waiting,
-so you can choose a key that's already in use. It warns when two actions share
+gamepad. `Esc` cancels and × clears it; so does clicking away, closing
+Settings, or waiting 15 seconds. Nothing else fires while it's waiting, so you
+can choose a key that's already in use. Two identical button boxes are told
+apart by the USB port they're in. It warns when two actions share
 a key or button, when a key has no Ctrl, Alt or Shift (it would stop working in
 other programs while Tenths runs; F13 to F24 are fine, since keyboards don't
 have them), and when a bound controller isn't plugged in. The top of the page
@@ -607,6 +613,10 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 | `laps\`          | Lap history and personal best, one file per car and track |
 | `reference.json` | The imported reference lap |
 
+If `config.json` can't be read, Tenths keeps it as
+`config.corrupt-<date>.json`, starts with default settings and says so in
+Settings.
+
 ## Working on it from a Mac or Linux
 
 The front end runs in a normal browser with a fake 21-car, 3-class race, so you
@@ -651,10 +661,12 @@ cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt t
 cargo run -p telemetry --example inspect_lap -- lap.blap   # list the corners the coach finds in a lap
 cargo run -p telemetry --example coach_demo                # how often each cue fires in the demo
 cargo run -p telemetry --example stints_demo               # every demo car's stints and pit loss after 12 minutes
+cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left at the end of a timed race
 ```
 
-Before committing, run `npm run build` (type-checks the front end) and
-`cargo clippy --workspace --all-targets`.
+Before committing, run `npm run build` (type-checks the front end), `npm run lint`
+and `cargo clippy --workspace --all-targets`. Layout validation has its own
+checks: see the top of `scripts/check-config.ts`.
 
 ## Project layout
 
