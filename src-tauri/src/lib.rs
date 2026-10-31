@@ -10,6 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -47,6 +48,8 @@ pub(crate) struct AppState {
     pub(crate) overlay_visible: AtomicBool,
     latest: Arc<Mutex<Snapshot>>,
     config_lock: Mutex<()>,
+    /// Set when config.json couldn't be read and was moved aside.
+    config_notice: Mutex<Option<String>>,
 }
 
 /// Forwards telemetry to the web views.
@@ -88,12 +91,53 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn load_config(app: AppHandle) -> Result<Option<Value>, String> {
+fn load_config(app: AppHandle, state: State<AppState>) -> Result<Option<Value>, String> {
+    let _guard = state.config_lock.lock().unwrap();
     let path = config_path(&app)?;
-    match fs::read_to_string(&path) {
-        Ok(text) => Ok(serde_json::from_str(&text).ok()),
-        Err(_) => Ok(None),
+    let Ok(text) = fs::read_to_string(&path) else { return Ok(None) };
+    match serde_json::from_str(&text) {
+        Ok(config) => Ok(Some(config)),
+        Err(err) => {
+            // Keep the broken file, so the next save doesn't lose it for good.
+            let name = corrupt_name(SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs()));
+            let kept = path.with_file_name(&name);
+            match fs::rename(&path, &kept) {
+                Ok(()) => {
+                    eprintln!("[tenths] config.json couldn't be read ({err}); kept it as {}", kept.display());
+                    *state.config_notice.lock().unwrap() = Some(name);
+                }
+                Err(e) => eprintln!("[tenths] config.json couldn't be read ({err}) or moved aside ({e})"),
+            }
+            Ok(None)
+        }
     }
+}
+
+/// The name a broken config.json was kept under this run, for a notice in Settings.
+#[tauri::command]
+fn config_notice(state: State<AppState>) -> Option<String> {
+    state.config_notice.lock().unwrap().clone()
+}
+
+/// `config.corrupt-20261031-142501.json`, from seconds since 1970 (UTC).
+fn corrupt_name(secs: u64) -> String {
+    let (days, rest) = ((secs / 86_400) as i64, secs % 86_400);
+    // Days to a calendar date (Howard Hinnant's civil_from_days).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "config.corrupt-{year:04}{month:02}{day:02}-{:02}{:02}{:02}.json",
+        rest / 3600,
+        rest / 60 % 60,
+        rest % 60
+    )
 }
 
 #[tauri::command]
@@ -231,7 +275,11 @@ async fn load_reference(app: AppHandle, path: String, lap: i32) -> Result<(), St
     .await
     .map_err(|e| e.to_string())??;
     let text = serde_json::to_string(&reference).map_err(|e| e.to_string())?;
-    fs::write(reference_path(&app)?, text).map_err(|e| e.to_string())?;
+    // Write a copy first, so a crash can't leave half a file behind.
+    let path = reference_path(&app)?;
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     app.state::<AppState>().control.set_reference(Some(reference));
     Ok(())
 }
@@ -411,9 +459,11 @@ pub fn run() {
             overlay_visible: AtomicBool::new(true),
             latest: latest.clone(),
             config_lock: Mutex::new(()),
+            config_notice: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             load_config,
+            config_notice,
             save_config,
             get_snapshot,
             set_edit_mode,
@@ -462,9 +512,27 @@ pub fn run() {
                 if window.label() == SETTINGS {
                     api.prevent_close();
                     let _ = window.hide();
+                    // The page stays loaded, so a key or button it was waiting
+                    // for would keep every hotkey off. Turn them back on and tell it.
+                    controls::set_suspended(window.app_handle(), false);
+                    let _ = window.emit_to(SETTINGS, "settings-hidden", ());
                 }
             }
         })
         .run(tauri::generate_context!())
         .expect("error while running Tenths");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::corrupt_name;
+
+    #[test]
+    fn corrupt_names_carry_the_date_and_time() {
+        assert_eq!(corrupt_name(0), "config.corrupt-19700101-000000.json");
+        // 2026-10-31 14:25:01 UTC
+        assert_eq!(corrupt_name(1_793_456_701), "config.corrupt-20261031-142501.json");
+        // 2024-02-29 23:59:59 UTC, a leap day.
+        assert_eq!(corrupt_name(1_709_251_199), "config.corrupt-20240229-235959.json");
+    }
 }

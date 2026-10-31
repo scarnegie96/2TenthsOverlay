@@ -119,6 +119,10 @@ class Mock {
       if (event === "reference") this.reference = payload as ReferencePayload;
       this.dispatch(event, payload);
     };
+    // A hidden tab stands in for closing the settings window (lib.rs sends "settings-hidden").
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.dispatch("settings-hidden", null);
+    });
     for (const [i, base] of BATTLE) this.progress[i] = this.progress[PLAYER] + base / TRACK_M;
     this.progress[RETIRED] = 1.55;
     // Give a few drivers a fresh personal best / class best so the colors show.
@@ -170,6 +174,9 @@ class Mock {
           return null;
         }
       }
+      case "config_notice":
+        // ?corrupt shows the notice for a settings file that couldn't be read.
+        return new URLSearchParams(location.search).has("corrupt") ? "config.corrupt-20261031-142501.json" : null;
       case "save_config":
         try {
           localStorage.setItem(CONFIG_KEY, JSON.stringify(args.config));

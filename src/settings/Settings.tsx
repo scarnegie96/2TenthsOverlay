@@ -48,6 +48,7 @@ export function Settings() {
         ))}
       </nav>
       <main className="pane">
+        <ConfigNotice />
         {pane === "general" ? <GeneralPane onControls={() => setPane("controls")} />
           : pane === "layouts" ? <LayoutsPane />
           : pane === "appearance" ? <AppearancePane />
@@ -63,6 +64,25 @@ function NavItem({ active, onClick, children }: { active: boolean; onClick: () =
     <button className={`nav-item ${active ? "is-active" : ""}`} onClick={onClick} aria-current={active ? "page" : undefined}>
       {children}
     </button>
+  );
+}
+
+/** Says so when the settings file couldn't be read and Tenths started fresh. */
+function ConfigNotice() {
+  const [kept, setKept] = useState<string | null>(null);
+  useEffect(() => {
+    void api.configNotice().then(setKept).catch(() => {});
+  }, []);
+  if (!kept) return null;
+  return (
+    <p className="notice" role="status">
+      <span>
+        Your settings file couldn't be read, so Tenths started fresh. The old file was kept as <code>{kept}</code>.
+      </span>
+      <button className="notice-close" onClick={() => setKept(null)} aria-label="Dismiss">
+        ×
+      </button>
+    </p>
   );
 }
 
@@ -413,6 +433,8 @@ function setWidget(id: WidgetId, mutate: (w: WidgetConfig) => WidgetConfig) {
 // --- Controls ---------------------------------------------------------------
 
 const MODIFIER_KEYS = ["Control", "Shift", "Alt", "Meta", "AltGraph"];
+/** How long a box waits for a key or button before giving up. */
+const CAPTURE_SECONDS = 15;
 const GROUP_NOTES: Record<string, string> = {
   "Pit stop": "These work while the Pit stop widget is on and you're in the car.",
 };
@@ -428,40 +450,64 @@ function ControlsPane() {
   const controls = useLive((s) => s.config.general.controls);
   const [capture, setCapture] = useState<{ id: ActionId; kind: "key" | "button" } | null>(null);
   const [connected, setConnected] = useState<Controller[] | null>(null);
+  const [left, setLeft] = useState(CAPTURE_SECONDS);
 
   useEffect(() => {
     void api.listControllers().then(setConnected);
   }, []);
 
   // Nothing fires while waiting, so pressing a bound key or button doesn't also run its action.
+  // Waiting stops after a while, or when the window is closed or loses focus,
+  // so the hotkeys are never left off. The cleanup turns them back on, once.
   useEffect(() => {
     if (!capture) return;
+    let live = true;
+    const cancel = () => {
+      if (live) setCapture(null);
+    };
     void api.suspendControls(true);
     const key = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (e.key === "Escape") return setCapture(null);
+      if (e.key === "Escape") return cancel();
       if (capture.kind !== "key" || MODIFIER_KEYS.includes(e.key)) return;
       setControl(capture.id, { key: { code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey } });
       setCapture(null);
     };
     window.addEventListener("keydown", key, true);
-    const off =
+    window.addEventListener("blur", cancel);
+    const offButton =
       capture.kind === "button"
         ? on<ButtonPress>("controller-button", (p) => {
+            if (!live) return;
             setControl(capture.id, { button: { device: p.device, name: p.name, button: p.button } });
             setCapture(null);
           })
         : null;
+    const offHidden = on<null>("settings-hidden", cancel);
+    const until = Date.now() + CAPTURE_SECONDS * 1000;
+    const timer = window.setInterval(() => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if (left <= 0) cancel();
+      else setLeft(left);
+    }, 250);
     return () => {
+      live = false;
+      window.clearInterval(timer);
       window.removeEventListener("keydown", key, true);
-      void off?.then((f) => f());
+      window.removeEventListener("blur", cancel);
+      void offButton?.then((f) => f());
+      void offHidden.then((f) => f());
       void api.suspendControls(false);
     };
   }, [capture]);
 
   const groups = [...new Set(ACTIONS.map((a) => a.group))];
   const isOn = (id: ActionId, kind: "key" | "button") => capture?.id === id && capture.kind === kind;
+  const toggleCapture = (id: ActionId, kind: "key" | "button") => {
+    setLeft(CAPTURE_SECONDS);
+    setCapture(isOn(id, kind) ? null : { id, kind });
+  };
 
   return (
     <>
@@ -493,17 +539,17 @@ function ControlsPane() {
               <Field key={a.id} label={a.label} help={bindingWarning(a.id, b, controls, connected)}>
                 <BindBox
                   label={b.key ? keyLabel(b.key) : null}
-                  waiting={isOn(a.id, "key") ? "Press a key…" : null}
+                  waiting={isOn(a.id, "key") ? `Waiting… ${left}s` : null}
                   empty="No key"
-                  onClick={() => setCapture(isOn(a.id, "key") ? null : { id: a.id, kind: "key" })}
+                  onClick={() => toggleCapture(a.id, "key")}
                   onClear={() => setControl(a.id, { key: null })}
                 />
                 <BindBox
                   label={b.button ? buttonLabel(b.button) : null}
                   title={b.button?.name}
-                  waiting={isOn(a.id, "button") ? "Press a button…" : null}
+                  waiting={isOn(a.id, "button") ? `Waiting… ${left}s` : null}
                   empty="No button"
-                  onClick={() => setCapture(isOn(a.id, "button") ? null : { id: a.id, kind: "button" })}
+                  onClick={() => toggleCapture(a.id, "button")}
                   onClear={() => setControl(a.id, { button: null })}
                 />
               </Field>
@@ -546,7 +592,12 @@ function bindingWarning(
   const others = ACTIONS.filter((a) => a.id !== id);
   const keyClash = others.find((a) => sameKey(all[a.id].key, b.key));
   const buttonClash = others.find((a) => sameButton(all[a.id].button, b.button));
-  const unplugged = b.button && connected && !connected.some((c) => c.device === b.button!.device);
+  // Two boxes of one model get "<model>#<instance>" ids; a binding to the model works on either (controls.rs).
+  const base = (d: string) => d.split("#")[0];
+  const unplugged = b.button && connected && !connected.some((c) => {
+    const d = b.button!.device;
+    return c.device === d || (base(c.device) === base(d) && (!c.device.includes("#") || !d.includes("#")));
+  });
   const notes = [
     keyClash && `Same key as ${keyClash.label.toLowerCase()}`,
     buttonClash && `Same button as ${buttonClash.label.toLowerCase()}`,

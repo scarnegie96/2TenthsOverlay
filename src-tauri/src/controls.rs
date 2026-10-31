@@ -16,6 +16,8 @@ use tauri::menu::MenuItem;
 use tauri::{AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
+use crate::controllers::base_id;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct KeyBinding {
     /// KeyboardEvent.code, like "KeyF" or "ArrowUp".
@@ -180,20 +182,34 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut) {
 pub fn on_button(app: &AppHandle, press: ButtonPress) {
     let _ = app.emit("controller-button", &press);
     let controls = app.state::<Controls>();
-    let actions: Vec<String> = controls
-        .bindings
-        .lock()
-        .unwrap()
-        .iter()
-        .filter(|(action, b)| {
-            controls.live(action)
-                && b.button.as_ref().is_some_and(|b| b.device == press.device && b.button == press.button)
-        })
-        .map(|(action, _)| action.clone())
+    let actions: Vec<String> = button_actions(&controls.bindings.lock().unwrap(), &press.device, press.button)
+        .into_iter()
+        .filter(|action| controls.live(action))
         .collect();
     for action in actions {
         run(app, &action);
     }
+}
+
+/// The actions bound to a button. Bindings to exactly this device win.
+/// Otherwise a binding to the same model counts, so bindings made with one
+/// box keep working when a second identical one is plugged in (its id then
+/// gains an instance part, see controllers.rs), and the other way round.
+fn button_actions(bindings: &HashMap<String, Binding>, device: &str, button: u32) -> Vec<String> {
+    let bound = |same: &dyn Fn(&str) -> bool| -> Vec<String> {
+        bindings
+            .iter()
+            .filter(|(_, b)| b.button.as_ref().is_some_and(|b| b.button == button && same(&b.device)))
+            .map(|(action, _)| action.clone())
+            .collect()
+    };
+    let exact = bound(&|d| d == device);
+    if !exact.is_empty() {
+        return exact;
+    }
+    // Two different boxes of one model (both with an instance part) never match.
+    let plain = |id: &str| !id.contains('#');
+    bound(&|d| base_id(d) == base_id(device) && (plain(d) || plain(device)))
 }
 
 fn run(app: &AppHandle, action: &str) {
@@ -208,5 +224,58 @@ fn run(app: &AppHandle, action: &str) {
                 let _ = app.emit_to(crate::OVERLAY, "pit-shortcut", pit);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PLAIN: &str = "VID_0EB7&PID_0E04&MI_00";
+    const BOX_A: &str = "VID_0EB7&PID_0E04&MI_00#7&2B1C3E&0&0000";
+    const BOX_B: &str = "VID_0EB7&PID_0E04&MI_00#7&91AD07&0&0000";
+
+    fn bindings(list: &[(&str, &str, u32)]) -> HashMap<String, Binding> {
+        list.iter()
+            .map(|(action, device, button)| {
+                let button = Some(ButtonBinding { device: device.to_string(), button: *button });
+                (action.to_string(), Binding { key: None, button })
+            })
+            .collect()
+    }
+
+    fn sorted(mut v: Vec<String>) -> Vec<String> {
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn exact_device_first() {
+        let b = bindings(&[("a", BOX_A, 5), ("b", BOX_B, 5), ("old", PLAIN, 5)]);
+        assert_eq!(button_actions(&b, BOX_A, 5), ["a"]);
+        assert_eq!(button_actions(&b, BOX_B, 5), ["b"]);
+        assert_eq!(button_actions(&b, PLAIN, 5), ["old"]);
+        assert!(button_actions(&b, BOX_A, 6).is_empty());
+    }
+
+    #[test]
+    fn plain_bindings_work_on_either_twin() {
+        let b = bindings(&[("old", PLAIN, 5), ("other", "VID_346E&PID_0004", 5)]);
+        assert_eq!(button_actions(&b, BOX_A, 5), ["old"]);
+        assert_eq!(button_actions(&b, BOX_B, 5), ["old"]);
+    }
+
+    #[test]
+    fn twin_bindings_work_once_the_other_is_unplugged() {
+        let b = bindings(&[("a", BOX_A, 5), ("a2", BOX_A, 6)]);
+        assert_eq!(button_actions(&b, PLAIN, 5), ["a"]);
+        // But a different box of the same model doesn't run box A's actions.
+        assert!(button_actions(&b, BOX_B, 5).is_empty());
+    }
+
+    #[test]
+    fn several_actions_on_one_button() {
+        let b = bindings(&[("x", PLAIN, 1), ("y", PLAIN, 1)]);
+        assert_eq!(sorted(button_actions(&b, BOX_A, 1)), ["x", "y"]);
     }
 }

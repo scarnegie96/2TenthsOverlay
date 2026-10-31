@@ -350,6 +350,33 @@ kbd {
   font-size: 14px;
 }
 
+/* The settings file couldn't be read. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--attention);
+  border-radius: 5px;
+  background: var(--panel-raised);
+  font-size: 14px;
+}
+.notice span {
+  flex: 1;
+}
+.notice-close {
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.notice-close:hover {
+  color: var(--ink);
+}
+
 /* ---------- Widgets quick controls ------------------------------------------ */
 
 .segmented {
