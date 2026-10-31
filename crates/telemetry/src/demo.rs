@@ -56,6 +56,9 @@ pub struct DemoSource {
     pace: Vec<f32>,
     class_est: Vec<f32>,
     lap_start: Vec<f64>,
+    /// Pit stops: until when each car stands in its box, and which stop that was.
+    boxed_until: Vec<f64>,
+    boxed_stop: Vec<i64>,
     best: Vec<f32>,
     last: Vec<f32>,
     fuel: f32,
@@ -163,6 +166,8 @@ impl DemoSource {
             pace,
             class_est: class_est.clone(),
             lap_start: vec![0.0; n],
+            boxed_until: vec![0.0; n],
+            boxed_stop: vec![0; n],
             best: (0..n).map(|i| class_est[i] + 0.4 + hash(i as u32 + 3) * 1.8).collect(),
             last: (0..n).map(|i| class_est[i] + 0.9 + hash(i as u32 + 5) * 2.0).collect(),
             fuel: 41.7,
@@ -238,8 +243,16 @@ impl DemoSource {
                     wobble *= 1.0 + 0.012 * (pct * std::f32::consts::TAU * 3.0 + lap * 1.7).sin()
                         + 0.006 * (pct * std::f32::consts::TAU * 7.0 + lap * 0.6).sin();
                 }
-                // Down the pit lane at about a third of the speed, which costs the stop's time.
-                let limiter = if pit_stop(i, self.progress[i]).is_some() { 0.35 } else { 1.0 };
+                // Down the pit lane at about a third of the speed, which costs the stop's time,
+                // and 15 to 25 s standing in the box just after the line.
+                let stop = pit_stop(i, self.progress[i]);
+                if let (Some(k), true) = (stop, pct < 0.004) {
+                    if self.boxed_stop[i] != k {
+                        self.boxed_stop[i] = k;
+                        self.boxed_until[i] = self.t + 15.0 + hash(i as u32 * 3 + k as u32) as f64 * 10.0;
+                    }
+                }
+                let limiter = if self.t < self.boxed_until[i] { 0.0 } else if stop.is_some() { 0.35 } else { 1.0 };
                 self.progress[i] += (self.v_at(pct) * self.pace[i] * wobble * limiter * dt / TRACK_M) as f64;
             }
             if lap_of(self.progress[i]) > before {
@@ -305,7 +318,8 @@ impl DemoSource {
             f.car_last_lap[i] = self.last[i];
             f.car_best_lap[i] = self.best[i];
             f.car_on_pit_road[i] = pit_stop(i, p).is_some();
-            f.car_track_surface[i] = track_surface::ON_TRACK;
+            f.car_track_surface[i] =
+                if self.t < self.boxed_until[i] { track_surface::IN_PIT_STALL } else { track_surface::ON_TRACK };
             f.car_tire_compound[i] = compound_after(i, stops_before(i, p));
         }
         f.car_on_pit_road[PIT_CAR] = true;

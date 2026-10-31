@@ -30,6 +30,8 @@ pub struct Engine {
     grid: crate::grid::StartGrid,
     /// Every car's stints, for the Stints widget.
     stints: crate::stints::StintTracker,
+    /// Times every pit stop, for the pit rejoin estimate.
+    pit_loss: crate::pitloss::PitLossTracker,
 }
 
 impl Engine {
@@ -144,6 +146,9 @@ impl Engine {
         let race = self.is_race(f.session_num);
         self.grid.update(f, race);
         self.stints.update(f);
+        if let Some(s) = &self.session {
+            self.pit_loss.update(f, |car| s.driver(car).map(|d| d.class_id));
+        }
         let reference_delta = self.reference_delta(f);
         let coach = match (&self.reference, &mut self.coach) {
             (Some(r), Some(c)) if reference_delta.is_some() => {
@@ -330,6 +335,7 @@ impl Engine {
             pit: self.pit(f, session),
             lap_log: self.laps.payload(),
             stints: self.stints.payload(),
+            pit_loss: self.pit_loss.payload(),
         }
     }
 

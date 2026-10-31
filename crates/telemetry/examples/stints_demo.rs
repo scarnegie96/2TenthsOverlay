@@ -1,5 +1,6 @@
-//! Runs the demo race for a while and prints each car's stints, to check the
-//! stint tracker against the demo's scheduled pit stops.
+//! Runs the demo race for a while and prints each car's stints and the
+//! average pit stop loss per class, to check the trackers against the demo's
+//! scheduled pit stops.
 //!   cargo run -p telemetry --example stints_demo
 use telemetry::{demo::DemoSource, Engine};
 
@@ -20,5 +21,8 @@ fn main() {
             .map(|s| format!("{:.1}-{:.1}{}{}", s.start, s.end, ["H", "W"][s.compound.clamp(0, 1) as usize], if s.partial { "~" } else { "" }))
             .collect();
         println!("car {:>2} stops {} {}{}  {}", c.car_idx, c.stops, if c.in_pits { "PIT " } else { "" }, if c.out { "OUT " } else { "" }, list.join("  "));
+    }
+    for p in &field.pit_loss {
+        println!("class {}: pit stop loses {:.1} s on average ({:.1} s standing), from {} stops", p.class_id, p.loss_s, p.stall_s, p.stops);
     }
 }

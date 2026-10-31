@@ -555,4 +555,6 @@ pub struct FieldPayload {
     pub lap_log: crate::laps::LapLogPayload,
     /// Every car's stints this session.
     pub stints: Vec<crate::stints::CarStints>,
+    /// Average pit stop loss per class, once enough stops have been timed.
+    pub pit_loss: Vec<crate::pitloss::PitLoss>,
 }

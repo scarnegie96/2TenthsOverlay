@@ -22,6 +22,7 @@ pub mod laps;
 pub mod instruments;
 pub mod lapfile;
 pub mod model;
+pub mod pitloss;
 pub mod pit;
 pub mod reference;
 pub mod runner;

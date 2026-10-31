@@ -397,6 +397,17 @@ export interface FieldPayload {
   lapLog: LapLogPayload;
   /** Every car's stints this session. */
   stints: CarStints[];
+  /** Average pit stop loss per class, once enough stops have been timed. */
+  pitLoss: PitLoss[];
+}
+
+export interface PitLoss {
+  classId: number;
+  /** Average seconds a stop costs: pit lane time minus racing time for the same stretch. */
+  lossS: number;
+  /** Average time standing in the box. */
+  stallS: number;
+  stops: number;
 }
 
 export interface Stint {

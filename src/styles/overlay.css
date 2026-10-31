@@ -400,6 +400,48 @@
 .row-empty {
   display: block;
 }
+/* Where you'd come out if you pitted now: one line across the table. */
+.row-rejoin {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  height: 24px;
+  margin: 1px 6px;
+  padding: 0 8px;
+  border: 1px dashed var(--attention);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--attention) 10%, transparent);
+  white-space: nowrap;
+}
+.rejoin-tag {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--attention);
+}
+.rejoin-pos {
+  font-weight: 800;
+  color: var(--ink);
+}
+.rejoin-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rejoin-text b {
+  color: var(--ink);
+}
+.rejoin-sep {
+  margin: 0 6px;
+  color: var(--ink-3);
+}
+.rejoin-loss {
+  color: var(--ink-3);
+}
 .row-break {
   display: block;
   height: 9px;

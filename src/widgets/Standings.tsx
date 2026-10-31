@@ -2,6 +2,7 @@ import type React from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { gap as fmtGap, irating } from "../lib/format";
 import { useLive } from "../lib/store";
+import { rejoinAfterStop, type Rejoin } from "../lib/rejoin";
 import type { StandingRow } from "../lib/types";
 import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
@@ -58,6 +59,10 @@ export function Standings({ config }: { config: WidgetConfig }) {
 
   const all = field?.standings ?? [];
   const playerClass = all.find((r) => r.isPlayer)?.classId ?? session?.playerClassId;
+  // Pit rejoin: only in races, and only once a session average for your class exists.
+  const loss = field?.pitLoss.find((p) => p.classId === playerClass) ?? null;
+  const myRow = all.find((r) => r.isPlayer);
+  const showRejoin = opt(config, "showRejoin", true) && race && !!loss && !!myRow && myRow.status === "track";
   let groups = groupByClass(all);
   if (myClassOnly) groups = groups.filter((g) => g.classId === playerClass);
   const showClassHeads = groups.length > 1;
@@ -108,8 +113,10 @@ export function Standings({ config }: { config: WidgetConfig }) {
                     </span>
                   </div>
                 )}
-                {pickRows(g.rows, max).map((r, k) =>
-                  r === "break" ? (
+                {withRejoin(pickRows(g.rows, max), showRejoin && g.classId === playerClass ? rejoinAfterStop(g.rows, loss!.lossS) : null).map(({ slot: r, rejoin }, k) =>
+                  r === "rejoin" ? (
+                    <RejoinMarker key="rejoin" r={rejoin!} stops={loss!.stops} />
+                  ) : r === "break" ? (
                     <div key={`b${k}`} className="row row-break" />
                   ) : (
                     <div
@@ -138,6 +145,52 @@ export function Standings({ config }: { config: WidgetConfig }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Puts the rejoin marker into the rows: after the car you'd come out behind,
+ * or in place of the break when that car is in the rows left out.
+ */
+function withRejoin(slots: Slot[], rejoin: Rejoin | null): { slot: Slot | "rejoin"; rejoin: Rejoin | null }[] {
+  const out: { slot: Slot | "rejoin"; rejoin: Rejoin | null }[] = slots.map((slot) => ({ slot, rejoin: null }));
+  if (!rejoin) return out;
+  const marker = { slot: "rejoin" as const, rejoin };
+  const after = rejoin.behind ? slots.findIndex((s) => typeof s === "object" && s.carIdx === rejoin.behind!.row.carIdx) : -1;
+  if (after >= 0) {
+    out.splice(after + 1, 0, marker);
+    return out;
+  }
+  const brk = slots.indexOf("break");
+  if (rejoin.behind && brk >= 0) out[brk] = marker;
+  else if (!rejoin.behind) out.unshift(marker);
+  else out.push(marker);
+  return out;
+}
+
+const fmt = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}` : s.toFixed(1));
+
+/** "Pit now → P9 · 1.4 behind #52 · 2.1 ahead of #66", across the row. */
+function RejoinMarker({ r, stops }: { r: Rejoin; stops: number }) {
+  return (
+    <div className="row row-rejoin" title={`If you pitted now. A stop costs ${r.loss.toFixed(1)} s here on average (from ${stops} stops this session).`}>
+      <span className="rejoin-tag">Pit now</span>
+      <span className="rejoin-pos">P{r.position}</span>
+      <span className="rejoin-text">
+        {r.behind && (
+          <>
+            <b>{fmt(r.behind.by)}</b> behind #{r.behind.row.number}
+          </>
+        )}
+        {r.behind && r.ahead && <span className="rejoin-sep">·</span>}
+        {r.ahead && (
+          <>
+            <b>{fmt(r.ahead.by)}</b> ahead of #{r.ahead.row.number}
+          </>
+        )}
+      </span>
+      <span className="rejoin-loss">stop ≈{r.loss.toFixed(0)}s</span>
+    </div>
   );
 }
 

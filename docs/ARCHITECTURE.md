@@ -170,6 +170,19 @@ fuel amount of 0 keeps the amount already set.
   going back more than a lap resets that car; a new session resets all. Sent
   in `field.stints`. There's no way to tell a fuel-only stop from a tyre
   change for other cars. `examples/stints_demo.rs` prints the demo's stints.
+- **Pit loss and rejoin** (`pitloss.rs`, `src/lib/rejoin.ts`): every car's
+  stop is timed from pit-lane entry to exit (`CarIdxOnPitRoad`, or in the
+  stall), with the time standing in the box (`CarIdxTrackSurface` = in pit
+  stall). The racing time for the same stretch comes from a per-class
+  profile of `CarIdxEstTime` against `CarIdxLapDistPct` (200 points round
+  the lap, learned from every car on track, wrapping across the line). Loss
+  = lane time minus racing time. Only stops that stood in the box for 0.5 to
+  120 s count; tows and cars that weren't seen on track first (pit-lane
+  starts) don't. Per class, once there are 2 stops, the average of those no
+  more than 1.5x the median is sent as `field.pitLoss`. The Standings adds
+  that to your gap to the class leader and counts which cars' gaps are
+  smaller: those come out ahead of you. Nothing shows outside races, before
+  there's an average, or while you're in the pit lane.
 - **Race pace** (`src/lib/raceHistory.ts`): built in the front end from the
   Standings rows (gap to class leader, which is the `CarIdxF2Time` difference
   in races). Fed from every 10 Hz field update outside React, like

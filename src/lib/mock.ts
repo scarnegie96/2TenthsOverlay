@@ -728,6 +728,8 @@ class Mock {
       tires,
       pit: this.pit,
       stints: this.stints(),
+      // As if a few stops have been timed in each class.
+      pitLoss: CLASSES.map((c, k) => ({ classId: c.id, lossS: 26.4 + k * 1.3, stallS: 19 + k, stops: 4 + k })),
       lapLog: {
         laps: this.lapLog.slice(-100),
         sessionBest: Math.min(...this.lapLog.filter((l) => l.clean && l.time != null).map((l) => l.time!)),

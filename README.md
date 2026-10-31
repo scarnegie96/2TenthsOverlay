@@ -94,8 +94,19 @@ solid **P** that it's stopped in its pit box. A car that has left the sim gets
 **OUT** in a race (retired, quit or towed to the garage) and **GAR** in
 practice and qualifying, and its row fades.
 
+**Pit now** (races): once a few pit stops have been timed this session, a
+dashed line in your class shows where you'd come out if you pitted now: the
+position, how far behind the car ahead you'd be and how far ahead of the car
+behind. Tenths times every car's stops (pit entry to exit, minus the time
+the same stretch takes at racing speed) and uses your class's average, so
+nothing shows until at least two real stops in your class have been timed.
+Drive-throughs, tows and long repair stops are left out. The estimate
+assumes a typical stop; a longer fuel fill or repairs mean you'd come out
+further back. It's hidden while you're in the pit lane.
+
 *Options*: rows for your class and for others, your class only, gap to leader
-or interval, and which columns to show (including places gained or lost).
+or interval, which columns to show (including places gained or lost), and the
+pit rejoin line.
 
 ### Session
 
@@ -633,7 +644,7 @@ cargo run -p telemetry --example radar                     # what the radar sees
 cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt to try importing
 cargo run -p telemetry --example inspect_lap -- lap.blap   # list the corners the coach finds in a lap
 cargo run -p telemetry --example coach_demo                # how often each cue fires in the demo
-cargo run -p telemetry --example stints_demo               # every demo car's stints after 12 minutes
+cargo run -p telemetry --example stints_demo               # every demo car's stints and pit loss after 12 minutes
 ```
 
 Before committing, run `npm run build` (type-checks the front end) and
@@ -648,6 +659,7 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   engine.rs           Relative gaps, standings, fuel maths, SoF, deltas, optimal lap
   grid.rs             Starting grid for places gained/lost, and each car's pit or garage status
   stints.rs           Every car's stints: laps between stops, tyre compound, stops
+  pitloss.rs          Times every pit stop: the session's average loss per class
   laps.rs             Lap log and personal bests, saved per car and track
   vars.rs             Variable header parsing shared by live data and .ibt files
   ibt.rs              .ibt telemetry file reader: finds complete laps
