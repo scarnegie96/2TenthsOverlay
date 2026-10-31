@@ -76,6 +76,7 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showLicense", label: "Show license", type: "toggle", default: true },
       { key: "showLastLap", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showPit", label: "Show cars in the pits", type: "toggle", default: true },
+      { key: "showInterval", label: "Show gap to the car ahead", type: "toggle", default: true, help: "Each car's gap to the one in front of it on track, amber when under a second" },
       { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "For your class, in the header" },
     ],
   },

@@ -51,11 +51,13 @@ The cars just ahead of and behind you on track, with the time gap to each. Cars
 a lap up on you are orange, cars you're lapping are blue. Each row has the
 class color, car number, license and safety rating, iRating and last lap. A
 last lap is purple when it's the fastest in class and green when it's that
-driver's personal best. The header shows the lap count and your class's
-strength of field.
+driver's personal best. The last column is each car's gap to the car directly
+in front of it on track (yours included), amber when it's under a second, so
+you can see the fights going on around you. The header shows the lap count
+and your class's strength of field.
 
 *Options*: how many cars ahead and behind, and whether to show iRating,
-license, last lap, cars in the pits and SoF.
+license, last lap, the gap to the car ahead, cars in the pits and SoF.
 
 ### Standings
 
