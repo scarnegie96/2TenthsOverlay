@@ -28,6 +28,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{RegisterWindowMessageW, SendNo
 
 use crate::model::{Deltas, RawFrame, MAX_CARS};
 use crate::pit::{PitCommand, PitService, BROADCAST_PIT_COMMAND};
+use crate::shm::{self, VarLayout};
 use crate::vars::{self, VarHeader, VAR_HEADER_SIZE};
 
 const MEM_MAP_NAME: &str = "Local\\IRSDKMemMapFileName";
@@ -86,7 +87,8 @@ pub struct Irsdk {
     view: MEMORY_MAPPED_VIEW_ADDRESS,
     event: HANDLE,
     vars: HashMap<String, VarHeader>,
-    num_vars: i32,
+    /// Layout the var headers were read from; None when we have none.
+    var_layout: Option<VarLayout>,
     last_tick: i32,
     last_session_update: i32,
     buf: Vec<u8>,
@@ -119,7 +121,7 @@ impl Irsdk {
                 view,
                 event,
                 vars: HashMap::new(),
-                num_vars: -1,
+                var_layout: None,
                 last_tick: -1,
                 last_session_update: -1,
                 buf: Vec::new(),
@@ -144,24 +146,38 @@ impl Irsdk {
     pub fn wait_for_data(&mut self, timeout_ms: u32) -> bool {
         let signalled = unsafe { WaitForSingleObject(self.event, timeout_ms) } == WAIT_OBJECT_0;
         if !self.is_connected() {
+            // The next session may use a different layout, so forget this one.
             self.last_tick = -1;
+            self.last_session_update = -1;
+            self.var_layout = None;
+            self.vars.clear();
+            self.buf.clear();
             return false;
         }
-        if self.header_i32(H_NUM_VARS) != self.num_vars {
-            self.load_var_headers();
+        let layout = self.var_layout_now();
+        if shm::needs_var_reload(self.var_layout, layout) {
+            self.load_var_headers(layout);
         }
         // Even without the signal a new buffer may have landed; checking is cheap.
         let _ = signalled;
         self.copy_latest_buffer()
     }
 
-    fn load_var_headers(&mut self) {
-        let num = self.header_i32(H_NUM_VARS).max(0) as usize;
-        let base_off = self.header_i32(H_VAR_HEADER_OFFSET).max(0) as usize;
+    fn var_layout_now(&self) -> VarLayout {
+        VarLayout {
+            num_vars: self.header_i32(H_NUM_VARS),
+            var_header_offset: self.header_i32(H_VAR_HEADER_OFFSET),
+            buf_len: self.header_i32(H_BUF_LEN),
+        }
+    }
+
+    fn load_var_headers(&mut self, layout: VarLayout) {
+        let num = layout.num_vars.max(0) as usize;
+        let base_off = layout.var_header_offset.max(0) as usize;
         let mut raw = vec![0u8; num * VAR_HEADER_SIZE];
         unsafe { ptr::copy_nonoverlapping(self.base().add(base_off), raw.as_mut_ptr(), raw.len()) };
         self.vars = vars::parse_headers(&raw, num);
-        self.num_vars = num as i32;
+        self.var_layout = Some(layout);
     }
 
     fn copy_latest_buffer(&mut self) -> bool {
