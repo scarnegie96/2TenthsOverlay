@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Tenths",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "identifier": "dev.tenths.overlay",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -62,7 +62,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1OTY4NDQzNUMxQUI2RTcKUldUbnRocGNRNFNXNVNsRkdtaVZTeTNPL09RcjR3UFE3T0RSQlN5SmtmTTM2S1htY3RuWVVKakQK",
       "endpoints": [
         "https://github.com/scarnegie96/Tenths-iRacing-Overlay/releases/latest/download/latest.json"
       ],
