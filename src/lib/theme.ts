@@ -1,6 +1,12 @@
 import type { GeneralConfig } from "./config";
 
-export type Theme = "dark" | "light";
+export type Theme = "dark" | "light" | "f1";
+
+export const THEMES: { value: Theme; label: string }[] = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "f1", label: "Box Box" },
+];
 
 /** Every color the user can change. Each one is a CSS variable of the same name (see base.css). */
 export type ColorKey =
@@ -71,6 +77,12 @@ export const THEME_COLORS: Record<Theme, Record<ColorKey, string>> = {
     "panel-solid": "#f4f6f9", "panel-raised": "#ffffff", "edge": "#40556d", "wheel": "#3a4654",
     "fastest": "#8248e0", "gain": "#11a058", "loss": "#df2f47", "attention": "#d48300", "lapped": "#1c78d0", "lapping": "#dc6128",
     "throttle": "#11a058", "brake": "#df2f47", "clutch": "#1c78d0",
+  },
+  f1: {
+    "ink": "#ffffff", "ink-2": "#d2d2d8", "ink-3": "#8b8b96",
+    "panel-solid": "#15151e", "panel-raised": "#2a2a33", "edge": "#9a9aa4", "wheel": "#d2d2d8",
+    "fastest": "#b14ff0", "gain": "#2fd35f", "loss": "#ff1e1e", "attention": "#ffd21f", "lapped": "#3fa3ff", "lapping": "#ff8a3d",
+    "throttle": "#2fd35f", "brake": "#ff1e1e", "clutch": "#3fa3ff",
   },
 };
 

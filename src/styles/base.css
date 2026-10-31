@@ -74,6 +74,34 @@
   --panel-alpha: 90%;
 }
 
+/* Box Box: TV timing-tower graphics. Near-black glass, square corners,
+   Titillium type and a red rule under each heading (styles in overlay.css). */
+:root[data-theme="f1"] {
+  --font: "Titillium Web", "Segoe UI", system-ui, sans-serif;
+  --ink: #ffffff;
+  --ink-2: #d2d2d8;
+  --ink-3: #8b8b96;
+
+  --panel-solid: #15151e;
+  --panel-raised: #2a2a33;
+  --edge: #9a9aa4;
+  --wheel: #d2d2d8;
+
+  --fastest: #b14ff0;
+  --gain: #2fd35f;
+  --loss: #ff1e1e;
+  --attention: #ffd21f;
+  --lapped: #3fa3ff;
+  --lapping: #ff8a3d;
+  --clutch: #3fa3ff;
+
+  /* Not changeable: the broadcast red. */
+  --f1-red: #e10600;
+  --panel-alpha: 88%;
+  --radius: 0px;
+  --row-h: 28px;
+}
+
 *,
 *::before,
 *::after {

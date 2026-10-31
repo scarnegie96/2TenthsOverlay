@@ -2269,3 +2269,128 @@
   text-wrap: balance;
   color: #000;
 }
+
+/* ---------- Box Box theme (TV timing tower) ----------------------------------- */
+
+/* Square near-black glass with a red rule under each heading, white boxed
+   positions (red outside the top ten), and capitals for names and labels. */
+[data-theme="f1"] .panel {
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+[data-theme="f1"] .panel-head,
+[data-theme="f1"] .standings .row-head {
+  background: color-mix(in srgb, var(--panel-raised) 70%, transparent);
+  border-bottom: 2px solid var(--f1-red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+[data-theme="f1"] .panel-title,
+[data-theme="f1"] .row-head-title b {
+  font-weight: 900;
+}
+[data-theme="f1"] .panel-aside,
+[data-theme="f1"] .row-head > span {
+  font-weight: 600;
+}
+[data-theme="f1"] .row-head > span:not(.row-head-title) {
+  font-size: 11px;
+}
+
+[data-theme="f1"] .rows {
+  padding: 0;
+}
+[data-theme="f1"] .row:not(.row-head):not(.row-break) {
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
+}
+[data-theme="f1"] .row.is-player {
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--f1-red);
+}
+[data-theme="f1"] .row-break {
+  border-bottom: 2px solid var(--f1-red);
+  margin: 0;
+}
+
+[data-theme="f1"] .pos {
+  justify-self: stretch;
+  height: 20px;
+  line-height: 20px;
+  border-radius: 2px;
+  background: #f4f4f6;
+  color: #15151e;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+[data-theme="f1"] .pos.is-outside-ten {
+  background: #9e0b17;
+  color: #fff;
+}
+/* Greyed while the car is in the pits. */
+[data-theme="f1"] .row:has(.status-badge.is-pit, .status-badge.is-stall) .pos {
+  background: #8b8b96;
+  color: #15151e;
+}
+[data-theme="f1"] .class-bar {
+  width: 3px;
+  height: 16px;
+  border-radius: 0;
+  transform: none;
+}
+[data-theme="f1"] .num {
+  font-weight: 600;
+  color: var(--ink-3);
+}
+[data-theme="f1"] .name-text {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+[data-theme="f1"] .time {
+  color: var(--ink);
+  font-weight: 400;
+}
+[data-theme="f1"] .time.lap-best {
+  color: var(--ink-2);
+}
+[data-theme="f1"] .gap {
+  font-weight: 600;
+}
+[data-theme="f1"] .ir,
+[data-theme="f1"] .lic,
+[data-theme="f1"] .tag,
+[data-theme="f1"] .status-badge {
+  border-radius: 2px;
+}
+/* Pit and out symbols in broadcast red. */
+[data-theme="f1"] .status-badge.is-pit {
+  color: var(--f1-red);
+  box-shadow: inset 0 0 0 1.5px var(--f1-red);
+}
+[data-theme="f1"] .status-badge.is-stall {
+  color: #fff;
+  background: var(--f1-red);
+}
+
+/* Class headings read like the "DRIVER IN DANGER" bar. */
+[data-theme="f1"] .class-head {
+  height: 24px;
+  margin: 0;
+  background: color-mix(in srgb, var(--panel-raised) 70%, transparent);
+  border-top: 2px solid var(--f1-red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 600;
+}
+[data-theme="f1"] .class-name {
+  color: var(--ink);
+  font-weight: 900;
+  line-height: 22px;
+  box-shadow: inset 3px 0 0 var(--row-class);
+  padding-left: 8px;
+}
+[data-theme="f1"] .class-group + .class-group {
+  margin-top: 0;
+}

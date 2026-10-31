@@ -3,6 +3,9 @@
 import { irating, lapTime } from "../lib/format";
 import type { CarStatus, LapFlag } from "../lib/types";
 
+/** The position cell; the F1 theme boxes places outside the top ten in red. */
+export const posClass = (pos: number) => (pos > 10 ? "pos is-outside-ten" : "pos");
+
 export function ClassStripe({ color }: { color: string }) {
   return <span className="class-bar" style={{ background: color || undefined }} />;
 }

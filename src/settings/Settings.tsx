@@ -6,7 +6,7 @@ import {
 } from "../lib/config";
 import { lapTime } from "../lib/format";
 import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } from "../lib/store";
-import { COLOR_GROUPS, THEME_COLORS, effectiveColor, type ColorKey, type Theme } from "../lib/theme";
+import { COLOR_GROUPS, THEMES, THEME_COLORS, effectiveColor, type ColorKey } from "../lib/theme";
 import type { IbtSummary } from "../lib/types";
 
 type Pane = "general" | "layouts" | "appearance" | WidgetId;
@@ -278,11 +278,6 @@ function LayoutRow({ id, name, updatedAt, index, active, run }: {
   );
 }
 
-const THEMES: { value: Theme; label: string }[] = [
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-];
-
 function AppearancePane() {
   const g = useLive((s) => s.config.general);
   const own = g.colors[g.theme] ?? {};
@@ -294,14 +289,14 @@ function AppearancePane() {
     else delete next[key];
     setColors(next);
   };
-  const themeName = g.theme === "dark" ? "dark" : "light";
+  const themeName = THEMES.find((t) => t.value === g.theme)?.label ?? "Dark";
 
   return (
     <>
       <h1>Appearance</h1>
       <p className="lede">The theme and colors apply to the overlays and this window.</p>
       <Section title="Theme">
-        <Field label="Theme" help="Light panels can be easier to read over bright tracks and daytime skies.">
+        <Field label="Theme" help="Light panels can be easier to read over bright tracks and daytime skies. Box Box dresses the panels up like a TV timing tower.">
           <div className="segmented">
             {THEMES.map((t) => (
               <button key={t.value} className={g.theme === t.value ? "is-on" : ""} onClick={() => setGeneral({ theme: t.value })}>
@@ -332,7 +327,7 @@ function AppearancePane() {
         </Section>
       ))}
       <Section title="Reset">
-        <Field label={`Reset the ${themeName} theme's colors`} help={changed ? `${changed} color${changed === 1 ? "" : "s"} changed. The other theme keeps its own.` : "Nothing changed yet."}>
+        <Field label={`Reset the ${themeName} theme's colors`} help={changed ? `${changed} color${changed === 1 ? "" : "s"} changed. Other themes keep their own.` : "Nothing changed yet."}>
           <button className="btn btn-danger" disabled={!changed} onClick={() => setColors({})}>
             Reset colors
           </button>

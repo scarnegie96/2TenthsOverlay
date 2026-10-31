@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fontsource/barlow-semi-condensed": "^5.1.0",
+    "@fontsource/titillium-web": "^5.3.0",
     "@tauri-apps/api": "^2.1.0",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "react": "^18.3.1",

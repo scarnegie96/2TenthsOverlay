@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api, isTauri, on } from "./bridge";
 import { type AppConfig, defaultConfig, normalizeConfig } from "./config";
-import { applyTheme } from "./theme";
+import { THEMES, applyTheme, type Theme } from "./theme";
 import type { FieldPayload, ProfileSummary, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
 
 interface LiveState {
@@ -34,10 +34,10 @@ export const useLive = create<LiveState>(() => ({
 /** Subscribes this window to everything the backend sends. Call once per window. */
 export async function connect(opts: { telemetry: boolean }) {
   const set = useLive.setState;
-  // Browser preview: ?theme=light for screenshots.
+  // Browser preview: ?theme=light (or f1) for screenshots.
   const forcedTheme = !isTauri ? new URLSearchParams(location.search).get("theme") : null;
   const theme = (g: AppConfig["general"]) =>
-    applyTheme(forcedTheme === "light" || forcedTheme === "dark" ? { ...g, theme: forcedTheme } : g);
+    applyTheme(THEMES.some((t) => t.value === forcedTheme) ? { ...g, theme: forcedTheme as Theme } : g);
   theme(useLive.getState().config.general);
   useLive.subscribe((s, prev) => {
     if (s.config.general !== prev.config.general) theme(s.config.general);

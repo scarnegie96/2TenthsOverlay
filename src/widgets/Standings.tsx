@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { gap as fmtGap, irating } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { StandingRow } from "../lib/types";
-import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge } from "./cells";
+import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { sessionAside } from "./Relative";
 
@@ -117,7 +117,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
                       className={`row ${r.isPlayer ? "is-player" : ""} ${r.status === "out" ? "is-out" : ""}`}
                       style={{ "--row-class": r.classColor } as React.CSSProperties}
                     >
-                      <span className="pos">{r.classPosition || r.position || "–"}</span>
+                      <span className={posClass(r.classPosition || r.position)}>{r.classPosition || r.position || "–"}</span>
                       <ClassStripe color={r.classColor} />
                       <span className="num">{r.number}</span>
                       <span className="name">

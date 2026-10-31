@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { clock, gap, irating, license } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { RelativeRow, SessionClock } from "../lib/types";
-import { ClassStripe, IRatingBadge, LastLap, StatusBadge } from "./cells";
+import { ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
 
 export function sessionAside(c: SessionClock | undefined) {
@@ -92,7 +92,7 @@ function Row({ r, interval, race, showIR, showLic, showLast, multiclass }: {
   const status = r.isPlayer ? "is-player" : r.lapStatus > 0 ? "is-ahead-lap" : r.lapStatus < 0 ? "is-behind-lap" : "";
   return (
     <div className={`row ${status}`} style={{ "--row-class": r.classColor } as React.CSSProperties}>
-      <span className="pos" title={multiclass ? `P${r.position} overall` : undefined}>{r.classPosition || "–"}</span>
+      <span className={posClass(r.classPosition)} title={multiclass ? `P${r.position} overall` : undefined}>{r.classPosition || "–"}</span>
       <ClassStripe color={r.classColor} />
       <span className="num">{r.number}</span>
       <span className="name">

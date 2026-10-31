@@ -319,7 +319,7 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {} }, activeProfile: null },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }
