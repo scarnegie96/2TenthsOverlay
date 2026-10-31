@@ -1209,12 +1209,34 @@
 .dyn-car-detail {
   fill: color-mix(in srgb, var(--panel-solid) 55%, transparent);
 }
+/* Shut lines, vents and diffuser fins. */
+.dyn-car-trim {
+  fill: none;
+  stroke: color-mix(in srgb, var(--panel-solid) 40%, transparent);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+/* The wing is outlined in the panel colour so it reads apart from the body behind it. */
+.dyn-car-wing {
+  fill: var(--wheel);
+  stroke: var(--panel-solid);
+  stroke-width: 0.8;
+}
+.dyn-car-light {
+  fill: var(--brake);
+}
 .dyn-wheel {
   fill: #2a3442;
   stroke: var(--ghost-wheel);
   stroke-width: 1.2;
 }
-.is-sliding .dyn-car {
+.dyn-rim {
+  fill: none;
+  stroke: var(--ghost-wheel);
+  stroke-width: 1;
+}
+.is-sliding .dyn-car,
+.is-sliding .dyn-car-wing {
   fill: var(--attention);
 }
 .dyn-travel {

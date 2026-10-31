@@ -115,12 +115,20 @@ function TopView({ slip }: { slip: number }) {
       <line className="dyn-travel" x1="0" y1="34" x2="0" y2="-34" />
       <path className="dyn-travel-head" d="M 0 -36 L -4 -29 L 4 -29 Z" />
       <g style={{ transform: `rotate(${slip}deg)` }} className={sliding ? "is-sliding" : ""}>
-        <rect className="dyn-car" x="-9" y="-22" width="18" height="44" rx="6" />
-        <rect className="dyn-car-detail" x="-6" y="-10" width="12" height="9" rx="2" />
-        <rect className="dyn-wheel" x="-12" y="-17" width="4" height="9" rx="1" />
-        <rect className="dyn-wheel" x="8" y="-17" width="4" height="9" rx="1" />
-        <rect className="dyn-wheel" x="-12" y="9" width="4" height="9" rx="1" />
-        <rect className="dyn-wheel" x="8" y="9" width="4" height="9" rx="1" />
+        <rect className="dyn-wheel" x="-14.5" y="-20" width="5" height="10" rx="1.5" />
+        <rect className="dyn-wheel" x="9.5" y="-20" width="5" height="10" rx="1.5" />
+        <rect className="dyn-wheel" x="-15.5" y="11" width="6" height="11" rx="1.5" />
+        <rect className="dyn-wheel" x="9.5" y="11" width="6" height="11" rx="1.5" />
+        <path
+          className="dyn-car"
+          d="M 0 -32 C 6 -32 10 -31 11.5 -28 L 12.5 -21 C 13 -17 13 -13 12.5 -9 C 12 -6 11.5 -3 11.5 0 C 11.5 4 13.5 7 13.5 11
+             L 13.5 22 C 13.5 25.5 12 27.5 9 27.5 L -9 27.5 C -12 27.5 -13.5 25.5 -13.5 22 L -13.5 11 C -13.5 7 -11.5 4 -11.5 0
+             C -11.5 -3 -12 -6 -12.5 -9 C -13 -13 -13 -17 -12.5 -21 L -11.5 -28 C -10 -31 -6 -32 0 -32 Z"
+        />
+        <path className="dyn-car-trim" d="M -8 -29.5 Q 0 -31.5 8 -29.5 M -4.5 -24 L -4.5 -17 M 4.5 -24 L 4.5 -17" />
+        <path className="dyn-car-detail" d="M -7 -10 C -5 -12 5 -12 7 -10 L 8 7 C 6 9 -6 9 -8 7 Z" />
+        <rect className="dyn-car" x="-6" y="-4" width="12" height="8" rx="2" />
+        <rect className="dyn-car-wing" x="-14.5" y="23.5" width="29" height="5" rx="1" />
       </g>
     </>
   );
@@ -130,12 +138,29 @@ function TopView({ slip }: { slip: number }) {
 function SideView({ pitch }: { pitch: number }) {
   return (
     <>
-      <line className="dyn-ground" x1="-36" y1="14" x2="36" y2="14" />
+      <line className="dyn-ground" x1="-38" y1="14" x2="38" y2="14" />
       <g style={{ transform: `rotate(${-pitch}deg)` }}>
-        <path className="dyn-car" d="M -32 4 L -30 -6 L -12 -8 L -4 -16 L 12 -16 L 20 -8 L 32 -5 L 33 4 Z" />
-        <circle className="dyn-wheel" cx="-19" cy="6" r="6" />
-        <circle className="dyn-wheel" cx="20" cy="6" r="6" />
+        <path
+          className="dyn-car"
+          d="M -33 8.5 L -34 2 C -34 -1 -33 -3 -31 -4 L -22 -5 C -16 -6 -12 -12 -6 -14 C -2 -15.5 4 -15.5 7 -14
+             C 11 -12 14 -8 18 -6.5 C 24 -5 30 -3 33 0 L 35 6 L 36 8.5 L 29 8.5 A 8 8 0 0 0 13 8.5
+             L -12 8.5 A 8 8 0 0 0 -28 8.5 Z"
+        />
+        <path className="dyn-car-detail" d="M -13 -7 C -10 -10 -7 -12 -3 -12.5 L 5 -12.5 C 8 -11.5 11 -9 13 -7 Z" />
+        <path className="dyn-car-trim" d="M -6 6 L 9 6" />
+        <path className="dyn-car-wing" d="M -36 -12 L -24 -12.5 L -24 -10 L -35 -9.5 Z M -31 -9.5 L -29.5 -9.5 L -29.5 -4.5 L -31 -4.5 Z" />
+        <Tyre cx={-20} />
+        <Tyre cx={21} />
       </g>
+    </>
+  );
+}
+
+function Tyre({ cx }: { cx: number }) {
+  return (
+    <>
+      <circle className="dyn-wheel" cx={cx} cy="7.5" r="6.5" />
+      <circle className="dyn-rim" cx={cx} cy="7.5" r="3.2" />
     </>
   );
 }
@@ -146,10 +171,22 @@ function RearView({ roll }: { roll: number }) {
     <>
       <line className="dyn-ground" x1="-36" y1="14" x2="36" y2="14" />
       <g style={{ transform: `rotate(${roll}deg)` }}>
-        <path className="dyn-car" d="M -26 6 L -26 -4 L -16 -8 L -10 -18 L 10 -18 L 16 -8 L 26 -4 L 26 6 Z" />
-        <rect className="dyn-car-detail" x="-14" y="-3" width="28" height="4" rx="1" />
-        <rect className="dyn-wheel" x="-30" y="0" width="9" height="14" rx="2" />
-        <rect className="dyn-wheel" x="21" y="0" width="9" height="14" rx="2" />
+        <rect className="dyn-wheel" x="-29" y="0" width="10" height="14" rx="2.5" />
+        <rect className="dyn-wheel" x="19" y="0" width="10" height="14" rx="2.5" />
+        <path
+          className="dyn-car"
+          d="M -27.5 4 L -27.5 0 C -27.5 -3 -25.5 -5 -22 -5.5 L -14 -6.5 C -12 -12 -10 -16 -6 -16.5 L 6 -16.5
+             C 10 -16 12 -12 14 -6.5 L 22 -5.5 C 25.5 -5 27.5 -3 27.5 0 L 27.5 4 L 19 4 L 17 10 L -17 10 L -19 4 Z"
+        />
+        <path className="dyn-car-detail" d="M -8.5 -14.5 L 8.5 -14.5 L 11 -8.5 L -11 -8.5 Z" />
+        <rect className="dyn-car-detail" x="-15" y="4" width="30" height="5" rx="1" />
+        <path className="dyn-car-trim" d="M -7.5 4.5 L -7.5 9 M 0 4.5 L 0 9 M 7.5 4.5 L 7.5 9" />
+        <rect className="dyn-car-light" x="-24.5" y="-3.5" width="8" height="2" rx="1" />
+        <rect className="dyn-car-light" x="16.5" y="-3.5" width="8" height="2" rx="1" />
+        <path className="dyn-car-wing" d="M -8.5 -17 L -7 -17 L -7 -9 L -8.5 -9 Z M 7 -17 L 8.5 -17 L 8.5 -9 L 7 -9 Z" />
+        <rect className="dyn-car-wing" x="-25" y="-20" width="50" height="3" rx="1" />
+        <rect className="dyn-car-wing" x="-26.5" y="-22" width="2.5" height="8" rx="0.8" />
+        <rect className="dyn-car-wing" x="24" y="-22" width="2.5" height="8" rx="0.8" />
       </g>
     </>
   );
