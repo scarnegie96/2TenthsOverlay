@@ -26,6 +26,8 @@ pub struct Engine {
     reference: Option<ReferenceLap>,
     coach: Option<Coach>,
     dynamics: crate::dynamics::DynamicsTracker,
+    /// Where each car started the race, for positions gained and lost.
+    grid: crate::grid::StartGrid,
 }
 
 impl Engine {
@@ -137,6 +139,8 @@ impl Engine {
         let starts = self.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]);
         self.sectors.update(f, starts);
         self.laps.update(f);
+        let race = self.is_race(f.session_num);
+        self.grid.update(f, race);
         let reference_delta = self.reference_delta(f);
         let coach = match (&self.reference, &mut self.coach) {
             (Some(r), Some(c)) if reference_delta.is_some() => {
@@ -374,6 +378,7 @@ impl Engine {
                     lap_status,
                     laps: lap_info(f, d, &fastest),
                     on_pit_road: f.car_on_pit_road[i],
+                    status: CarStatus::of(f, i),
                     is_player: i == p,
                 }
             })
@@ -406,8 +411,10 @@ impl Engine {
                     gap: None,
                     laps_down: 0,
                     interval: None,
+                    start_position: if race { self.grid.start(d.car_idx, s) } else { None },
                     laps: lap_info(f, d, &fastest),
                     on_pit_road: f.car_on_pit_road[i],
+                    status: CarStatus::of(f, i),
                     is_player: d.car_idx == p,
                 }
             })

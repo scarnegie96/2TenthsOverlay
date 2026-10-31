@@ -15,6 +15,8 @@ const DECEL: f32 = 15.0;
 const PROFILE_STEPS: usize = 2_000;
 const PLAYER: usize = 6;
 const PIT_CAR: usize = 21;
+/// A driver who has retired: parked in the garage, out of the race.
+const RETIRED: usize = 13;
 const RACE_LAPS: i32 = 30;
 /// Cars that dice with the player: (car idx, mean offset m, swing m, period s).
 const BATTLE: &[(usize, f32, f32, f32)] = &[(7, -4.0, 9.0, 22.0), (8, 14.0, 11.0, 31.0)];
@@ -127,6 +129,8 @@ impl DemoSource {
             progress[i] = 4.0 - order * 0.028 - hash(i as u32 + 99) as f64 * 0.01;
         }
         progress[PIT_CAR] = 3.02;
+        // Retired on lap 2.
+        progress[RETIRED] = 1.55;
         for &(i, base, _, _) in BATTLE {
             progress[i] = progress[PLAYER] + (base / TRACK_M) as f64;
         }
@@ -198,7 +202,7 @@ impl DemoSource {
         let lap_of = |p: f64| p.floor() as i32;
 
         for i in 0..n {
-            if i == PIT_CAR {
+            if i == PIT_CAR || i == RETIRED {
                 continue;
             }
             let pct = self.progress[i].fract() as f32;
@@ -281,6 +285,8 @@ impl DemoSource {
         }
         f.car_on_pit_road[PIT_CAR] = true;
         f.car_track_surface[PIT_CAR] = track_surface::IN_PIT_STALL;
+        f.car_track_surface[RETIRED] = track_surface::NOT_IN_WORLD;
+        f.car_lap_dist_pct[RETIRED] = -1.0;
         for i in n..MAX_CARS {
             f.car_track_surface[i] = track_surface::NOT_IN_WORLD;
             f.car_lap_dist_pct[i] = -1.0;
@@ -478,6 +484,17 @@ DriverInfo:
                 est = self.class_est[i],
                 sr = 1.5 + hash(i as u32 + 17) * 2.9,
             ));
+        }
+        // A qualifying order that's close to, but not the same as, race pace,
+        // so the Standings has positions gained and lost to show.
+        let mut quali: Vec<usize> = (0..NAMES.len()).collect();
+        quali.sort_by(|&a, &b| {
+            let key = |i: usize| class_of(i) as f32 * 100.0 + i as f32 + (hash(i as u32 + 23) - 0.5) * 9.0;
+            key(a).total_cmp(&key(b))
+        });
+        y.push_str("QualifyResultsInfo:\n Results:\n");
+        for (pos, i) in quali.iter().enumerate() {
+            y.push_str(&format!(" - Position: {pos}\n   ClassPosition: 0\n   CarIdx: {i}\n"));
         }
         y
     }

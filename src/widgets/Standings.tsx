@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { gap as fmtGap, irating } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { StandingRow } from "../lib/types";
-import { BestLap, ClassStripe, IRatingBadge, LastLap } from "./cells";
+import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { sessionAside } from "./Relative";
 
@@ -52,6 +52,9 @@ export function Standings({ config }: { config: WidgetConfig }) {
   const showBest = opt(config, "showBest", true);
   const showIR = opt(config, "showIRating", true);
   const showSoF = opt(config, "showSoF", true);
+  const race = /race/i.test(field?.clock.sessionType ?? "");
+  // Positions gained or lost: only in races, and only once we know a grid.
+  const showChange = opt(config, "showChange", true) && (field?.standings ?? []).some((r) => r.startPosition != null);
 
   const all = field?.standings ?? [];
   const playerClass = all.find((r) => r.isPlayer)?.classId ?? session?.playerClassId;
@@ -64,6 +67,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
 
   const cols = [
     "24px 8px 34px minmax(0, 1fr)",
+    showChange && "34px",
     showIR && "40px",
     "54px",
     showLast && "62px",
@@ -85,6 +89,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
               {sessionAside(field?.clock)}
               {headSoF ? <span>SoF {irating(headSoF)}</span> : null}
             </span>
+            {showChange && <span title="Places gained or lost since the start">+/−</span>}
             {showIR && <span>iR</span>}
             <span>{gapMode === "interval" ? "Int" : "Gap"}</span>
             {showLast && <span>Last</span>}
@@ -109,16 +114,17 @@ export function Standings({ config }: { config: WidgetConfig }) {
                   ) : (
                     <div
                       key={r.carIdx}
-                      className={`row ${r.isPlayer ? "is-player" : ""}`}
+                      className={`row ${r.isPlayer ? "is-player" : ""} ${r.status === "out" ? "is-out" : ""}`}
                       style={{ "--row-class": r.classColor } as React.CSSProperties}
                     >
                       <span className="pos">{r.classPosition || r.position || "–"}</span>
                       <ClassStripe color={r.classColor} />
                       <span className="num">{r.number}</span>
                       <span className="name">
-                        {r.name}
-                        {r.onPitRoad && <span className="tag">Pit</span>}
+                        <span className="name-text">{r.name}</span>
+                        <StatusBadge status={r.status} race={race} />
                       </span>
+                      {showChange && <PlacesChange start={r.startPosition} now={r.classPosition} />}
                       {showIR && <IRatingBadge value={r.irating} />}
                       <span className="gap">{gapCell(r, gapMode)}</span>
                       {showLast && <LastLap time={r.lastLap} flag={r.lastFlag} />}
@@ -132,6 +138,20 @@ export function Standings({ config }: { config: WidgetConfig }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/** ▲3 for three places gained since the start, ▼2 for two lost, – for none. */
+function PlacesChange({ start, now }: { start: number | null; now: number }) {
+  if (start == null || !now) return <span className="change" />;
+  const d = start - now;
+  const title = `Started P${start} in class`;
+  if (d === 0) return <span className="change is-same" title={title}>–</span>;
+  return (
+    <span className={`change ${d > 0 ? "is-up" : "is-down"}`} title={title}>
+      {d > 0 ? "▲" : "▼"}
+      {Math.abs(d)}
+    </span>
   );
 }
 

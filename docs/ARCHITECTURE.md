@@ -123,6 +123,19 @@ quoted before parsing, because iRacing doesn't escape them.
   mid-lap, visited pit road or refuelled. Laps to go come from
   `SessionLapsRemainEx` in lap races, or time remaining divided by average lap
   time (plus the lap you finish on) in timed races.
+- **Places gained / lost** (`grid.rs`): iRacing publishes no starting grid,
+  so in race sessions we keep each car's class position while
+  `SessionState` is before racing (the grid), fill in cars first classified
+  on the opening lap, and fix it once the leader completes lap 1. Joining a
+  race already under way falls back to the qualifying order from
+  `QualifyResultsInfo.Results`, ranked within each class (so it doesn't
+  matter whether iRacing's positions start at 0 or 1). Sent as
+  `startPosition`; the widget shows start minus current class position.
+- **Pit and out symbols**: each Relative and Standings row carries a
+  `status` from `CarIdxTrackSurface` and `CarIdxOnPitRoad`: not in world
+  (-1) = out (garage, towed or left the session; drivers who quit keep their
+  entry), in pit stall = pit box, on pit road = pit lane. The Relative
+  already leaves out cars that aren't in the world.
 - **Weather**: `AirTemp`, `TrackTempCrew`, `TrackWetness` (1 dry .. 7 extremely
   wet), `Precipitation`, `RelativeHumidity` and `FogLevel` (each accepted as a
   fraction or a percentage), `Skies`, `WeatherDeclaredWet`, and `WindVel` /

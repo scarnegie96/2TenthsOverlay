@@ -362,7 +362,37 @@ pub struct RelativeRow {
     #[serde(flatten)]
     pub laps: LapInfo,
     pub on_pit_road: bool,
+    pub status: CarStatus,
     pub is_player: bool,
+}
+
+/// Where a car is, for the pit and out symbols in the timing tables.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum CarStatus {
+    #[default]
+    Track,
+    /// Between the pit lane lines.
+    PitLane,
+    /// Stopped in its pit box.
+    PitStall,
+    /// Not in the sim: in the garage, towed, or left the session.
+    Out,
+}
+
+impl CarStatus {
+    pub fn of(f: &RawFrame, car_idx: usize) -> Self {
+        let surface = f.car_track_surface.get(car_idx).copied().unwrap_or(track_surface::NOT_IN_WORLD);
+        if surface == track_surface::NOT_IN_WORLD {
+            CarStatus::Out
+        } else if surface == track_surface::IN_PIT_STALL {
+            CarStatus::PitStall
+        } else if f.car_on_pit_road.get(car_idx).copied().unwrap_or(false) {
+            CarStatus::PitLane
+        } else {
+            CarStatus::Track
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -378,9 +408,12 @@ pub struct StandingRow {
     pub laps_down: i32,
     /// Seconds to the car one place ahead in class.
     pub interval: Option<f32>,
+    /// Class position at the start of the race; None outside races or when unknown.
+    pub start_position: Option<i32>,
     #[serde(flatten)]
     pub laps: LapInfo,
     pub on_pit_road: bool,
+    pub status: CarStatus,
     pub is_player: bool,
 }
 

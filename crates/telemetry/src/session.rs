@@ -65,9 +65,21 @@ pub struct SessionInfo {
     /// WeekendOptions.FastRepairsLimit; None when unlimited.
     pub fast_repairs_limit: Option<i32>,
     pub team_racing: bool,
+    /// Qualifying order (QualifyResultsInfo.Results): car indices, fastest first.
+    pub qualifying: Vec<i32>,
 }
 
 impl SessionInfo {
+    /// Where the car qualified within its class (1-based), counted from the
+    /// qualifying order so it doesn't matter whether iRacing's numbers start
+    /// at 0 or 1.
+    pub fn qualify_class_position(&self, car_idx: i32) -> Option<i32> {
+        let at = self.qualifying.iter().position(|&c| c == car_idx)?;
+        let class = self.driver(car_idx).map(|d| d.class_id);
+        let ahead = self.qualifying[..at].iter().filter(|&&c| self.driver(c).map(|d| d.class_id) == class).count();
+        Some(ahead as i32 + 1)
+    }
+
     pub fn driver(&self, car_idx: i32) -> Option<&DriverInfo> {
         self.drivers.iter().find(|d| d.car_idx == car_idx)
     }
@@ -187,6 +199,18 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
         incident_limit: int(&weekend["WeekendOptions"]["IncidentLimit"]),
         fast_repairs_limit: int(&weekend["WeekendOptions"]["FastRepairsLimit"]),
         team_racing: int(&weekend["TeamRacing"]).unwrap_or(0) != 0,
+        qualifying: {
+            let mut q: Vec<(i64, i32)> = root["QualifyResultsInfo"]["Results"]
+                .as_sequence()
+                .map(|seq| {
+                    seq.iter()
+                        .filter_map(|r| Some((int(&r["Position"])? as i64, int(&r["CarIdx"])?)))
+                        .collect()
+                })
+                .unwrap_or_default();
+            q.sort_by_key(|x| x.0);
+            q.into_iter().map(|x| x.1).collect()
+        },
         sectors: {
             let mut v: Vec<f32> = root["SplitTimeInfo"]["Sectors"]
                 .as_sequence()

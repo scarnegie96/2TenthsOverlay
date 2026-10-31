@@ -53,8 +53,10 @@ class color, car number, license and safety rating, iRating and last lap. A
 last lap is purple when it's the fastest in class and green when it's that
 driver's personal best. The last column is each car's gap to the car directly
 in front of it on track (yours included), amber when it's under a second, so
-you can see the fights going on around you. The header shows the lap count
-and your class's strength of field.
+you can see the fights going on around you. A car in the pit lane has an
+outlined **P** next to its name, and a solid **P** once it's stopped in its
+pit box. Cars that have left the sim aren't on track, so they drop out of the
+relative. The header shows the lap count and your class's strength of field.
 
 *Options*: how many cars ahead and behind, and whether to show iRating,
 license, last lap, the gap to the car ahead, cars in the pits and SoF.
@@ -67,8 +69,18 @@ The race order grouped by class, with each class's car count and strength of
 field. Your class shows more rows, and you're always kept in view. Gaps are to
 the class leader or to the car ahead, with iRating, last and best laps.
 
+In races, the **+/−** column shows how many places each car has gained (green
+▲) or lost (red ▼) in its class since the start. The grid is the order on
+track before the green flag; if you join a race already under way, the
+qualifying order stands in.
+
+Next to the name, an outlined **P** means the car is in the pit lane and a
+solid **P** that it's stopped in its pit box. A car that has left the sim gets
+**OUT** in a race (retired, quit or towed to the garage) and **GAR** in
+practice and qualifying, and its row fades.
+
 *Options*: rows for your class and for others, your class only, gap to leader
-or interval, and which columns to show.
+or interval, and which columns to show (including places gained or lost).
 
 ### Session
 

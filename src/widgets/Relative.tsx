@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { clock, gap, irating, license } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { RelativeRow, SessionClock } from "../lib/types";
-import { ClassStripe, IRatingBadge, LastLap } from "./cells";
+import { ClassStripe, IRatingBadge, LastLap, StatusBadge } from "./cells";
 import { Empty, Panel } from "./Panel";
 
 export function sessionAside(c: SessionClock | undefined) {
@@ -19,6 +19,7 @@ export function sessionAside(c: SessionClock | undefined) {
 export function Relative({ config }: { config: WidgetConfig }) {
   const field = useLive((s) => s.field);
   const multiclass = useLive((s) => s.session?.multiclass ?? false);
+  const race = /race/i.test(field?.clock.sessionType ?? "");
   const ahead = opt(config, "ahead", 3);
   const behind = opt(config, "behind", 3);
   const showIR = opt(config, "showIRating", true);
@@ -65,7 +66,7 @@ export function Relative({ config }: { config: WidgetConfig }) {
         <div className="rows" style={{ "--cols": cols } as React.CSSProperties}>
           {slots.map((s, k) =>
             s ? (
-              <Row key={s.r.carIdx} r={s.r} interval={showInterval ? s.interval : undefined}
+              <Row key={s.r.carIdx} r={s.r} interval={showInterval ? s.interval : undefined} race={race}
                 showIR={showIR} showLic={showLic} showLast={showLast} multiclass={multiclass} />
             ) : (
               <div key={`e${k}`} className="row row-empty" />
@@ -80,8 +81,9 @@ export function Relative({ config }: { config: WidgetConfig }) {
 /** Within this many seconds of the car ahead counts as a close fight. */
 const CLOSE_S = 1.0;
 
-function Row({ r, interval, showIR, showLic, showLast, multiclass }: {
+function Row({ r, interval, race, showIR, showLic, showLast, multiclass }: {
   r: RelativeRow;
+  race: boolean;
   /** Seconds to the car in front; null for the front row; undefined when the column is off. */
   interval: number | null | undefined;
   showIR: boolean; showLic: boolean; showLast: boolean; multiclass: boolean;
@@ -94,8 +96,8 @@ function Row({ r, interval, showIR, showLic, showLast, multiclass }: {
       <ClassStripe color={r.classColor} />
       <span className="num">{r.number}</span>
       <span className="name">
-        {r.name}
-        {r.onPitRoad && <span className="tag">Pit</span>}
+        <span className="name-text">{r.name}</span>
+        <StatusBadge status={r.status} race={race} />
       </span>
       {showLic && (
         <span className="lic" style={{ borderLeftColor: r.licenseColor || undefined }}>

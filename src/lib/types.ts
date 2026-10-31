@@ -235,12 +235,16 @@ export interface DriverCell {
   licenseColor: string;
 }
 
+/** Where a car is: on track, in the pit lane, stopped in its pit box, or out of the sim (garage, towed, quit). */
+export type CarStatus = "track" | "pitLane" | "pitStall" | "out";
+
 export interface RelativeRow extends DriverCell, LapInfo {
   position: number;
   classPosition: number;
   gap: number;
   lapStatus: -1 | 0 | 1;
   onPitRoad: boolean;
+  status: CarStatus;
   isPlayer: boolean;
 }
 
@@ -251,7 +255,10 @@ export interface StandingRow extends DriverCell, LapInfo {
   gap: number | null;
   lapsDown: number;
   interval: number | null;
+  /** Class position at the start of the race; null outside races or when unknown. */
+  startPosition: number | null;
   onPitRoad: boolean;
+  status: CarStatus;
   isPlayer: boolean;
 }
 

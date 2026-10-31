@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
+  CarStatus, CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
   TickPayload, TiresPayload,
 } from "./types";
 
@@ -21,6 +21,8 @@ const NAMES = [
   "Rafael Duarte", "Ines Moreau", "Kenji Sato", "Liam O'Brien", "Zoe Clarke", "Pieter de Vries", "Amara Nwosu",
 ];
 const N = NAMES.length;
+/** Retired on lap 2: out of the sim, but still in the standings. */
+const RETIRED = 13;
 const CLASSES = [
   { id: 4074, name: "LMP2", color: "#f04e7a", lap: 86.3 },
   { id: 4029, name: "GT3", color: "#ffda59", lap: 92.1 },
@@ -85,6 +87,7 @@ class Mock {
       this.dispatch(event, payload);
     };
     for (const [i, base] of BATTLE) this.progress[i] = this.progress[PLAYER] + base / TRACK_M;
+    this.progress[RETIRED] = 1.55;
     // Give a few drivers a fresh personal best / class best so the colors show.
     this.last[2] = this.best[2];
     this.last[PLAYER] = this.best[PLAYER];
@@ -317,10 +320,15 @@ class Mock {
     return f;
   }
 
+  /** One car in the pit lane, one stopped in its box, one retired. */
+  private carStatus(i: number): CarStatus {
+    return i === RETIRED ? "out" : i === 20 ? "pitLane" : i === 21 ? "pitStall" : "track";
+  }
+
   private step(dt: number) {
     this.t += dt;
     for (let i = 0; i < N; i++) {
-      if (BATTLE.some(([b]) => b === i)) continue;
+      if (BATTLE.some(([b]) => b === i) || i === RETIRED || i === 21) continue;
       const before = Math.floor(this.progress[i]);
       this.progress[i] += (dt / this.pace[i]) * (this.speedFactor(this.progress[i] % 1) / 0.82);
       if (Math.floor(this.progress[i]) > before) {
@@ -581,6 +589,8 @@ class Mock {
     });
     const me = this.progress[PLAYER];
     const relative: RelativeRow[] = order
+      // Cars out of the sim aren't on track, so they're not in the relative.
+      .filter((i) => i !== RETIRED)
       .map((i) => {
         let d = (this.progress[i] % 1) - (me % 1);
         d -= Math.round(d);
@@ -588,11 +598,20 @@ class Mock {
         return {
           ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
           gap: d * 92.1, lapStatus: Math.max(-1, Math.min(1, laps)) as -1 | 0 | 1, onPitRoad: i === 20,
+          status: this.carStatus(i),
           isPlayer: i === PLAYER,
         };
       })
       .sort((a, b) => b.gap - a.gap);
 
+    // A starting grid close to, but not the same as, race pace.
+    const grid = new Map<number, number>();
+    for (let k = 0; k < CLASSES.length; k++) {
+      [...Array(N).keys()]
+        .filter((i) => classOf(i) === k)
+        .sort((a, b) => a + (((a * 37) % 9) - 4) * 0.6 - (b + (((b * 37) % 9) - 4) * 0.6))
+        .forEach((i, n) => grid.set(i, n + 1));
+    }
     const leaders = new Map<number, number>();
     const prev = new Map<number, number>();
     const standings: StandingRow[] = order.map((i) => {
@@ -607,7 +626,8 @@ class Mock {
         gap: lead === i ? null : (this.progress[lead] - this.progress[i]) * this.pace[i],
         lapsDown: Math.floor(this.progress[lead] - this.progress[i]),
         interval: ahead === undefined ? null : (this.progress[ahead] - this.progress[i]) * this.pace[i],
-        onPitRoad: i === 20, isPlayer: i === PLAYER,
+        startPosition: grid.get(i) ?? null,
+        onPitRoad: i === 20, status: this.carStatus(i), isPlayer: i === PLAYER,
       };
     });
 

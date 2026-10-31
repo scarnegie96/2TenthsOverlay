@@ -96,6 +96,7 @@ export const WIDGETS: WidgetMeta[] = [
           { value: "interval", label: "Interval to car ahead" },
         ],
       },
+      { key: "showChange", label: "Show places gained or lost", type: "toggle", default: true, help: "In races: each car's class position now against where it started" },
       { key: "showIRating", label: "Show iRating", type: "toggle", default: true },
       { key: "showLast", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showBest", label: "Show best lap", type: "toggle", default: true },
