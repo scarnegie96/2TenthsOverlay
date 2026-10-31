@@ -2,7 +2,9 @@
 //! all-time personal best for the car and track, saved to disk between sessions.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::{self, JoinHandle};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -66,7 +68,7 @@ pub struct LapStore {
     pub dir: PathBuf,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct StoredLaps {
     #[serde(default)]
@@ -93,26 +95,101 @@ impl LapStore {
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default()
     }
+}
 
-    fn append(&self, track: &str, car: &str, lap: &LapRecord, best: Option<&PersonalBest>) {
-        let mut data = self.load(track, car);
-        data.track = track.to_string();
-        data.car = car.to_string();
-        data.best = best.cloned();
-        data.laps.push(lap.clone());
-        if data.laps.len() > STORED_LAPS {
-            data.laps.drain(..data.laps.len() - STORED_LAPS);
+/// Saves lap files on a thread of its own, so a slow disk never holds up telemetry.
+struct Writer {
+    shared: Arc<WriterShared>,
+    thread: Option<JoinHandle<()>>,
+}
+
+#[derive(Default)]
+struct WriterShared {
+    state: Mutex<WriterState>,
+    changed: Condvar,
+}
+
+#[derive(Default)]
+struct WriterState {
+    /// Files waiting to be written. Only the newest copy of each is kept.
+    queue: Vec<(PathBuf, StoredLaps)>,
+    busy: bool,
+    stop: bool,
+}
+
+impl Writer {
+    fn spawn() -> Option<Self> {
+        let shared = Arc::new(WriterShared::default());
+        let worker = shared.clone();
+        let thread = thread::Builder::new()
+            .name("lap-writer".into())
+            .spawn(move || write_loop(&worker))
+            .map_err(|err| eprintln!("[telemetry] couldn't start the lap writer: {err}"))
+            .ok()?;
+        Some(Self { shared, thread: Some(thread) })
+    }
+
+    fn save(&self, path: PathBuf, data: StoredLaps) {
+        let mut state = self.shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        match state.queue.iter_mut().find(|(p, _)| *p == path) {
+            Some(queued) => queued.1 = data,
+            None => state.queue.push((path, data)),
         }
-        let path = self.path(track, car);
-        let write = || -> std::io::Result<()> {
-            fs::create_dir_all(&self.dir)?;
-            let tmp = path.with_extension("json.tmp");
-            fs::write(&tmp, serde_json::to_string(&data).unwrap_or_default())?;
-            fs::rename(&tmp, &path)
-        };
-        if let Err(err) = write() {
-            eprintln!("[telemetry] couldn't save lap to {}: {err}", path.display());
+        self.shared.changed.notify_all();
+    }
+
+    /// Waits until everything queued is on disk.
+    fn flush(&self) {
+        let mut state = self.shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        while !state.queue.is_empty() || state.busy {
+            state = self.shared.changed.wait(state).unwrap_or_else(|e| e.into_inner());
         }
+    }
+}
+
+impl Drop for Writer {
+    /// Finishes any writes still queued before letting go.
+    fn drop(&mut self) {
+        self.shared.state.lock().unwrap_or_else(|e| e.into_inner()).stop = true;
+        self.shared.changed.notify_all();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn write_loop(shared: &WriterShared) {
+    let mut state = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+    loop {
+        if state.queue.is_empty() {
+            if state.stop {
+                return;
+            }
+            state = shared.changed.wait(state).unwrap_or_else(|e| e.into_inner());
+            continue;
+        }
+        let (path, data) = state.queue.remove(0);
+        state.busy = true;
+        drop(state);
+        write_file(&path, &data);
+        state = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.busy = false;
+        shared.changed.notify_all();
+    }
+}
+
+/// Writes to a temporary file first, so a crash never leaves half a file.
+fn write_file(path: &Path, data: &StoredLaps) {
+    let write = || -> std::io::Result<()> {
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        let tmp = path.with_extension("json.tmp");
+        fs::write(&tmp, serde_json::to_string(data).unwrap_or_default())?;
+        fs::rename(&tmp, path)
+    };
+    if let Err(err) = write() {
+        eprintln!("[telemetry] couldn't save lap to {}: {err}", path.display());
     }
 }
 
@@ -132,6 +209,9 @@ pub struct LapLog {
     session_num: i32,
     store: Option<LapStore>,
     key: Option<(String, String)>,
+    /// The saved file for this car and track, kept in memory once loaded.
+    stored: Option<StoredLaps>,
+    writer: Option<Writer>,
     laps: Vec<LapRecord>,
     personal_best: Option<PersonalBest>,
     // The lap in progress.
@@ -148,19 +228,29 @@ pub struct LapLog {
 
 impl LapLog {
     /// Sets where to save laps (None for the demo) and which car and track
-    /// they belong to, loading the saved personal best.
+    /// they belong to, loading the saved laps and personal best.
     pub fn configure(&mut self, store: Option<LapStore>, track: &str, car: &str) {
         let key = (!track.is_empty() && !car.is_empty()).then(|| (track.to_string(), car.to_string()));
         let same_store = self.store.as_ref().map(|s| &s.dir) == store.as_ref().map(|s| &s.dir);
         if key == self.key && same_store {
             return;
         }
-        self.personal_best = match (&store, &key) {
-            (Some(s), Some((t, c))) => s.load(t, c).best,
+        // The file we're about to read may still be waiting to be written.
+        self.flush();
+        self.stored = match (&store, &key) {
+            (Some(s), Some((t, c))) => Some(StoredLaps { track: t.clone(), car: c.clone(), ..s.load(t, c) }),
             _ => None,
         };
+        self.personal_best = self.stored.as_ref().and_then(|s| s.best.clone());
         self.store = store;
         self.key = key;
+    }
+
+    /// Waits until every finished lap is saved to disk.
+    pub fn flush(&self) {
+        if let Some(writer) = &self.writer {
+            writer.flush();
+        }
     }
 
     pub fn update(&mut self, f: &RawFrame) {
@@ -235,7 +325,10 @@ impl LapLog {
         let waited = f.session_time - p.ended_at > OFFICIAL_TIME_WAIT || f.session_time < p.ended_at;
         if official || waited {
             let p = self.pending.take().expect("checked above");
-            let time = if official { Some(f.lap_last) } else { p.own_time };
+            // Two laps in the same time leave LapLastLapTime unchanged, so trust
+            // it when it agrees with our own timing.
+            let matches_own = p.own_time.is_some_and(|own| f.lap_last > 0.0 && (f.lap_last - own).abs() <= 0.25);
+            let time = if official || matches_own { Some(f.lap_last) } else { p.own_time };
             self.finish(p.record, time);
         }
     }
@@ -248,8 +341,20 @@ impl LapLog {
                 self.personal_best = Some(PersonalBest { time: t, at: record.at });
             }
         }
-        if let (Some(store), Some((track, car))) = (&self.store, &self.key) {
-            store.append(track, car, &record, self.personal_best.as_ref());
+        if let (Some(store), Some(stored)) = (&self.store, &mut self.stored) {
+            stored.best = self.personal_best.clone();
+            stored.laps.push(record.clone());
+            if stored.laps.len() > STORED_LAPS {
+                stored.laps.drain(..stored.laps.len() - STORED_LAPS);
+            }
+            if self.writer.is_none() {
+                self.writer = Writer::spawn();
+            }
+            let path = store.path(&stored.track, &stored.car);
+            match &self.writer {
+                Some(writer) => writer.save(path, stored.clone()),
+                None => write_file(&path, stored),
+            }
         }
         self.laps.push(record);
     }
@@ -336,6 +441,23 @@ mod tests {
     }
 
     #[test]
+    fn same_official_time_twice_is_still_official() {
+        let mut log = LapLog::default();
+        let mut f = frame();
+        log.update(&f);
+        lap(&mut log, &mut f, 79.4, Some(80.4), false);
+        lap(&mut log, &mut f, 79.4, Some(80.4), false);
+        lap(&mut log, &mut f, 79.4, Some(80.4), false);
+        f.session_time += 5.0;
+        log.update(&f);
+
+        let p = log.payload();
+        assert_eq!(p.laps.len(), 3);
+        assert_eq!(p.laps[1].time, Some(80.4));
+        assert_eq!(p.laps[2].time, Some(80.4));
+    }
+
+    #[test]
     fn incidents_and_pit_spoil_a_lap() {
         let mut log = LapLog::default();
         let mut f = frame();
@@ -364,11 +486,49 @@ mod tests {
         lap(&mut log, &mut f, 80.0, Some(80.0), false);
         lap(&mut log, &mut f, 85.0, Some(85.5), false);
         assert!(log.payload().saving);
+        log.flush();
 
         let mut next = LapLog::default();
         next.configure(Some(store), "spa up", "porsche 992");
         assert_eq!(next.payload().personal_best.map(|b| b.time), Some(85.5));
         assert!(next.payload().laps.is_empty());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn many_quick_laps_end_up_in_one_file() {
+        let dir = std::env::temp_dir().join(format!("tenths-laps-many-{}", now() ^ std::process::id() as u64));
+        let store = LapStore { dir: dir.clone() };
+        let mut log = LapLog::default();
+        log.configure(Some(store.clone()), "monza", "ferrari 296");
+        let total = STORED_LAPS + 200;
+        for n in 1..=total {
+            let time = if n == STORED_LAPS + 100 { 85.0 } else { 90.0 + (n % 50) as f32 * 0.1 };
+            let record = LapRecord { lap: n as i32, clean: true, at: now(), ..Default::default() };
+            log.finish(record, Some(time));
+        }
+        log.flush();
+
+        let files: Vec<_> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(files.len(), 1, "{files:?}");
+        let saved = store.load("monza", "ferrari 296");
+        assert_eq!(saved.laps.len(), STORED_LAPS);
+        assert_eq!(saved.laps.first().map(|l| l.lap), Some(201));
+        assert_eq!(saved.laps.last().map(|l| l.lap), Some(total as i32));
+        assert_eq!(saved.best.map(|b| b.time), Some(85.0));
+        assert_eq!((saved.track.as_str(), saved.car.as_str()), ("monza", "ferrari 296"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn dropping_the_log_finishes_its_writes() {
+        let dir = std::env::temp_dir().join(format!("tenths-laps-drop-{}", now() ^ std::process::id() as u64));
+        let store = LapStore { dir: dir.clone() };
+        let mut log = LapLog::default();
+        log.configure(Some(store.clone()), "spa", "bmw m4");
+        log.finish(LapRecord { lap: 1, clean: true, ..Default::default() }, Some(140.0));
+        drop(log);
+        assert_eq!(store.load("spa", "bmw m4").best.map(|b| b.time), Some(140.0));
         let _ = fs::remove_dir_all(dir);
     }
 }
