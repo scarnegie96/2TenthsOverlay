@@ -9,7 +9,7 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 
 | # | Fix | Group | Status | Notes |
 |---|-----|-------|--------|-------|
-| 1 | Tows and resets aren't counted as pit stops; tiny stops dropped from the average | `pitloss` | 🔧 | |
+| 1 | Tows and resets aren't counted as pit stops; tiny stops dropped from the average | `pitloss` | ✅ | Entry must be a small step onto pit road from track; average keeps 0.5–1.5× median. 3 new tests. |
 | 2 | Variable list re-read after iRacing disconnects or the layout moves | `irsdk` | 🔧 | |
 | 3 | Closing Settings mid-capture no longer leaves hotkeys switched off | `shell` | 🔧 | |
 | 4 | Fuel to finish in timed races: one tested function, `timed_finish` example | `engine` | 🔧 | End-of-race rule needs a timed-race .ibt to confirm |
@@ -54,3 +54,4 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 ## Log
 
 - 2026-10-31: plan agreed; six groups started in parallel.
+- 2026-10-31: `pitloss` merged (#1).
