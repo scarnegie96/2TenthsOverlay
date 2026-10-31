@@ -122,6 +122,16 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "traceSeconds", label: "Trace length", type: "number", default: 6, min: 2, max: 20, suffix: "s" },
       { key: "showTrace", label: "Show trace", type: "toggle", default: true },
       { key: "showSteering", label: "Show steering wheel", type: "toggle", default: true },
+      {
+        key: "wheel", label: "Steering wheel", type: "select", default: "auto",
+        choices: [
+          { value: "auto", label: "Automatic (from the car)" },
+          { value: "round", label: "Round (road car)" },
+          { value: "gt", label: "GT (flat top and bottom)" },
+          { value: "formula", label: "Formula (yoke with display)" },
+          { value: "oval", label: "Oval (big and thin)" },
+        ],
+      },
       { key: "showClutch", label: "Show clutch", type: "toggle", default: true },
       { key: "shiftLight", label: "Gear turns red to shift", type: "toggle", default: true, help: "At the RPM where the car's own shift lights blink. Off keeps the gear yellow" },
       { key: "showGhost", label: "Show reference inputs", type: "toggle", default: true, help: "A slimmer strip on top with the imported reference lap's gear, speed, pedals and (for .ibt laps) wheel" },
@@ -163,7 +173,7 @@ export const WIDGETS: WidgetMeta[] = [
     description: "Every lap this session with its gap to your best and the track temperature. Your personal best for each car and track is saved between sessions.",
     x: 1090, y: 560, enabled: true,
     options: [
-      { key: "rows", label: "Laps shown", type: "number", default: 8, min: 3, max: 30 },
+      { key: "rows", label: "Laps shown", type: "number", default: 8, min: 3, max: 30, help: "Older laps scroll below these. Scroll in edit layout mode; while driving the newest are shown" },
       {
         key: "compareTo", label: "Gap to", type: "select", default: "session",
         choices: [

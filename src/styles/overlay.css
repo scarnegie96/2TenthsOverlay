@@ -644,9 +644,17 @@
 .inputs-ghost .wheel-spoke {
   stroke: var(--ghost-wheel);
 }
-.inputs-ghost .wheel-spoke:nth-of-type(2),
-.inputs-ghost .wheel-hub {
+.inputs-ghost .wheel-spoke.wheel-fill,
+.inputs-ghost .wheel-hub,
+.inputs-ghost .wheel-grip-block {
   fill: var(--ghost-wheel);
+}
+.inputs-ghost .wheel-grip,
+.inputs-ghost .wheel-plate {
+  stroke: var(--ghost-wheel);
+}
+.inputs-ghost .wheel-plate {
+  fill: color-mix(in srgb, var(--ghost-wheel) 60%, var(--panel-solid));
 }
 .inputs-ghost .wheel-mark {
   stroke: var(--ghost-brake);
@@ -733,7 +741,7 @@
   stroke-width: 7;
   stroke-linejoin: round;
 }
-.wheel-spoke:nth-of-type(2) {
+.wheel-spoke.wheel-fill {
   fill: var(--wheel);
   stroke-width: 2;
 }
@@ -744,6 +752,51 @@
   fill: none;
   stroke: var(--loss);
   stroke-width: 9;
+}
+.wheel-rim-thin {
+  stroke-width: 5;
+}
+.wheel-grip {
+  fill: none;
+  stroke: var(--wheel);
+  stroke-width: 13;
+  stroke-linecap: round;
+}
+.wheel-grip-block {
+  fill: var(--wheel);
+}
+.wheel-plate {
+  fill: color-mix(in srgb, var(--wheel) 72%, var(--panel-solid));
+  stroke: var(--wheel);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.wheel-screen {
+  fill: var(--panel-solid);
+  stroke: color-mix(in srgb, var(--wheel) 50%, var(--panel-solid));
+  stroke-width: 1;
+}
+.wheel-button {
+  fill: var(--panel-solid);
+  opacity: 0.75;
+}
+.wheel-led {
+  fill: var(--panel-solid);
+  opacity: 0.85;
+}
+.wheel-led.is-on.led-green {
+  fill: var(--gain);
+}
+.wheel-led.is-on.led-amber {
+  fill: var(--attention);
+}
+.wheel-led.is-on.led-red {
+  fill: var(--loss);
+}
+.wheel-gt .wheel-mark,
+.wheel-formula .wheel-mark {
+  stroke-width: 5;
+  stroke-linecap: round;
 }
 
 .trace {
@@ -2013,6 +2066,30 @@
   height: var(--row-h);
   padding: 0 10px;
   font-size: 15px;
+}
+.ll-list {
+  overflow: hidden;
+}
+.ll-list.is-scrolling {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  /* A fade at the bottom says there's more below. */
+  mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
+}
+/* Edit mode turns off mouse events inside widgets so they drag as a whole;
+   the list takes them back so the wheel scrolls it. Presses still reach the
+   frame, so dragging from here moves the widget as usual. */
+.frame.is-editing .ll-list.is-scrolling {
+  pointer-events: auto;
+}
+.ll-list.is-scrolling::-webkit-scrollbar {
+  width: 6px;
+}
+.ll-list.is-scrolling::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--line-strong);
 }
 .ll-row:nth-child(even of .ll-row:not(.ll-head)) {
   background: color-mix(in srgb, var(--ink) 3%, transparent);
