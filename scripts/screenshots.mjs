@@ -28,7 +28,8 @@ if (!browser) throw new Error("No Edge or Chrome found. Set BROWSER to one.");
 /** Widget id -> extra URL parameters. */
 const WIDGETS = {
   relative: {},
-  standings: {},
+  // A car in the pit lane, so the pit symbol shows, and long enough for the rejoin line.
+  standings: { params: "warmup=490&pits" },
   session: {},
   delta: {},
   laplog: {},
@@ -81,9 +82,12 @@ try {
   for (const pane of ["general", "layouts", "appearance", "controls", "pitstop"]) {
     shot(`${BASE}/settings.html?pane=${pane}&sample`, join(OUT, "settings", `${pane}.png`), "1100,760", wait, 1);
   }
-  shot(`${BASE}/overlay.html?clean&${race}`, join(OUT, "screenshot.png"), "1920,1080", wait, 1);
-  shot(`${BASE}/overlay.html?clean&${race}&theme=light`, join(OUT, "screenshot-light.png"), "1920,1080", wait, 1);
-  shot(`${BASE}/overlay.html?clean&${race}&theme=f1`, join(OUT, "screenshot-boxbox.png"), "1920,1080", wait, 1);
+  // The overviews: every widget on (?all lays them out for a 2560x1440 screen),
+  // with a reference lap loaded so the Coach and the reference inputs show.
+  const all = "clean&all&reference&pits&flag=16384&warmup=490";
+  shot(`${BASE}/overlay.html?${all}`, join(OUT, "screenshot.png"), "2560,1440", wait, 1);
+  shot(`${BASE}/overlay.html?${all}&theme=light`, join(OUT, "screenshot-light.png"), "2560,1440", wait, 1);
+  shot(`${BASE}/overlay.html?${all}&theme=f1`, join(OUT, "screenshot-boxbox.png"), "2560,1440", wait, 1);
 } finally {
   rmSync(profile, { recursive: true, force: true });
 }

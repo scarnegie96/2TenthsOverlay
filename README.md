@@ -4,7 +4,10 @@ iRacing overlays you own. Tenths is a Tauri 2 app for Windows that reads the
 iRacing SDK directly and draws a set of configurable widgets over the sim: no
 subscriptions, no third-party services, and every line of it is yours to change.
 
-![Tenths overlay in the demo race](docs/screenshot.png)
+![Every Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
+
+Every widget at once, in the demo race on a 2560×1440 screen. The default
+layout turns on fewer, and you can place each one wherever you like.
 
 <details>
 <summary>The same layout in the light theme</summary>
@@ -630,6 +633,9 @@ URL parameters help too:
 | `?shot=delta`   | Draws one widget on its own, for screenshots |
 | `?pane=controls` | Opens the settings window on a page (`general`, `layouts`, `appearance`, `controls` or a widget's id) |
 | `?sample`       | Fills the settings window with a few saved layouts, for screenshots |
+| `?all`          | Turns every widget on, laid out for a 2560×1440 window (the overview screenshots) |
+| `?pits`         | Keeps one GT3 car in the pit lane, so the pit symbol shows |
+| `?displays=2`   | Adds a second display; `&display=2` makes the tab that display's overlay |
 
 To regenerate the README screenshots, keep `npm run dev` running and run
 `node scripts/screenshots.mjs`. It uses Edge or Chrome, headless.

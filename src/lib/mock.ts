@@ -14,6 +14,26 @@ type Handler = (payload: unknown) => void;
 const CONFIG_KEY = "tenths.config";
 /** ?sample: a few saved layouts, with Sprint on screen, for the README screenshots. */
 const SAMPLE = typeof location !== "undefined" && new URLSearchParams(location.search).has("sample");
+const SHOWCASE = typeof location !== "undefined" && new URLSearchParams(location.search).has("all");
+const SHOW_PITS = typeof location !== "undefined" && new URLSearchParams(location.search).has("pits");
+
+/**
+ * Every widget on at once, laid out by hand for a 2560x1440 screen at 100%,
+ * for the README's overview pictures. Positions are from the top-left corner.
+ */
+const SHOWCASE_LAYOUT: Record<string, [number, number]> = {
+  standings: [24, 24], relative: [24, 604], dynamics: [24, 846], inputs: [24, 1302],
+  delta: [568, 24], racepace: [568, 258], session: [1132, 258],
+  coach: [568, 612], flags: [990, 612], fuel: [1170, 612],
+  laplog: [568, 836], radar: [892, 836], instruments: [760, 1213],
+  stints: [1468, 24], tires: [1468, 716], pitstop: [1772, 716], weather: [2132, 24],
+};
+
+function showcaseWidgets() {
+  return Object.fromEntries(
+    Object.entries(SHOWCASE_LAYOUT).map(([id, [x, y]]) => [id, { enabled: true, x, y, ax: "l", ay: "t", scale: 1, opacity: 1 }]),
+  );
+}
 const SAMPLE_LAYOUTS: Record<string, Profile> = Object.fromEntries(
   [["sprint", "Sprint", 2], ["endurance", "Endurance", 9], ["streaming", "Streaming", 30]].map(([id, name, days]) => [
     id,
@@ -141,6 +161,8 @@ class Mock {
     switch (cmd) {
       case "load_config": {
         try {
+          // ?all: every widget on, for the overview screenshots on a 2560x1440 screen.
+          if (SHOWCASE) return { version: 1, general: {}, widgets: showcaseWidgets() };
           const raw = localStorage.getItem(CONFIG_KEY);
           if (!raw && SAMPLE) return { version: 1, general: { activeProfile: "sprint" }, widgets: {} };
           return raw ? JSON.parse(raw) : null;
@@ -360,14 +382,22 @@ class Mock {
 
   /** Share of a lap's time spent getting to each point (1000 steps), for time gaps. */
   private cumTime: Float32Array | null = null;
+  private slowness = 0;
   private timeAt(progress: number) {
     if (!this.cumTime) {
       const c = new Float32Array(1001);
       for (let k = 1; k <= 1000; k++) c[k] = c[k - 1] + 1 / this.speedFactor((k - 0.5) / 1000);
+      this.slowness = c[1000] / 1000;
       for (let k = 0; k <= 1000; k++) c[k] /= c[1000];
       this.cumTime = c;
     }
     return Math.floor(progress) + this.cumTime[Math.round((progress % 1) * 1000)];
+  }
+
+  /** Average of 1 / speed factor round the lap: what makes a lap last exactly its pace. */
+  private meanSlowness() {
+    if (!this.cumTime) this.timeAt(0);
+    return this.slowness;
   }
 
   private speedFactor(pct: number) {
@@ -382,7 +412,11 @@ class Mock {
 
   /** One car in the pit lane, one stopped in its box, one retired. */
   private carStatus(i: number): CarStatus {
-    return i === RETIRED ? "out" : i === 20 ? "pitLane" : i === 21 ? "pitStall" : "track";
+    if (i === RETIRED) return "out";
+    if (i === 21) return "pitStall";
+    // ?pits: one GT3 car (Owen Walsh) is always in the pit lane, so screenshots show the pit symbol.
+    if (SHOW_PITS && i === 12) return "pitLane";
+    return inPitWindow(i, this.progress[i]) ? "pitLane" : "track";
   }
 
   private step(dt: number) {
@@ -390,7 +424,8 @@ class Mock {
     for (let i = 0; i < N; i++) {
       if (BATTLE.some(([b]) => b === i) || i === RETIRED || i === 21) continue;
       const before = Math.floor(this.progress[i]);
-      this.progress[i] += (dt / this.pace[i]) * (this.speedFactor(this.progress[i] % 1) / 0.82);
+      // Speed follows the corners; scaled so a whole lap takes the car's lap time (pace).
+      this.progress[i] += (dt / this.pace[i]) * this.speedFactor(this.progress[i] % 1) * this.meanSlowness();
       if (Math.floor(this.progress[i]) > before) {
         const lap = this.t - this.lapStart[i];
         if (this.lapStart[i] > 0) {
@@ -657,7 +692,7 @@ class Mock {
         const laps = Math.round(this.progress[i] - me - d);
         return {
           ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
-          gap: d * 92.1, lapStatus: Math.max(-1, Math.min(1, laps)) as -1 | 0 | 1, onPitRoad: i === 20,
+          gap: d * 92.1, lapStatus: Math.max(-1, Math.min(1, laps)) as -1 | 0 | 1, onPitRoad: this.carStatus(i) !== "track",
           status: this.carStatus(i),
           isPlayer: i === PLAYER,
         };
@@ -688,7 +723,7 @@ class Mock {
         lapsDown: Math.floor(this.progress[lead] - this.progress[i]),
         interval: ahead === undefined ? null : (this.timeAt(this.progress[ahead]) - this.timeAt(this.progress[i])) * this.pace[i],
         startPosition: grid.get(i) ?? null,
-        onPitRoad: i === 20, status: this.carStatus(i), isPlayer: i === PLAYER,
+        onPitRoad: this.carStatus(i).startsWith("pit"), status: this.carStatus(i), isPlayer: i === PLAYER,
       };
     });
 
@@ -752,19 +787,19 @@ class Mock {
           stints: [{ start: 0, end: p, open: false, endedBy: "out", compound: 0, partial: false }] });
         continue;
       }
-      const every = i === PLAYER || i === 21 || BATTLE.some(([b]) => b === i) ? 0 : 3 + Math.floor(((i * 41) % 17) / 17 * 4);
+      const every = stintLaps(i);
       const stints: Stint[] = [];
       let start = 0;
       let stops = 0;
       const wet = (k: number) => (k > 0 && ((i * 7 + k) * 13) % 10 > 6 ? 1 : 0);
       if (every) {
-        for (let lap = every; lap - 0.03 < p; lap += every) {
+        for (let lap = every; lap - 0.035 < p; lap += every) {
           stints.push({ start, end: Math.min(p, lap - 0.035), open: false, endedBy: "pit", compound: wet(stops), partial: false });
           stops++;
           start = lap + 0.03;
         }
       }
-      const inPits = i === 21 || (every > 0 && start > p);
+      const inPits = i === 21 || inPitWindow(i, p);
       if (!inPits) stints.push({ start, end: p, open: true, endedBy: null, compound: wet(stops), partial: false });
       out.push({ carIdx: i, stints, stops, inPits, out: false });
     }
@@ -808,4 +843,18 @@ function previewDisplays(): Display[] {
   const main: Display = { key: "\\\\.\\DISPLAY1", number: 1, primary: true, x: 0, y: 0, width: 1920, height: 1080, scale: 1 };
   if (!two) return [main];
   return [main, { key: "\\\\.\\DISPLAY2", number: 2, primary: false, x: 1920, y: 0, width: 3840, height: 2160, scale: 1.5 }];
+}
+
+/** Laps between a preview car's pit stops (0: it doesn't stop), like the Rust demo. */
+function stintLaps(i: number): number {
+  return i === PLAYER || i === 21 || i === RETIRED || BATTLE.some(([b]) => b === i) ? 0 : 3 + Math.floor((((i * 41) % 17) / 17) * 4);
+}
+
+/** In the pit lane at this race progress: just before or after the line, at the end of a stint. */
+function inPitWindow(i: number, progress: number): boolean {
+  const every = stintLaps(i);
+  if (!every) return false;
+  const lap = Math.floor(progress);
+  const pct = progress - lap;
+  return (pct > 0.965 && lap > 0 && (lap + 1) % every === 0) || (pct < 0.03 && lap > 0 && lap % every === 0);
 }
