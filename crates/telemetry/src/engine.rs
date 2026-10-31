@@ -292,11 +292,7 @@ impl Engine {
         let has_data = corners.iter().any(|c| c.temp.iter().any(|t| *t > 0.0) || c.wear.iter().any(|w| *w > 0.0));
         TiresPayload {
             corners,
-            compound: s
-                .tire_compounds
-                .get(f.tire_compound.max(0) as usize)
-                .cloned()
-                .unwrap_or_default(),
+            compound: compound_name(s, f.tire_compound),
             sets_used: f.tire_sets_used,
             sets_available: (f.tire_sets_available >= 0 && f.tire_sets_available < 255).then_some(f.tire_sets_available),
             live: f.in_pit_stall,
@@ -312,7 +308,7 @@ impl Engine {
             available: true,
             tires: flags::TIRES.map(on),
             pressures: sv.pressure,
-            compound: s.tire_compounds.get(sv.compound.max(0) as usize).cloned().unwrap_or_default(),
+            compound: compound_name(s, sv.compound),
             fuel: on(flags::FUEL),
             fuel_amount: sv.fuel,
             tearoff: on(flags::TEAROFF),
@@ -538,6 +534,11 @@ fn lap_info(f: &RawFrame, d: &DriverInfo, fastest: &HashMap<i32, (i32, f32)>) ->
         last_flag,
         class_fastest: class_best.map(|(c, _)| c) == Some(d.car_idx),
     }
+}
+
+/// The session's name for a tyre compound number; empty when unknown (-1) or out of range.
+fn compound_name(s: &SessionInfo, compound: i32) -> String {
+    usize::try_from(compound).ok().and_then(|k| s.tire_compounds.get(k)).cloned().unwrap_or_default()
 }
 
 fn positive(v: f32) -> Option<f32> {
@@ -803,15 +804,15 @@ impl FuelTracker {
             .or_else(|| (s.est_lap_time > 0.0).then_some(s.est_lap_time));
 
         let rest_of_lap = 1.0 - f.lap_dist_pct.clamp(0.0, 1.0);
-        let laps_to_go = if (0..32_767).contains(&f.session_laps_remain) && race {
-            // Laps remaining counts the current lap; we still need the rest of it.
-            Some((f.session_laps_remain as f32 - 1.0).max(0.0) + rest_of_lap)
-        } else if f.session_time_remain > 0.0 && f.session_time_remain < 604_800.0 {
-            // Timed: whole laps until the clock runs out, plus the lap you finish on.
-            lap_time.map(|lt| (f.session_time_remain as f32 / lt).ceil() + rest_of_lap)
-        } else {
-            None
-        };
+        let laps_to_go = laps_to_go(&LapsToGo {
+            race,
+            laps_remain: f.session_laps_remain,
+            time_remain: f.session_time_remain,
+            rest_of_lap,
+            lap_time,
+            leader: if race { race_leader(f, s) } else { None },
+            rule: TIMED_FINISH,
+        });
 
         FuelPayload {
             level: f.fuel_level,
@@ -827,6 +828,120 @@ impl FuelTracker {
             samples: self.per_lap.len() as u32,
         }
     }
+}
+
+/// How a timed race ends once the clock reaches zero.
+///
+/// We haven't confirmed which one iRacing uses. Run the `timed_finish`
+/// example on a recording of a timed race to check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimedFinish {
+    /// The leader takes the chequered flag the first time they cross the line
+    /// after the clock reaches zero.
+    ChequeredAtLine,
+    /// The leader takes the white flag at that crossing, then does one more lap.
+    WhiteThenOneLap,
+}
+
+/// The rule the fuel maths uses. `WhiteThenOneLap` is never less than the
+/// older figure (whole laps of time left, rounded up, plus the rest of this
+/// lap), and `ChequeredAtLine` is never more, so until the rule is confirmed
+/// this one can't leave the car short.
+pub const TIMED_FINISH: TimedFinish = TimedFinish::WhiteThenOneLap;
+
+/// Where the race leader is, for working out when a timed race ends.
+#[derive(Debug, Clone, Copy)]
+pub struct Leader {
+    /// Fraction of a lap left before the leader next crosses the line.
+    pub rest_of_lap: f32,
+    /// The leader's lap time in seconds.
+    pub lap_time: f32,
+}
+
+/// Inputs for `laps_to_go`.
+#[derive(Debug, Clone, Copy)]
+pub struct LapsToGo {
+    pub race: bool,
+    /// iRacing's `SessionLapsRemainEx`. Counts the lap we're on; 32767 when unknown.
+    pub laps_remain: i32,
+    /// iRacing's `SessionTimeRemain`, seconds.
+    pub time_remain: f64,
+    /// Fraction of a lap left before we next cross the line.
+    pub rest_of_lap: f32,
+    /// Our lap time in seconds.
+    pub lap_time: Option<f32>,
+    /// The overall leader, when it's another car. iRacing ends the race for
+    /// everyone when the overall leader finishes.
+    pub leader: Option<Leader>,
+    pub rule: TimedFinish,
+}
+
+/// Laps (as a fraction, including the rest of this one) until we take the
+/// chequered flag, or None when it can't be worked out.
+///
+/// * A race with a real laps-remaining figure from iRacing uses that.
+/// * Otherwise, with time on the clock: if another car leads the race, work
+///   out when the leader finishes under `rule`, then how many of our laps it
+///   takes to reach the line after that. If we lead (or the leader isn't
+///   known), apply `rule` to our own laps.
+/// * Practice and qualifying end at our first crossing after the clock runs
+///   out, whatever `rule` says.
+pub fn laps_to_go(x: &LapsToGo) -> Option<f32> {
+    if x.race && (0..32_767).contains(&x.laps_remain) {
+        // Laps remaining counts the current lap; we still need the rest of it.
+        return Some((x.laps_remain as f32 - 1.0).max(0.0) + x.rest_of_lap);
+    }
+    if !(x.time_remain > 0.0 && x.time_remain < 604_800.0) {
+        return None;
+    }
+    let lt = x.lap_time.filter(|t| *t > 1.0)? as f64;
+    let rest = x.rest_of_lap.clamp(0.0, 1.0) as f64;
+    let rule = if x.race { x.rule } else { TimedFinish::ChequeredAtLine };
+
+    let laps = match x.leader.filter(|l| l.lap_time > 1.0) {
+        Some(l) => {
+            // Seconds until the leader finishes, then our first crossing after that.
+            let l_lt = l.lap_time as f64;
+            let finish = finish_laps(x.time_remain, l.rest_of_lap.clamp(0.0, 1.0) as f64, l_lt, rule) * l_lt;
+            rest + crossings_until(finish, rest, lt)
+        }
+        None => finish_laps(x.time_remain, rest, lt, rule),
+    };
+    Some(laps as f32)
+}
+
+/// Small slack so a crossing that lands exactly on a time isn't pushed a lap later by rounding.
+const CROSSING_EPS: f64 = 1e-6;
+
+/// Whole laps after the next crossing (which is `rest` laps away) until the
+/// first crossing at or after `t` seconds, at `lt` seconds a lap.
+fn crossings_until(t: f64, rest: f64, lt: f64) -> f64 {
+    (t / lt - rest - CROSSING_EPS).ceil().max(0.0)
+}
+
+/// Laps until a car `rest` laps from the line, lapping in `lt`, finishes when
+/// the clock (`t` seconds left) ends the race under `rule`.
+fn finish_laps(t: f64, rest: f64, lt: f64, rule: TimedFinish) -> f64 {
+    let at_line = rest + crossings_until(t, rest, lt);
+    match rule {
+        TimedFinish::ChequeredAtLine => at_line,
+        TimedFinish::WhiteThenOneLap => at_line + 1.0,
+    }
+}
+
+/// The overall race leader, when it's another car with a known lap time.
+fn race_leader(f: &RawFrame, s: &SessionInfo) -> Option<Leader> {
+    let d = s
+        .drivers
+        .iter()
+        .filter(|d| !d.is_spectator && !d.is_pace_car && (0..MAX_CARS as i32).contains(&d.car_idx))
+        .find(|d| f.car_position[d.car_idx as usize] == 1)?;
+    let i = d.car_idx as usize;
+    if d.car_idx == f.player_car_idx || f.car_lap_dist_pct[i] < 0.0 {
+        return None;
+    }
+    let lap_time = [f.car_last_lap[i], f.car_best_lap[i], d.class_est_lap_time].into_iter().find(|t| *t > 1.0)?;
+    Some(Leader { rest_of_lap: 1.0 - f.car_lap_dist_pct[i].clamp(0.0, 1.0), lap_time })
 }
 
 fn push_capped(q: &mut VecDeque<f32>, v: f32, cap: usize) {
@@ -1023,6 +1138,114 @@ mod tests {
         assert_eq!(c.len(), 2);
         assert_eq!((c[0].class_id, c[0].cars, c[0].strength_of_field), (1, 1, Some(3000)));
         assert_eq!((c[1].class_id, c[1].cars, c[1].strength_of_field), (2, 2, Some(1500)));
+    }
+
+    /// Timed race, 100 s laps, no laps-remaining figure from iRacing.
+    fn timed(time_remain: f64, rest_of_lap: f32, rule: TimedFinish) -> LapsToGo {
+        LapsToGo {
+            race: true,
+            laps_remain: 32_767,
+            time_remain,
+            rest_of_lap,
+            lap_time: Some(100.0),
+            leader: None,
+            rule,
+        }
+    }
+
+    fn close(a: Option<f32>, b: f32) -> bool {
+        a.is_some_and(|a| (a - b).abs() < 1e-4)
+    }
+
+    #[test]
+    fn timed_race_clock_runs_out_early_in_a_lap() {
+        // Half a lap to the line (50 s), clock ends at 60 s: 10 s into the next lap.
+        use TimedFinish::*;
+        assert!(close(laps_to_go(&timed(60.0, 0.5, ChequeredAtLine)), 1.5));
+        assert!(close(laps_to_go(&timed(60.0, 0.5, WhiteThenOneLap)), 2.5));
+    }
+
+    #[test]
+    fn timed_race_clock_runs_out_late_in_a_lap() {
+        // Clock ends at 140 s, 10 s before our crossing at 150 s.
+        use TimedFinish::*;
+        assert!(close(laps_to_go(&timed(140.0, 0.5, ChequeredAtLine)), 1.5));
+        assert!(close(laps_to_go(&timed(140.0, 0.5, WhiteThenOneLap)), 2.5));
+    }
+
+    #[test]
+    fn timed_race_clock_runs_out_on_the_line() {
+        // Clock ends exactly as we cross at 50 s: that crossing counts.
+        use TimedFinish::*;
+        assert!(close(laps_to_go(&timed(50.0, 0.5, ChequeredAtLine)), 0.5));
+        assert!(close(laps_to_go(&timed(50.0, 0.5, WhiteThenOneLap)), 1.5));
+        assert!(close(laps_to_go(&timed(300.0, 1.0, ChequeredAtLine)), 3.0));
+    }
+
+    #[test]
+    fn default_rule_never_below_old_figure() {
+        for t in [1.0, 37.0, 50.0, 99.9, 100.0, 140.0, 1234.5] {
+            for rest in [0.0, 0.01, 0.3, 0.5, 0.99, 1.0] {
+                let old = (t as f32 / 100.0).ceil() + rest;
+                let new = laps_to_go(&timed(t, rest, TIMED_FINISH)).unwrap();
+                let a = laps_to_go(&timed(t, rest, TimedFinish::ChequeredAtLine)).unwrap();
+                assert!(new >= old - 1e-4, "t {t} rest {rest}: {new} < {old}");
+                assert!(a <= old + 1e-4, "t {t} rest {rest}: A {a} > {old}");
+            }
+        }
+    }
+
+    #[test]
+    fn timed_race_lapped_car_finishes_after_the_leader() {
+        // The leader has just crossed (crossings at 99 s, 199 s); the clock ends at 100 s.
+        // We're nearly at the line (crossings at 5, 105, 205, 305 s), a lap down.
+        let mut x = timed(100.0, 0.05, TimedFinish::ChequeredAtLine);
+        x.leader = Some(Leader { rest_of_lap: 0.99, lap_time: 100.0 });
+        // Leader finishes at 199 s, so we finish at 205 s.
+        assert!(close(laps_to_go(&x), 2.05));
+        // White flag at 199 s, leader finishes at 299 s, we finish at 305 s.
+        x.rule = TimedFinish::WhiteThenOneLap;
+        assert!(close(laps_to_go(&x), 3.05));
+        // On our own clock it would have been a lap less.
+        x.leader = None;
+        assert!(close(laps_to_go(&x), 2.05));
+    }
+
+    #[test]
+    fn timed_race_slower_class_uses_leader_pace() {
+        // Leader laps in 90 s, 0.9 of a lap to go; clock ends at 200 s.
+        // Leader crosses at 81, 171, 261 s: white at 261, finishes at 351 s.
+        // We lap in 120 s and cross at 114, 234, 354 s.
+        let mut x = timed(200.0, 0.95, TimedFinish::WhiteThenOneLap);
+        x.lap_time = Some(120.0);
+        x.leader = Some(Leader { rest_of_lap: 0.9, lap_time: 90.0 });
+        assert!(close(laps_to_go(&x), 2.95));
+    }
+
+    #[test]
+    fn laps_race_uses_iracing_laps_remaining() {
+        let mut x = timed(500.0, 0.25, TIMED_FINISH);
+        x.laps_remain = 4;
+        x.leader = Some(Leader { rest_of_lap: 0.5, lap_time: 80.0 });
+        assert!(close(laps_to_go(&x), 3.25));
+        x.laps_remain = 0;
+        assert!(close(laps_to_go(&x), 0.25));
+        // Not a race: the laps figure is ignored and the clock ends it at our next crossing after.
+        x.race = false;
+        assert!(close(laps_to_go(&x), 5.25));
+        x.time_remain = -1.0;
+        x.laps_remain = 32_767;
+        x.race = true;
+        assert_eq!(laps_to_go(&x), None);
+    }
+
+    #[test]
+    fn unknown_compound_has_no_name() {
+        let s = SessionInfo { tire_compounds: vec!["Hard".into(), "Wet".into()], ..Default::default() };
+        assert_eq!(compound_name(&s, 1), "Wet");
+        assert_eq!(compound_name(&s, 0), "Hard");
+        assert_eq!(compound_name(&s, -1), "");
+        assert_eq!(compound_name(&s, 2), "");
     }
 
     #[test]

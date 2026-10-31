@@ -101,6 +101,16 @@ impl IbtFile {
         session::parse(&self.yaml).ok()
     }
 
+    /// Number of samples in the file.
+    pub fn row_count(&self) -> usize {
+        self.rows
+    }
+
+    /// One variable's value in sample `row`, or None if the file doesn't have it.
+    pub fn value(&self, row: usize, name: &str) -> Option<f64> {
+        (row < self.rows).then(|| self.reader(name)(self.row(row))).flatten()
+    }
+
     fn row(&self, i: usize) -> &[u8] {
         let at = self.data_offset + i * self.row_len;
         &self.bytes[at..at + self.row_len]

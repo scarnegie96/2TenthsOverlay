@@ -60,6 +60,43 @@ enum Source {
 
 const FIELD_INTERVAL: Duration = Duration::from_millis(100);
 const RECONNECT_INTERVAL: Duration = Duration::from_millis(1000);
+const DEMO_FRAME: Duration = Duration::from_micros(16_667);
+
+/// Paces the demo by the real clock, so time spent working each frame
+/// doesn't make it run slow.
+struct FrameClock {
+    period: Duration,
+    deadline: Instant,
+    last: Instant,
+}
+
+impl FrameClock {
+    /// Longest step the demo takes, so a stall doesn't make it jump.
+    const MAX_STEP: f64 = 0.1;
+    /// Further behind than this and we give up catching up.
+    const MAX_BEHIND: Duration = Duration::from_millis(100);
+
+    fn new(period: Duration) -> Self {
+        let now = Instant::now();
+        Self { period, deadline: now + period, last: now }
+    }
+
+    /// Sleeps until the next frame is due. Returns the seconds since the last one.
+    fn wait(&mut self) -> f32 {
+        let now = Instant::now();
+        if let Some(left) = self.deadline.checked_duration_since(now) {
+            thread::sleep(left);
+        }
+        let now = Instant::now();
+        self.deadline += self.period;
+        if now.saturating_duration_since(self.deadline) > Self::MAX_BEHIND {
+            self.deadline = now + self.period;
+        }
+        let dt = now.duration_since(self.last).as_secs_f64().min(Self::MAX_STEP);
+        self.last = now;
+        dt as f32
+    }
+}
 
 pub fn spawn<S: Sink>(sink: S, control: RunnerControl) -> JoinHandle<()> {
     thread::Builder::new()
@@ -84,6 +121,7 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
     };
 
     let mut reference_rev = u64::MAX;
+    let mut demo_clock = FrameClock::new(DEMO_FRAME);
 
     while !control.stop.load(Ordering::Relaxed) {
         let rev = control.reference_rev.load(Ordering::Relaxed);
@@ -111,6 +149,7 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
         if source.is_none() {
             if want_demo {
                 source = Some(Source::Demo(Box::default()));
+                demo_clock = FrameClock::new(DEMO_FRAME);
                 engine.set_lap_store(None);
             } else {
                 #[cfg(windows)]
@@ -142,8 +181,8 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
         // Pull the next frame.
         let (kind, yaml) = match source.as_mut().expect("source set above") {
             Source::Demo(demo) => {
-                thread::sleep(Duration::from_micros(16_667));
-                frame.clone_from(demo.step(1.0 / 60.0));
+                let dt = demo_clock.wait();
+                frame.clone_from(demo.step(dt));
                 (SourceKind::Demo, demo.take_session_yaml())
             }
             #[cfg(windows)]
@@ -190,5 +229,37 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
             last_field = Instant::now();
             sink.field(&engine.field(&frame));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_clock_keeps_real_time_despite_work() {
+        let mut clock = FrameClock::new(DEMO_FRAME);
+        let start = Instant::now();
+        let mut stepped = 0.0f64;
+        for _ in 0..30 {
+            stepped += clock.wait() as f64;
+            // Pretend each frame takes 5 ms of work.
+            thread::sleep(Duration::from_millis(5));
+        }
+        let real = start.elapsed().as_secs_f64();
+        // 30 frames at 60 Hz is 0.5 s; the old fixed sleep would take 0.65 s.
+        assert!(real < 0.6, "took {real:.3} s");
+        assert!((stepped - real).abs() < 0.03, "stepped {stepped:.3} s in {real:.3} s");
+    }
+
+    #[test]
+    fn frame_clock_caps_a_stall() {
+        let mut clock = FrameClock::new(DEMO_FRAME);
+        thread::sleep(Duration::from_millis(250));
+        assert!(clock.wait() <= 0.1 + 1e-6);
+        // After a stall it starts again from now, not trying to catch up.
+        let t = Instant::now();
+        clock.wait();
+        assert!(t.elapsed() >= Duration::from_millis(10));
     }
 }
