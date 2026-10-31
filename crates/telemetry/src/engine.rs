@@ -292,11 +292,7 @@ impl Engine {
         let has_data = corners.iter().any(|c| c.temp.iter().any(|t| *t > 0.0) || c.wear.iter().any(|w| *w > 0.0));
         TiresPayload {
             corners,
-            compound: s
-                .tire_compounds
-                .get(f.tire_compound.max(0) as usize)
-                .cloned()
-                .unwrap_or_default(),
+            compound: compound_name(s, f.tire_compound),
             sets_used: f.tire_sets_used,
             sets_available: (f.tire_sets_available >= 0 && f.tire_sets_available < 255).then_some(f.tire_sets_available),
             live: f.in_pit_stall,
@@ -312,7 +308,7 @@ impl Engine {
             available: true,
             tires: flags::TIRES.map(on),
             pressures: sv.pressure,
-            compound: s.tire_compounds.get(sv.compound.max(0) as usize).cloned().unwrap_or_default(),
+            compound: compound_name(s, sv.compound),
             fuel: on(flags::FUEL),
             fuel_amount: sv.fuel,
             tearoff: on(flags::TEAROFF),
@@ -538,6 +534,11 @@ fn lap_info(f: &RawFrame, d: &DriverInfo, fastest: &HashMap<i32, (i32, f32)>) ->
         last_flag,
         class_fastest: class_best.map(|(c, _)| c) == Some(d.car_idx),
     }
+}
+
+/// The session's name for a tyre compound number; empty when unknown (-1) or out of range.
+fn compound_name(s: &SessionInfo, compound: i32) -> String {
+    usize::try_from(compound).ok().and_then(|k| s.tire_compounds.get(k)).cloned().unwrap_or_default()
 }
 
 fn positive(v: f32) -> Option<f32> {
@@ -1236,6 +1237,15 @@ mod tests {
         x.laps_remain = 32_767;
         x.race = true;
         assert_eq!(laps_to_go(&x), None);
+    }
+
+    #[test]
+    fn unknown_compound_has_no_name() {
+        let s = SessionInfo { tire_compounds: vec!["Hard".into(), "Wet".into()], ..Default::default() };
+        assert_eq!(compound_name(&s, 1), "Wet");
+        assert_eq!(compound_name(&s, 0), "Hard");
+        assert_eq!(compound_name(&s, -1), "");
+        assert_eq!(compound_name(&s, 2), "");
     }
 
     #[test]
