@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { useLive } from "../lib/store";
 
@@ -96,9 +96,11 @@ const PITCH = 5.5;
 const SIZE = DOTS * PITCH;
 const UNLIT = "#1b1f25";
 
-function LedBoard({ pattern, flash }: { pattern: Pattern; flash: boolean }) {
+function LedBoard({ pattern: given, flash }: { pattern: Pattern; flash: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const key = JSON.stringify(pattern);
+  // The pattern is a new object on every render; only redraw when its content changes.
+  const key = JSON.stringify(given);
+  const pattern = useMemo(() => JSON.parse(key) as Pattern, [key]);
 
   useEffect(() => {
     const el = canvas.current!;
@@ -138,7 +140,7 @@ function LedBoard({ pattern, flash }: { pattern: Pattern; flash: boolean }) {
     let on = true;
     const timer = window.setInterval(() => draw((on = !on)), 300);
     return () => window.clearInterval(timer);
-  }, [key, flash]);
+  }, [pattern, flash]);
 
   return <canvas ref={canvas} className="flags-board" style={{ width: SIZE, height: SIZE }} />;
 }
