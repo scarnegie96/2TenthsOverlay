@@ -157,6 +157,19 @@ fuel amount of 0 keeps the amount already set.
   (-1) = out (garage, towed or left the session; drivers who quit keep their
   entry), in pit stall = pit box, on pit road = pit lane. The Relative
   already leaves out cars that aren't in the world.
+- **Stints** (`stints.rs`): built in the engine from every car's
+  `CarIdxLapCompleted` + `CarIdxLapDistPct` (race progress), `CarIdxOnPitRoad`,
+  `CarIdxTrackSurface` and `CarIdxTireCompound` (an index into
+  `DriverInfo.DriverTires`, which lists the player's car's compounds, so other
+  classes' names may not match). A stint opens on leaving the pit lane, at
+  the start, or when a car is first seen on track (marked `partial` if that's
+  past half a lap), and closes on entering the pit lane (a stop) or leaving
+  the world (retired, towed, quit). The open stint takes the latest compound,
+  which can update just after the car leaves the pits. A car first seen in
+  the pits mid-race counts that as a stop; a pit-lane start doesn't. Progress
+  going back more than a lap resets that car; a new session resets all. Sent
+  in `field.stints`. There's no way to tell a fuel-only stop from a tyre
+  change for other cars. `examples/stints_demo.rs` prints the demo's stints.
 - **Race pace** (`src/lib/raceHistory.ts`): built in the front end from the
   Standings rows (gap to class leader, which is the `CarIdxF2Time` difference
   in races). Fed from every 10 Hz field update outside React, like

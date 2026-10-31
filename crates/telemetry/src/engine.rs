@@ -28,6 +28,8 @@ pub struct Engine {
     dynamics: crate::dynamics::DynamicsTracker,
     /// Where each car started the race, for positions gained and lost.
     grid: crate::grid::StartGrid,
+    /// Every car's stints, for the Stints widget.
+    stints: crate::stints::StintTracker,
 }
 
 impl Engine {
@@ -141,6 +143,7 @@ impl Engine {
         self.laps.update(f);
         let race = self.is_race(f.session_num);
         self.grid.update(f, race);
+        self.stints.update(f);
         let reference_delta = self.reference_delta(f);
         let coach = match (&self.reference, &mut self.coach) {
             (Some(r), Some(c)) if reference_delta.is_some() => {
@@ -326,6 +329,7 @@ impl Engine {
             tires: self.tires(f, session),
             pit: self.pit(f, session),
             lap_log: self.laps.payload(),
+            stints: self.stints.payload(),
         }
     }
 

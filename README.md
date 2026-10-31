@@ -22,8 +22,8 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ## Features
 
-- **16 widgets**: timing tables, a race pace chart, a lap delta graph, a lap
-  log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
+- **17 widgets**: timing tables, a race pace chart, everyone's stints, a lap
+  delta graph, a lap log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
   weather, a radar and an LED flag board. Each one has its own options.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
   litres more or less), tires, fast repair and a tear-off for your next stop
@@ -146,6 +146,28 @@ only; off by default.
 *Options*: the whole race or the leader's last 5, 10 or 20 laps; everyone in
 your class or just the leader and the cars around you; a fixed gap scale; and
 the gap change per lap.
+
+### Stints
+
+![Stints widget](docs/widgets/stints.png)
+
+Every driver's stints, grouped by class in race order. **Stint** is how many
+laps they've done since their last stop, live; **Tyre** the compound they're
+on (shown when the car has more than one), and **Stops** how many times
+they've been into the pit lane. The timeline runs across the whole session:
+each stint is a bar coloured by compound (wets blue, softs red, mediums
+yellow, hards light), with its length in laps written on it and a tick at
+every stop, so you can see who's due in, who's gone long and who's switched
+to wets. A ✕ marks a car that retired.
+
+iRacing doesn't publish stints, so Tenths works them out from each car's
+pit-lane visits and laps, from when it first sees the session. A stint it
+only saw part of is faded and its length shown as "≥". It can't tell whether
+another car changed tyres at a stop, only what compound it's on, so a
+fuel-only stop still starts a new stint. Off by default.
+
+*Options*: all classes or just yours, rows for your class and for others,
+the timeline, stint lengths on it, and when to show the tyre column.
 
 ### Lap log
 
@@ -611,6 +633,7 @@ cargo run -p telemetry --example radar                     # what the radar sees
 cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt to try importing
 cargo run -p telemetry --example inspect_lap -- lap.blap   # list the corners the coach finds in a lap
 cargo run -p telemetry --example coach_demo                # how often each cue fires in the demo
+cargo run -p telemetry --example stints_demo               # every demo car's stints after 12 minutes
 ```
 
 Before committing, run `npm run build` (type-checks the front end) and
@@ -624,6 +647,7 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   session.rs          Session YAML parser, tolerant of iRacing's quirks
   engine.rs           Relative gaps, standings, fuel maths, SoF, deltas, optimal lap
   grid.rs             Starting grid for places gained/lost, and each car's pit or garage status
+  stints.rs           Every car's stints: laps between stops, tyre compound, stops
   laps.rs             Lap log and personal bests, saved per car and track
   vars.rs             Variable header parsing shared by live data and .ibt files
   ibt.rs              .ibt telemetry file reader: finds complete laps

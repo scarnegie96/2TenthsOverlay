@@ -1894,6 +1894,108 @@
   font-weight: 600;
 }
 
+/* ---------- Stints --------------------------------------------------------------- */
+
+.stints {
+  width: 640px;
+}
+.stints.is-compact {
+  width: 380px;
+}
+.stints .row {
+  grid-template-columns: var(--cols);
+}
+.stints .rows {
+  padding-top: 0;
+}
+.stints .row-head > span:not(.row-head-title),
+.st-tyre,
+.st-laps,
+.st-stops {
+  text-align: center;
+}
+.st-laps {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.st-stops {
+  color: var(--ink-2);
+}
+.st-timeline {
+  display: block;
+}
+/* Lap numbers above the timeline column. */
+.st-axis {
+  position: relative;
+  height: 100%;
+}
+.st-axis i {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.st-axis i:last-child {
+  transform: translate(-100%, -50%);
+}
+.st-track {
+  fill: var(--grid);
+}
+.st-bar {
+  fill: var(--tyre);
+  opacity: 0.75;
+}
+.st-bar.is-open {
+  opacity: 1;
+}
+.st-bar.is-partial {
+  opacity: 0.4;
+}
+.st-len {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--panel-solid);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.st-stop {
+  fill: var(--ink);
+}
+.st-out {
+  font-size: 9px;
+  fill: var(--loss);
+  dominant-baseline: central;
+}
+/* Tyre colours: wets blue, softs red, mediums yellow, hards and the rest light. */
+.tyre-wet {
+  --tyre: var(--lapped);
+}
+.tyre-soft {
+  --tyre: var(--loss);
+}
+.tyre-medium {
+  --tyre: var(--attention);
+}
+.tyre-hard,
+.tyre-other {
+  --tyre: var(--ink-2);
+}
+.tyre-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--tyre);
+  box-shadow: inset 0 0 0 2px var(--tyre);
+}
+
 /* ---------- Race pace ------------------------------------------------------- */
 
 .race-pace {

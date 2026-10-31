@@ -44,6 +44,7 @@ const WIDGETS = {
   weather: {},
   // A longer race, so the lines have a few laps of history.
   racepace: { params: "warmup=560" },
+  stints: { params: "warmup=560" },
 };
 
 const profile = mkdtempSync(join(tmpdir(), "tenths-shots-"));

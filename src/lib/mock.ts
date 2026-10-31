@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CarStatus, CoachPayload, Display, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
+  CarStatus, CarStints, CoachPayload, Display, Stint, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
   StatusPayload, TickPayload, TiresPayload,
 } from "./types";
 
@@ -727,6 +727,7 @@ class Mock {
       },
       tires,
       pit: this.pit,
+      stints: this.stints(),
       lapLog: {
         laps: this.lapLog.slice(-100),
         sessionBest: Math.min(...this.lapLog.filter((l) => l.clean && l.time != null).map((l) => l.time!)),
@@ -734,6 +735,38 @@ class Mock {
         saving: false,
       },
     };
+  }
+
+  /**
+   * Stints for every car, from a pit schedule like the Rust demo's: each car
+   * stops at the line every few laps, and now and then comes out on wets.
+   */
+  private stints(): CarStints[] {
+    const out: CarStints[] = [];
+    for (let i = 0; i < N; i++) {
+      const p = this.progress[i];
+      if (i === RETIRED) {
+        out.push({ carIdx: i, stops: 0, inPits: false, out: true,
+          stints: [{ start: 0, end: p, open: false, endedBy: "out", compound: 0, partial: false }] });
+        continue;
+      }
+      const every = i === PLAYER || i === 21 || BATTLE.some(([b]) => b === i) ? 0 : 3 + Math.floor(((i * 41) % 17) / 17 * 4);
+      const stints: Stint[] = [];
+      let start = 0;
+      let stops = 0;
+      const wet = (k: number) => (k > 0 && ((i * 7 + k) * 13) % 10 > 6 ? 1 : 0);
+      if (every) {
+        for (let lap = every; lap - 0.03 < p; lap += every) {
+          stints.push({ start, end: Math.min(p, lap - 0.035), open: false, endedBy: "pit", compound: wet(stops), partial: false });
+          stops++;
+          start = lap + 0.03;
+        }
+      }
+      const inPits = i === 21 || (every > 0 && start > p);
+      if (!inPits) stints.push({ start, end: p, open: true, endedBy: null, compound: wet(stops), partial: false });
+      out.push({ carIdx: i, stints, stops, inPits, out: false });
+    }
+    return out;
   }
 
   /** A local yellow and a blue flag now and then, like the Rust demo; F cycles through every flag. */

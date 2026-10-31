@@ -4,7 +4,7 @@ import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace";
+  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace" | "stints";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -295,6 +295,34 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "around", label: "Places either side of you", type: "number", default: 3, min: 1, max: 10, help: "When showing the cars around you" },
       { key: "maxGap", label: "Gap scale", type: "number", default: 0, min: 0, max: 600, step: 5, suffix: "s", help: "0 fits everyone shown. A fixed scale keeps far-off cars from squashing the rest; they sit along the bottom" },
       { key: "showTrend", label: "Show gap change per lap", type: "toggle", default: true, help: "Next to each name: how much the gap to the leader changed over the leader's last lap" },
+    ],
+  },
+  {
+    id: "stints",
+    name: "Stints",
+    description: "Every driver's stints: laps since their last stop (live), their tyre, stops so far, and a timeline of the session coloured by compound.",
+    // Off by default: turn it on in settings and place it where suits your screen.
+    x: 572, y: 330, enabled: false,
+    options: [
+      {
+        key: "classes", label: "Classes", type: "select", default: "all",
+        choices: [
+          { value: "all", label: "All classes" },
+          { value: "mine", label: "Your class only" },
+        ],
+      },
+      { key: "rows", label: "Rows for your class", type: "number", default: 10, min: 3, max: 40 },
+      { key: "otherClassRows", label: "Rows for other classes", type: "number", default: 5, min: 1, max: 40 },
+      { key: "showTimeline", label: "Show the timeline", type: "toggle", default: true, help: "Each stint as a bar across the session, coloured by tyre, with a tick at every stop" },
+      { key: "showLengths", label: "Show stint lengths on the timeline", type: "toggle", default: true, help: "Laps, written on each bar wide enough to fit them" },
+      {
+        key: "showCompound", label: "Tyre column", type: "select", default: "auto",
+        choices: [
+          { value: "auto", label: "When the car has more than one compound" },
+          { value: "always", label: "Always" },
+          { value: "never", label: "Never" },
+        ],
+      },
     ],
   },
   {

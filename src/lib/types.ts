@@ -395,6 +395,31 @@ export interface FieldPayload {
   tires: TiresPayload;
   pit: PitPayload;
   lapLog: LapLogPayload;
+  /** Every car's stints this session. */
+  stints: CarStints[];
+}
+
+export interface Stint {
+  /** Race progress (laps completed plus distance round the lap) at the start. */
+  start: number;
+  /** At the end, or where the car is now for the one it's on. */
+  end: number;
+  open: boolean;
+  endedBy: "pit" | "out" | null;
+  /** Index into the session's tireCompounds, -1 if unknown. */
+  compound: number;
+  /** Only part of it was seen (Tenths started, or the car appeared, mid-stint). */
+  partial: boolean;
+}
+
+export interface CarStints {
+  carIdx: number;
+  stints: Stint[];
+  /** Times into the pit lane. */
+  stops: number;
+  inPits: boolean;
+  /** Left the sim (retired, towed, quit). */
+  out: boolean;
 }
 
 export interface LapRecord {

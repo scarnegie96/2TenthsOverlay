@@ -157,6 +157,8 @@ pub struct RawFrame {
     pub car_class_position: Vec<i32>,
     pub car_on_pit_road: Vec<bool>,
     pub car_track_surface: Vec<i32>,
+    /// CarIdxTireCompound: index into the session's tyre list, -1 if unknown.
+    pub car_tire_compound: Vec<i32>,
     pub car_est_time: Vec<f32>,
     pub car_f2_time: Vec<f32>,
     pub car_last_lap: Vec<f32>,
@@ -173,6 +175,7 @@ impl RawFrame {
             car_class_position: vec![0; MAX_CARS],
             car_on_pit_road: vec![false; MAX_CARS],
             car_track_surface: vec![track_surface::NOT_IN_WORLD; MAX_CARS],
+            car_tire_compound: vec![-1; MAX_CARS],
             car_est_time: vec![0.0; MAX_CARS],
             car_f2_time: vec![0.0; MAX_CARS],
             car_last_lap: vec![-1.0; MAX_CARS],
@@ -550,4 +553,6 @@ pub struct FieldPayload {
     pub tires: TiresPayload,
     pub pit: PitPayload,
     pub lap_log: crate::laps::LapLogPayload,
+    /// Every car's stints this session.
+    pub stints: Vec<crate::stints::CarStints>,
 }
