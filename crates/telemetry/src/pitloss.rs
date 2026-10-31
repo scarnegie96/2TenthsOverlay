@@ -7,10 +7,17 @@
 //! `CarIdxEstTime` (iRacing's estimate of how long a car of that class takes
 //! to reach each point of the lap), learned from every car on track.
 //!
-//! Only real stops count: the car must stop in its pit box. Drive-throughs,
-//! tows (leaving the world), stops with long repairs and other outliers are
-//! left out. Nothing is reported for a class until it has `MIN_STOPS` stops,
-//! so the Standings shows no rejoin estimate until there's a session average.
+//! Only real stops count: the car must drive into the pit lane from the track
+//! and stop in its pit box. A stop is only timed when the car was on track the
+//! frame before and moved no more than `MAX_ENTRY_STEP` of a lap, and is on pit
+//! road rather than already in its box. So a tow to the box (leaving the world
+//! and turning up in the stall) or a reset to the pits (jumping straight there)
+//! isn't a stop. Drive-throughs and stops with long repairs are left out too.
+//!
+//! The average leaves out stops more than half as long again as the median,
+//! or less than half of it. Nothing is reported for a class until it has
+//! `MIN_STOPS` such stops, so the Standings shows no rejoin estimate until
+//! there's a session average.
 
 use std::collections::HashMap;
 
@@ -24,6 +31,8 @@ pub const MIN_STOPS: usize = 2;
 const BINS: usize = 200;
 /// A stop with more than this standing in the box (repairs, a penalty) isn't typical.
 const MAX_STALL_S: f64 = 120.0;
+/// Most a car can move in one frame as it drives into the lane, as a share of the lap.
+const MAX_ENTRY_STEP: f32 = 0.01;
 
 /// One timed stop.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
@@ -125,6 +134,8 @@ pub struct PitLossTracker {
     was_in_lane: Vec<bool>,
     /// Seen on track this session, so a stop isn't confused with starting from the pits.
     seen_on_track: Vec<bool>,
+    /// Lap position last frame, or `None` if the car was out of the world.
+    prev_pct: Vec<Option<f32>>,
     stops: Vec<TimedStop>,
 }
 
@@ -136,6 +147,7 @@ impl PitLossTracker {
                 session_num: Some(f.session_num),
                 was_in_lane: vec![false; MAX_CARS],
                 seen_on_track: vec![false; MAX_CARS],
+                prev_pct: vec![None; MAX_CARS],
                 ..Self::default()
             };
         }
@@ -150,6 +162,7 @@ impl PitLossTracker {
             let out = surface == track_surface::NOT_IN_WORLD || pct < 0.0;
             let in_lane = !out && (on_road || surface == track_surface::IN_PIT_STALL);
             let was = std::mem::replace(&mut self.was_in_lane[i], in_lane);
+            let prev = std::mem::replace(&mut self.prev_pct[i], (!out).then_some(pct));
 
             if out {
                 // A tow or leaving the session: not a stop we can time.
@@ -163,8 +176,9 @@ impl PitLossTracker {
                 }
             }
             match (was, in_lane) {
-                // Into the lane from the track (not starting from the pits).
-                (false, true) if self.seen_on_track[i] => {
+                // Driven into the lane from the track. Not starting from the pits,
+                // and not towed or reset there (those jump or come from out of the world).
+                (false, true) if self.seen_on_track[i] && Self::drove_in(prev, pct, on_road, surface) => {
                     self.lanes.insert(car, InLane { t0: t, pct0: pct, stall: 0.0, stall_since: None });
                 }
                 (true, true) => {
@@ -193,6 +207,16 @@ impl PitLossTracker {
         }
     }
 
+    /// The car was on track last frame, moved only a little, and is on pit road
+    /// rather than already in its box.
+    fn drove_in(prev: Option<f32>, pct: f32, on_road: bool, surface: i32) -> bool {
+        let Some(prev) = prev else { return false };
+        let step = (pct - prev).abs();
+        // Across the line, 0.99 to 0.01 is a small step.
+        let step = step.min(1.0 - step);
+        step <= MAX_ENTRY_STEP && on_road && surface != track_surface::IN_PIT_STALL
+    }
+
     fn finish(&mut self, car: i32, class: i32, l: InLane, t: f64, pct1: f32) {
         let lane = t - l.t0;
         // Drive-throughs, very long stops and silly values aren't typical stops.
@@ -208,7 +232,7 @@ impl PitLossTracker {
     }
 
     /// Average loss per class, for classes with at least `MIN_STOPS` stops.
-    /// Stops more than half as long again as the median are left out.
+    /// Stops more than half as long again as the median, or less than half of it, are left out.
     pub fn payload(&self) -> Vec<PitLoss> {
         let mut classes: Vec<i32> = self.stops.iter().map(|s| s.class_id).collect();
         classes.sort();
@@ -222,7 +246,7 @@ impl PitLossTracker {
                 }
                 v.sort_by(|a, b| a.loss_s.total_cmp(&b.loss_s));
                 let median = v[v.len() / 2].loss_s;
-                let kept: Vec<&&TimedStop> = v.iter().filter(|s| s.loss_s <= median * 1.5).collect();
+                let kept: Vec<&&TimedStop> = v.iter().filter(|s| (median * 0.5..=median * 1.5).contains(&s.loss_s)).collect();
                 if kept.len() < MIN_STOPS {
                     return None;
                 }
@@ -278,24 +302,108 @@ mod tests {
         }
     }
 
+    /// One lap by `car` at racing speed, to learn the class's pace.
+    /// Every other car is out of the world.
+    fn learn_lap(t: &mut PitLossTracker, f: &mut RawFrame, clock: &mut f64, car: usize) {
+        for k in 0..2000 {
+            let pct = k as f32 / 2000.0;
+            for i in 0..2 {
+                f.car_lap_dist_pct[i] = if i == car { pct } else { -1.0 };
+                f.car_est_time[i] = if i == car { pct * 100.0 } else { 0.0 };
+                f.car_on_pit_road[i] = false;
+                f.car_track_surface[i] = if i == car { track_surface::ON_TRACK } else { track_surface::NOT_IN_WORLD };
+            }
+            f.session_time = *clock;
+            t.update(f, |_| Some(1));
+            *clock += 0.05;
+        }
+    }
+
+    /// Car 0 sits in its box for 10 s, then drives slowly out of the lane to 5%.
+    fn stall_then_exit(t: &mut PitLossTracker, f: &mut RawFrame, clock: &mut f64) {
+        for _ in 0..200 {
+            f.car_lap_dist_pct[0] = 0.001;
+            f.car_est_time[0] = 0.1;
+            f.car_on_pit_road[0] = true;
+            f.car_track_surface[0] = track_surface::IN_PIT_STALL;
+            f.session_time = *clock;
+            t.update(f, |_| Some(1));
+            *clock += 0.05;
+        }
+        let mut pct = 0.001f32;
+        while pct < 0.05 {
+            f.car_lap_dist_pct[0] = pct;
+            f.car_est_time[0] = pct * 100.0;
+            f.car_on_pit_road[0] = pct < 0.03;
+            f.car_track_surface[0] = track_surface::ON_TRACK;
+            f.session_time = *clock;
+            t.update(f, |_| Some(1));
+            *clock += 0.05;
+            pct += 0.01 / 3.0 * 0.05;
+        }
+    }
+
+    #[test]
+    fn a_tow_to_the_box_is_not_a_stop() {
+        let mut t = PitLossTracker::default();
+        let mut f = RawFrame::with_capacity();
+        f.session_num = 1;
+        let mut clock = 0.0;
+        learn_lap(&mut t, &mut f, &mut clock, 0);
+        for _ in 0..100 {
+            f.car_lap_dist_pct[0] = -1.0;
+            f.car_on_pit_road[0] = false;
+            f.car_track_surface[0] = track_surface::NOT_IN_WORLD;
+            f.session_time = clock;
+            t.update(&f, |_| Some(1));
+            clock += 0.05;
+        }
+        stall_then_exit(&mut t, &mut f, &mut clock);
+        assert!(t.stops().is_empty(), "{:?}", t.stops());
+    }
+
+    #[test]
+    fn a_reset_to_the_box_is_not_a_stop() {
+        let mut t = PitLossTracker::default();
+        let mut f = RawFrame::with_capacity();
+        f.session_num = 1;
+        let mut clock = 0.0;
+        learn_lap(&mut t, &mut f, &mut clock, 0);
+        f.car_lap_dist_pct[0] = 0.5;
+        f.car_est_time[0] = 50.0;
+        f.car_track_surface[0] = track_surface::ON_TRACK;
+        f.session_time = clock;
+        t.update(&f, |_| Some(1));
+        clock += 0.05;
+        stall_then_exit(&mut t, &mut f, &mut clock);
+        assert!(t.stops().is_empty(), "{:?}", t.stops());
+    }
+
+    #[test]
+    fn a_very_short_stop_is_left_out_of_the_average() {
+        let mut t = PitLossTracker::default();
+        let mut f = RawFrame::with_capacity();
+        f.session_num = 1;
+        let mut clock = 0.0;
+        learn_lap(&mut t, &mut f, &mut clock, 1);
+        // 36, 38 and 40 s, then one of about 17 s.
+        for stall in [20.0, 22.0, 24.0, 1.0] {
+            run(&mut t, &mut f, &mut clock, stall);
+        }
+        assert_eq!(t.stops().len(), 4, "{:?}", t.stops());
+        let p = t.payload();
+        assert_eq!(p.len(), 1);
+        assert_eq!(p[0].stops, 3, "{p:?} {:?}", t.stops());
+        assert!((p[0].loss_s - 38.0).abs() < 1.0, "{p:?} {:?}", t.stops());
+    }
+
     #[test]
     fn learns_the_loss_and_waits_for_enough_stops() {
         let mut t = PitLossTracker::default();
         let mut f = RawFrame::with_capacity();
         f.session_num = 1;
         let mut clock = 0.0;
-        // A lap to learn the class's pace first.
-        for k in 0..2000 {
-            let pct = k as f32 / 2000.0;
-            f.car_lap_dist_pct[1] = pct;
-            f.car_est_time[1] = pct * 100.0;
-            f.car_track_surface[1] = track_surface::ON_TRACK;
-            f.car_lap_dist_pct[0] = -1.0;
-            f.car_track_surface[0] = track_surface::NOT_IN_WORLD;
-            f.session_time = clock;
-            t.update(&f, |_| Some(1));
-            clock += 0.05;
-        }
+        learn_lap(&mut t, &mut f, &mut clock, 1);
         run(&mut t, &mut f, &mut clock, 20.0);
         assert_eq!(t.stops().len(), 1, "{:?}", t.stops());
         assert!(t.payload().is_empty(), "one stop isn't an average yet");
