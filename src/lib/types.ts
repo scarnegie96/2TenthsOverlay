@@ -516,3 +516,27 @@ export interface Display {
   /** Windows display scaling: 1 = 100%, 1.5 = 150%. */
   scale: number;
 }
+
+/** A newer version of Tenths (src-tauri/src/updates.rs). */
+export interface UpdateInfo {
+  version: string;
+  /** Release notes. */
+  notes: string | null;
+  /** Seconds since 1970. */
+  published: number | null;
+}
+
+export interface UpdateStatus {
+  /** This version. */
+  current: string;
+  available: UpdateInfo | null;
+  /** Seconds since 1970 of the last check that worked. */
+  lastChecked: number | null;
+  /** False in builds made without an update key. */
+  enabled: boolean;
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
+}

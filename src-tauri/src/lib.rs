@@ -5,6 +5,7 @@ mod controllers;
 mod controls;
 mod displays;
 mod profiles;
+mod updates;
 
 use std::fs;
 use std::path::PathBuf;
@@ -305,6 +306,31 @@ fn open_settings(app: AppHandle) {
 }
 
 // ---------------------------------------------------------------------------
+// Updates (updates.rs)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn update_status(app: AppHandle) -> updates::UpdateStatus {
+    updates::status(&app)
+}
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<Option<updates::UpdateInfo>, String> {
+    updates::check(&app).await
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    updates::install(&app).await
+}
+
+/// The tray's update item: opens Settings on the About page.
+fn show_updates(app: &AppHandle) {
+    show_settings(app);
+    let _ = app.emit_to(SETTINGS, "show-updates", ());
+}
+
+// ---------------------------------------------------------------------------
 // Pit service
 // ---------------------------------------------------------------------------
 
@@ -387,8 +413,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let hide = MenuItem::with_id(app, "toggle", "Show / hide overlays", true, None::<&str>)?;
     let next = MenuItem::with_id(app, "next-layout", "Next layout", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
+    // Relabelled "Update to 0.x.y…" when a check finds one (updates.rs).
+    let update = MenuItem::with_id(app, "update", "Check for updates", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Tenths", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &edit, &hide, &next, &sep, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &edit, &hide, &next, &sep, &update, &quit])?;
+    app.state::<updates::Updates>().set_tray_item(update.clone());
     app.state::<controls::Controls>().set_tray(vec![
         ("overlay.edit", edit.clone(), "Edit layout"),
         ("overlay.toggle", hide.clone(), "Show / hide overlays"),
@@ -404,6 +433,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "edit" => toggle_edit(app),
             "toggle" => toggle_visible(app),
             "next-layout" => switch_layout(app, Some(1), None),
+            "update" => show_updates(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -441,6 +471,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             // Shortcuts are registered from the bindings the overlay sends (controls.rs).
             tauri_plugin_global_shortcut::Builder::new()
@@ -453,6 +484,7 @@ pub fn run() {
         )
         .manage(controls::Controls::default())
         .manage(Displays::default())
+        .manage(updates::Updates::default())
         .manage(AppState {
             control: control.clone(),
             edit_mode: AtomicBool::new(false),
@@ -486,6 +518,9 @@ pub fn run() {
             delete_profile,
             export_profile,
             import_profile,
+            update_status,
+            check_update,
+            install_update,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -494,6 +529,7 @@ pub fn run() {
             displays::sync(&handle);
             displays::watch(handle.clone());
             build_tray(&handle)?;
+            updates::watch(handle.clone());
             let buttons = handle.clone();
             controllers::spawn(move |press| controls::on_button(&buttons, press));
             if let Some(reference) = load_saved_reference(&handle) {

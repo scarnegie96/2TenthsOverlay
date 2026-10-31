@@ -4,7 +4,7 @@
 //    so the UI can be worked on without Windows or iRacing.
 
 import type { ActionId, ControlBinding } from "./controls";
-import type { Controller, Display, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot } from "./types";
+import type { Controller, Display, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot, UpdateInfo, UpdateStatus } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -69,6 +69,13 @@ export const api = {
   inspectLapFile: (path: string) => call<IbtSummary>("inspect_lap_file", { path }),
   loadReference: (path: string, lap: number) => call<void>("load_reference", { path, lap }),
   clearReference: () => call<void>("clear_reference"),
+
+  /** This version, and any newer one the last check found. */
+  updateStatus: () => call<UpdateStatus>("update_status"),
+  /** Asks GitHub for the newest release. Rejects with a readable message. */
+  checkUpdate: () => call<UpdateInfo | null>("check_update"),
+  /** Downloads, verifies and installs it; Tenths closes and reopens. Progress comes as "update-progress". */
+  installUpdate: () => call<void>("install_update"),
 
   listProfiles: () => call<ProfileSummary[]>("list_profiles"),
   getProfile: (id: string) => call<Profile>("get_profile", { id }),

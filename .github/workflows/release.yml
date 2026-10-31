@@ -1,0 +1,86 @@
+# Builds the Windows installer and publishes a GitHub release when a version
+# tag (v0.4.2) is pushed. The release carries the installer, its signature and
+# latest.json, which the app's updater reads (src-tauri/src/updates.rs).
+#
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           the private key from `npx tauri signer generate`
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+# and the matching public key in src-tauri/tauri.conf.json (plugins.updater.pubkey).
+#
+# The tag's message becomes the release notes shown in the app:
+#   git tag -a v0.4.2 -m "- What changed" && git push origin v0.4.2
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag, version and update key
+        id: meta
+        shell: bash
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::Tag $tag doesn't match the app version $version in src-tauri/tauri.conf.json"
+            exit 1
+          fi
+          pubkey=$(node -p "require('./src-tauri/tauri.conf.json').plugins.updater.pubkey")
+          if [ -z "$pubkey" ]; then
+            echo "::error::No updater public key in src-tauri/tauri.conf.json (plugins.updater.pubkey)"
+            exit 1
+          fi
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret isn't set"
+            exit 1
+          fi
+          git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+          notes=$(git tag -l --format='%(contents)' "$tag")
+          [ -z "$notes" ] && notes="Tenths $tag"
+          {
+            echo "notes<<TENTHS_NOTES_END"
+            echo "$notes"
+            echo "TENTHS_NOTES_END"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - run: npm ci
+
+      - name: Build, sign and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Tenths ${{ github.ref_name }}
+          releaseBody: ${{ steps.meta.outputs.notes }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --config src-tauri/tauri.release.conf.json

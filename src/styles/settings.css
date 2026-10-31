@@ -567,3 +567,48 @@ kbd {
 .bind:not(.is-waiting) .bind-main:hover {
   color: var(--ink);
 }
+
+/* ---------- About and updates ------------------------------------------------- */
+
+.dot.is-update {
+  margin-left: auto;
+  background: var(--attention);
+  border-color: var(--attention);
+}
+.version {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.release-notes {
+  max-width: 70ch;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-radius: 5px;
+  background: var(--panel-raised);
+  font: inherit;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+.update-progress {
+  position: relative;
+  max-width: 420px;
+  height: 22px;
+  margin-top: 10px;
+  border-radius: 4px;
+  background: var(--panel-raised);
+  overflow: hidden;
+  font-size: 12px;
+}
+.update-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--gain);
+  opacity: 0.35;
+  transition: width 0.15s;
+}
+.update-progress span {
+  position: relative;
+  display: block;
+  padding: 3px 8px;
+  font-variant-numeric: tabular-nums;
+}

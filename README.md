@@ -532,8 +532,8 @@ One-time setup:
 Then:
 
 ```powershell
-git clone https://github.com/scarnegie96/Tenths---iRacing-Overlay.git
-cd Tenths---iRacing-Overlay
+git clone https://github.com/scarnegie96/Tenths-iRacing-Overlay.git
+cd Tenths-iRacing-Overlay
 npm install
 npm run tauri dev      # run with hot reload
 npm run tauri build    # installer in target\release\bundle\nsis\
@@ -547,19 +547,61 @@ started from `target\release\tenths.exe` is still open, Windows locks the file
 and the build stops with "Access is denied". Running the installer instead
 puts Tenths in its own folder, so it can stay open while you build.
 
+### Updates
+
+Tenths checks GitHub for a new release a little after it starts, then every six
+hours. When there is one, **Settings → About** shows the version and its notes
+(the tray's **Check for updates** item becomes **Update to …**). Nothing
+installs until you click **Update to …**: Tenths downloads the installer,
+checks its signature, closes for a few seconds while it installs, then opens
+again. Your settings, layouts and lap history stay where they are. Automatic
+checks can be switched off on the same page.
+
+Only installers signed with the project's private key are accepted, so an
+update can't be swapped for something else on the way. Copies built on your
+own PC still check and install releases the same way.
+
 ### Making a release
+
+Releases are built on GitHub (`.github/workflows/release.yml`), so nothing needs
+building locally.
 
 1. Set the same version in `package.json`, `src-tauri/Cargo.toml` and
    `src-tauri/tauri.conf.json`, and commit it.
-2. Build the installer with `npm run tauri build`.
-3. Tag the commit (`git tag v<version>`, for example `v0.3.0`) and push the
-   tag (`git push origin v<version>`).
-4. On GitHub, draft a release from the tag and attach
-   `target\release\bundle\nsis\Tenths_<version>_x64-setup.exe`.
+2. Tag the commit with the release notes as the tag's message, and push the tag:
+   ```powershell
+   git tag -a v0.4.2 -m "- What changed`n- Another change"
+   git push origin v0.4.2
+   ```
+3. GitHub Actions builds the installer on Windows, signs it for the updater and
+   publishes the release with `Tenths_<version>_x64-setup.exe`, its `.sig` and
+   `latest.json`. Running copies of Tenths see it at their next check.
 
-The installer is attached to the release, not committed to the repo. It isn't
-code-signed, so Windows SmartScreen asks people to click **More info → Run
-anyway** the first time.
+The build stops early if the tag doesn't match the app version, or if the
+update key below isn't set up.
+
+**One-time update key setup.** The updater needs a key pair. Make it on your
+PC (keep the private key and its password safe and out of the repo; if they're
+lost, existing installs can't take updates signed with a new key):
+
+```powershell
+npx tauri signer generate -w "$env:USERPROFILE\.tauri\tenths.key"
+```
+
+Then:
+
+1. Put the **public** key (the contents of `tenths.key.pub`) in
+   `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`, and commit it.
+2. In the GitHub repo, **Settings → Secrets and variables → Actions**, add
+   `TAURI_SIGNING_PRIVATE_KEY` (the contents of `tenths.key`) and
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+To build a signed release locally instead, set those two as environment
+variables and run `npm run tauri build -- --config src-tauri/tauri.release.conf.json`.
+
+The installer isn't code-signed for Windows (that's a separate, paid
+certificate), so SmartScreen asks people to click **More info → Run anyway**
+the first time they install by hand.
 
 ## Using it
 
@@ -641,11 +683,13 @@ URL parameters help too:
 | `?flag=16384`   | Starts with a flag out (iRacing's flag bits; 16384 is a caution) |
 | `?theme=light`  | Shows the light theme (`?theme=f1` for Box Box) |
 | `?shot=delta`   | Draws one widget on its own, for screenshots |
-| `?pane=controls` | Opens the settings window on a page (`general`, `layouts`, `appearance`, `controls` or a widget's id) |
+| `?pane=controls` | Opens the settings window on a page (`general`, `layouts`, `appearance`, `controls`, `about` or a widget's id) |
 | `?sample`       | Fills the settings window with a few saved layouts, for screenshots |
 | `?all`          | Turns every widget on, laid out for a 2560×1440 window (the overview screenshots) |
 | `?pits`         | Keeps one GT3 car in the pit lane, so the pit symbol shows |
 | `?displays=2`   | Adds a second display; `&display=2` makes the tab that display's overlay |
+| `?update`      | Settings → About: **Check now** finds a pretend newer version, and installing it shows the progress |
+| `?corrupt`     | Settings shows the notice for a settings file that couldn't be read |
 
 To regenerate the README screenshots, keep `npm run dev` running and run
 `node scripts/screenshots.mjs`. It uses Edge or Chrome, headless.
@@ -693,6 +737,7 @@ src-tauri/            Windows, tray, hotkeys, click-through, config file
   controls.rs         Which key or controller button runs which action
   controllers.rs      Wheel, button box and gamepad buttons, read with Raw Input
   profiles.rs         Saved layouts: list, save, import and export
+  updates.rs          Checking for and installing new versions (updater plugin)
 src/
   lib/                Types, config schema, themes, delta and race histories, weather and pit maths,
                       bridge to Rust (or browser mock)

@@ -268,6 +268,22 @@ fuel amount of 0 keeps the amount already set.
   `HidD_GetProductString`. `cargo test -p tenths list_controllers -- --ignored
   --nocapture` prints what's plugged in.
 
+- **Updates** (`updates.rs`, `.github/workflows/release.yml`): the
+  `tauri-plugin-updater` reads `latest.json` from the newest GitHub release
+  (`plugins.updater.endpoints`) and only installs a download whose minisign
+  signature matches `plugins.updater.pubkey`. Rust owns the whole flow so the
+  tray and every window agree: a thread checks 20 s after start and every 6
+  h (if `general.checkUpdates`, read from config.json), keeps the found
+  `Update`, emits `update-status` and relabels the tray item. Settings → About
+  calls `check_update` / `install_update`; the download reports
+  `update-progress`, and on Windows the NSIS installer (passive mode) closes
+  Tenths and reopens it. An empty `pubkey` (before the key is set up) turns
+  updates off. Releases come from pushing a `v*` tag: the workflow checks the
+  tag matches the app version and the key is set, then `tauri-action` builds
+  with `tauri.release.conf.json` (`createUpdaterArtifacts`), signs with the
+  `TAURI_SIGNING_PRIVATE_KEY` secret and publishes the installer, `.sig` and
+  `latest.json`, using the tag message as release notes.
+
 ## Front end (`src`)
 
 - `lib/bridge.ts` calls Tauri when present and `lib/mock.ts` in a plain browser.

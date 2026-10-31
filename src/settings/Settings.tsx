@@ -12,15 +12,21 @@ import { displayName, widgetDisplay } from "../lib/displays";
 import { lapTime } from "../lib/format";
 import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import { COLOR_GROUPS, THEMES, THEME_COLORS, effectiveColor, type ColorKey } from "../lib/theme";
-import type { ButtonPress, Controller, IbtSummary } from "../lib/types";
+import type { ButtonPress, Controller, IbtSummary, UpdateProgress, UpdateStatus } from "../lib/types";
 
-type Pane = "general" | "layouts" | "appearance" | "controls" | WidgetId;
+type Pane = "general" | "layouts" | "appearance" | "controls" | "about" | WidgetId;
 
 export function Settings() {
   // Browser preview: ?pane=controls opens a page directly, for README screenshots.
   const [pane, setPane] = useState<Pane>(() => (!isTauri && (new URLSearchParams(location.search).get("pane") as Pane)) || "general");
   const config = useLive((s) => s.config);
   const loaded = useLive((s) => s.configLoaded);
+  const updates = useUpdateStatus();
+  // The tray's update item opens this page.
+  useEffect(() => {
+    const off = on<null>("show-updates", () => setPane("about"));
+    return () => void off.then((f) => f());
+  }, []);
   if (!loaded) return null;
 
   return (
@@ -39,6 +45,10 @@ export function Settings() {
         <NavItem active={pane === "controls"} onClick={() => setPane("controls")}>
           Controls
         </NavItem>
+        <NavItem active={pane === "about"} onClick={() => setPane("about")}>
+          About
+          {updates?.available && <span className="dot is-update" aria-label="update available" />}
+        </NavItem>
         <div className="nav-heading">Widgets</div>
         {WIDGETS.map((w) => (
           <NavItem key={w.id} active={pane === w.id} onClick={() => setPane(w.id)}>
@@ -53,6 +63,7 @@ export function Settings() {
           : pane === "layouts" ? <LayoutsPane />
           : pane === "appearance" ? <AppearancePane />
           : pane === "controls" ? <ControlsPane />
+          : pane === "about" ? <AboutPane status={updates} />
           : <WidgetPane id={pane} />}
       </main>
     </div>
@@ -203,6 +214,124 @@ function GeneralPane({ onControls }: { onControls: () => void }) {
         </Field>
       </Section>
       {!isTauri && <p className="note">Browser preview: settings are saved in this browser only.</p>}
+    </>
+  );
+}
+
+/** This version and any newer one; follows the background checks. */
+function useUpdateStatus() {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  useEffect(() => {
+    void api.updateStatus().then(setStatus).catch(() => {});
+    const off = on<UpdateStatus>("update-status", setStatus);
+    return () => void off.then((f) => f());
+  }, []);
+  return status;
+}
+
+const MB = 1024 * 1024;
+
+function AboutPane({ status }: { status: UpdateStatus | null }) {
+  const auto = useLive((s) => s.config.general.checkUpdates);
+  const connected = useLive((s) => s.status?.connected && s.status.source === "iracing");
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<UpdateProgress | null>(null);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    const off = on<UpdateProgress>("update-progress", setProgress);
+    return () => void off.then((f) => f());
+  }, []);
+
+  const check = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      await api.checkUpdate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChecking(false);
+    }
+  };
+  const install = async () => {
+    setInstalling(true);
+    setError(null);
+    setProgress(null);
+    try {
+      await api.installUpdate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setInstalling(false);
+    }
+  };
+
+  const update = status?.available ?? null;
+  const pct = progress?.total ? Math.min(100, (progress.downloaded / progress.total) * 100) : null;
+  const checked = status?.lastChecked ? new Date(status.lastChecked * 1000) : null;
+
+  return (
+    <>
+      <h1>About</h1>
+      <Section title="Tenths">
+        <Field label="Version">
+          <span className="version">{status?.current ?? "…"}</span>
+        </Field>
+        <Field
+          label="Updates"
+          help={
+            !status?.enabled && status
+              ? "This copy was built without updates. Install Tenths from its GitHub releases page to get them."
+              : checking
+                ? "Checking…"
+                : update
+                  ? `Version ${update.version} is available.`
+                  : checked
+                    ? `You're up to date. Last checked ${checked.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.`
+                    : "Not checked yet."
+          }
+        >
+          <button className="btn" disabled={checking || installing || !status?.enabled} onClick={() => void check()}>
+            Check now
+          </button>
+        </Field>
+        <Field label="Check automatically" help="A little after Tenths starts, then every six hours. Nothing installs until you say so.">
+          <Toggle checked={auto} onChange={(checkUpdates) => setGeneral({ checkUpdates })} />
+        </Field>
+        {error && <p className="notice" role="alert"><span>{error}</span></p>}
+      </Section>
+
+      {update && (
+        <Section title={`Version ${update.version}`}>
+          {update.published && (
+            <p className="note">Released {new Date(update.published * 1000).toLocaleDateString([], { dateStyle: "long" })}</p>
+          )}
+          {update.notes && <pre className="release-notes">{update.notes}</pre>}
+          <Field
+            label="Install the update"
+            help={
+              connected
+                ? "Tenths closes for a few seconds while it installs, then opens again. Your iRacing session carries on, but the overlays go while it updates, so maybe not mid-race."
+                : "Tenths closes for a few seconds while it installs, then opens again."
+            }
+          >
+            <button className="btn btn-primary" disabled={installing} onClick={() => void install()}>
+              {installing ? "Installing…" : `Update to ${update.version}`}
+            </button>
+          </Field>
+          {installing && (
+            <div className="update-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
+              <div className="update-progress-bar" style={{ width: `${pct ?? 0}%` }} />
+              <span>
+                {progress
+                  ? `${(progress.downloaded / MB).toFixed(1)}${progress.total ? ` of ${(progress.total / MB).toFixed(1)}` : ""} MB`
+                  : "Starting the download…"}
+              </span>
+            </div>
+          )}
+        </Section>
+      )}
     </>
   );
 }
@@ -685,7 +814,7 @@ function ReferenceSection() {
     try {
       await work();
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

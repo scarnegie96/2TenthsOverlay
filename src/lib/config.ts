@@ -44,6 +44,8 @@ export interface GeneralConfig {
   activeProfile: string | null;
   /** The key and controller button for each action. */
   controls: Record<ActionId, ControlBinding>;
+  /** Look for a new version of Tenths after starting and every few hours. */
+  checkUpdates: boolean;
 }
 
 export interface AppConfig {
@@ -404,7 +406,7 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls() },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls(), checkUpdates: true },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }
@@ -479,6 +481,7 @@ export function normalizeConfig(raw: unknown): AppConfig {
     colors: { ...base.general.colors },
     activeProfile: typeof g.activeProfile === "string" ? g.activeProfile : base.general.activeProfile,
     controls: { ...base.general.controls },
+    checkUpdates: typeof g.checkUpdates === "boolean" ? g.checkUpdates : base.general.checkUpdates,
   };
   if (isObject(g.colors)) {
     for (const t of THEME_IDS) {

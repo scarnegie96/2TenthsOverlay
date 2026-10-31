@@ -6,7 +6,7 @@
 
 import type {
   CarStatus, CarStints, CoachPayload, Display, Stint, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
-  StatusPayload, TickPayload, TiresPayload,
+  StatusPayload, TickPayload, TiresPayload, UpdateInfo,
 } from "./types";
 
 type Handler = (payload: unknown) => void;
@@ -161,6 +161,9 @@ class Mock {
     this.channel.postMessage({ event, payload });
   }
 
+  private update: UpdateInfo | null = null;
+  private updateChecked: number | null = null;
+
   async call(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
     switch (cmd) {
       case "load_config": {
@@ -275,6 +278,27 @@ class Mock {
         return;
       case "list_controllers":
         return [];
+      // ?update pretends a newer version is out.
+      case "update_status":
+        return { current: "0.4.1", available: this.update, lastChecked: this.updateChecked, enabled: true };
+      case "check_update": {
+        await new Promise((r) => setTimeout(r, 700));
+        this.updateChecked = Math.floor(Date.now() / 1000);
+        this.update = new URLSearchParams(location.search).has("update") ? PREVIEW_UPDATE : null;
+        this.dispatch("update-status", await this.call("update_status"));
+        return this.update;
+      }
+      case "install_update": {
+        if (!this.update) throw new Error("There's no update to install. Check again first.");
+        const total = 9_400_000;
+        for (let d = 0; d <= total; d += 470_000) {
+          this.dispatch("update-progress", { downloaded: d, total });
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        // The real app closes and the installer reopens it.
+        location.reload();
+        return;
+      }
       case "get_displays":
         return previewDisplays();
       case "my_display": {
@@ -865,3 +889,10 @@ function inPitWindow(i: number, progress: number): boolean {
   const pct = progress - lap;
   return (pct > 0.965 && lap > 0 && (lap + 1) % every === 0) || (pct < 0.03 && lap > 0 && lap % every === 0);
 }
+
+/** The pretend newer version for `?update`. */
+const PREVIEW_UPDATE: UpdateInfo = {
+  version: "0.5.0",
+  notes: "- Track map widget\n- Fuel to finish confirmed for timed races\n- Fixes for identical button boxes",
+  published: Math.floor(Date.now() / 1000) - 2 * 86400,
+};
