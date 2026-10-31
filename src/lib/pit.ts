@@ -136,14 +136,11 @@ const PREVIEW_KEYS: Record<string, PitAction> = {
 };
 
 /**
- * Mounted once in the overlay. While the Pit stop widget is on and you're in
- * the car, takes the pit hotkeys and runs them; and, if asked, sets the fuel
- * as you enter the pit lane.
- */
-/**
- * Pit hotkeys and auto fuel. Pass `owner` false in all but one window: with
- * an overlay on every display, only the primary display's sends commands, so
- * nothing is sent twice.
+ * Pit hotkeys and auto fuel, mounted in the overlay. While the Pit stop
+ * widget is on and you're in the car, takes the pit hotkeys and runs them;
+ * and, if asked, sets the fuel as you enter the pit lane. Pass `owner` false
+ * in all but one window: with an overlay on every display, only the primary
+ * display's sends commands, so nothing is sent twice.
  */
 export function usePitControl(owner = true) {
   const enabled = useLive((s) => s.config.widgets.pitstop.enabled);
