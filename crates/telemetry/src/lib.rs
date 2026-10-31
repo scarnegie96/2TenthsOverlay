@@ -27,6 +27,7 @@ pub mod pit;
 pub mod reference;
 pub mod runner;
 pub mod session;
+pub mod shm;
 pub mod stints;
 pub mod vars;
 
