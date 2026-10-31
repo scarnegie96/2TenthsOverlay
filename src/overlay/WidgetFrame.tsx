@@ -49,13 +49,18 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
   const [natural, setNatural] = useState<Size | null>(null);
   // While dragging we render from local state and only save on release.
   const [live, setLive] = useState<{ x: number; y: number; scale: number } | null>(null);
-  // While dragging past the edge onto another display: its number, for the hint.
+  // While dragging past this window's edge: the number of the display under
+  // the pointer, for the hint, or 0 when it's past the edge but over no display.
   const [leaving, setLeaving] = useState<number | null>(null);
   // The same as `live`, for the pointer poll, which outlives a render.
   const liveRef = useRef(live);
   liveRef.current = live;
   // Set while the pointer poll runs (see startPointerPoll).
   const polling = useRef(false);
+  // When the DOM last reported a move, so the poll only steps in when it's gone quiet.
+  const lastDomMove = useRef(0);
+  // A pointerup the poll was left to handle, in case the poll can't carry on.
+  const pendingUp = useRef<{ clientX: number; clientY: number } | null>(null);
   useEffect(() => () => void (polling.current = false), []);
 
   const scale = live?.scale ?? config.scale;
@@ -103,31 +108,47 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
   };
 
   /**
-   * The web view stops getting pointer events once the mouse leaves its
-   * window, so a drag onto another display can't be followed from the DOM.
-   * While moving a widget with more than one display, ask the app where the
-   * mouse is and whether the button is still held, and finish the drag from
-   * that when it's let go. Inside the window the DOM events do the work.
+   * WebView2 stops sending pointer events once the mouse leaves its window
+   * (and may end the drag there with a pointerup or a cancel), so a drag onto
+   * another display can't be followed from the DOM. While moving a widget
+   * with more than one display, ask the app where the mouse is on the desktop
+   * and whether the button is still held. That drives the hint outside the
+   * window, keeps the widget following if the DOM goes quiet, and finishes
+   * the drag when the button actually comes up, wherever the mouse is.
    */
   const startPointerPoll = () => {
     if (!isTauri || !display || displays.length < 2 || polling.current) return;
     polling.current = true;
+    pendingUp.current = null;
     const from = display;
+    const stop = () => {
+      polling.current = false;
+      // The DOM's pointerup was left to the poll: use it after all.
+      const up = pendingUp.current;
+      pendingUp.current = null;
+      if (up && drag.current) finish(up);
+    };
     const tick = async () => {
-      if (!polling.current || !drag.current) return void (polling.current = false);
+      if (!polling.current || !drag.current) return stop();
       const p = await api.pointer().catch(() => null);
-      if (!polling.current || !drag.current) return void (polling.current = false);
-      if (!p) return void (polling.current = false); // can't tell here: DOM events only
+      if (!polling.current || !drag.current) return stop();
+      if (!p) return stop(); // can't tell here: DOM events only
       const at = { clientX: (p.x - from.x) / from.scale, clientY: (p.y - from.y) / from.scale };
+      const d = drag.current;
       if (!p.down) {
         // Let go: wherever it is, inside this window or over another display.
-        if (drag.current.mode === "move") drag.current.moved = true;
+        if (d.mode === "move" && (d.moved || !inWindow(at))) d.moved = true;
+        pendingUp.current = null;
         finish(at);
         return;
       }
-      if (!inWindow(at)) {
-        if (drag.current.mode === "move") drag.current.moved = true;
-        setLeaving(crossing(at)?.display.number ?? null);
+      if (d.mode === "move") {
+        if (!inWindow(at)) {
+          d.moved = true;
+          setLeaving(crossing(at)?.display.number ?? 0);
+        } else if (performance.now() - lastDomMove.current > 80) {
+          moveTo(at);
+        }
       }
       window.setTimeout(() => void tick(), POINTER_POLL_MS);
     };
@@ -137,15 +158,23 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
   const inWindow = (e: { clientX: number; clientY: number }) =>
     e.clientX >= 0 && e.clientY >= 0 && e.clientX < screen.w && e.clientY < screen.h;
 
+  /** Moves the widget with the pointer (in this window's CSS px). */
+  const moveTo = (e: { clientX: number; clientY: number }) => {
+    const d = drag.current;
+    if (!d || d.mode !== "move") return;
+    d.moved = true;
+    const s = snap({ x: d.x + e.clientX - d.px, y: d.y + e.clientY - d.py, w: size.w, h: size.h }, others(), screen);
+    setLive({ x: s.x, y: s.y, scale });
+    onGuides(s.guides);
+    setLeaving(inWindow(e) ? null : crossing(e)?.display.number ?? 0);
+  };
+
   const move = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     if (!d) return;
+    lastDomMove.current = performance.now();
     if (d.mode === "move") {
-      d.moved = true;
-      const s = snap({ x: d.x + e.clientX - d.px, y: d.y + e.clientY - d.py, w: size.w, h: size.h }, others(), screen);
-      setLive({ x: s.x, y: s.y, scale });
-      onGuides(s.guides);
-      setLeaving(crossing(e)?.display.number ?? null);
+      moveTo(e);
     } else {
       setLive({ x, y, scale: clampScale(d.scale * ((d.w + e.clientX - d.px) / d.w)) });
     }
@@ -163,16 +192,21 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
     return dropOnto(display, e.clientX, e.clientY, { x: d.px - d.x, y: d.py - d.y }, displays);
   };
 
-  const up = (e: ReactPointerEvent<HTMLDivElement>) => finish(e);
-
-  /** The pointer may leave the window mid-drag; the poll finishes the drag then. */
-  const cancel = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!polling.current) finish(e);
+  /**
+   * While the poll runs it decides when the drag ends, from the real button
+   * state: WebView2 can send a pointerup or a cancel as the mouse leaves the
+   * window, with the button still held.
+   */
+  const up = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (polling.current) pendingUp.current = { clientX: e.clientX, clientY: e.clientY };
+    else finish(e);
   };
+  const cancel = (e: ReactPointerEvent<HTMLDivElement>) => up(e);
 
   /** Ends a drag where the pointer was let go. */
   const finish = (e: { clientX: number; clientY: number }) => {
     polling.current = false;
+    pendingUp.current = null;
     if (!drag.current) return;
     const across = drag.current.mode === "move" && drag.current.moved ? crossing(e) : null;
     drag.current = null;
@@ -253,9 +287,9 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
             </span>
           </div>
           <div className="frame-handle" style={{ transform: `scale(${1 / scale})` }} title="Drag to resize" />
-          {leaving && (
+          {leaving !== null && (
             <div className="frame-leaving" style={{ transform: `translate(-50%, -50%) scale(${1 / scale})` }}>
-              Release to move to display {leaving}
+              {leaving ? `Release to move to display ${leaving}` : "Move onto another display"}
             </div>
           )}
         </>
