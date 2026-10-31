@@ -58,6 +58,7 @@ function shot(url, file, size, wait, scale = 2) {
 
 try {
   mkdirSync(join(OUT, "widgets"), { recursive: true });
+  mkdirSync(join(OUT, "settings"), { recursive: true });
   // The demo races this long before the picture (a lap is about 92 s), so graphs and traces are full.
   const race = "warmup=150";
   const wait = 5000;
@@ -72,8 +73,13 @@ try {
     }
     shot(url, join(OUT, "widgets", `${id}.png`), `${size[1]},${size[2]}`, wait);
   }
+  // The settings window, a page at a time.
+  for (const pane of ["general", "layouts", "appearance", "controls", "pitstop"]) {
+    shot(`${BASE}/settings.html?pane=${pane}&sample`, join(OUT, "settings", `${pane}.png`), "1100,760", wait, 1);
+  }
   shot(`${BASE}/overlay.html?clean&${race}`, join(OUT, "screenshot.png"), "1920,1080", wait, 1);
   shot(`${BASE}/overlay.html?clean&${race}&theme=light`, join(OUT, "screenshot-light.png"), "1920,1080", wait, 1);
+  shot(`${BASE}/overlay.html?clean&${race}&theme=f1`, join(OUT, "screenshot-boxbox.png"), "1920,1080", wait, 1);
 } finally {
   rmSync(profile, { recursive: true, force: true });
 }

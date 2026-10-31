@@ -13,6 +13,13 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 </details>
 
+<details>
+<summary>The same layout in the Box Box theme</summary>
+
+![Tenths overlay in the Box Box theme](docs/screenshot-boxbox.png)
+
+</details>
+
 ## Features
 
 - **15 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
@@ -26,12 +33,13 @@ subscriptions, no third-party services, and every line of it is yours to change.
 - **Edit layout mode**: drag any widget anywhere, resize it, snap it to the
   screen edges and other widgets, and turn widgets on or off from the edit bar.
 - **Saved layouts**: keep as many layouts as you like (sprint, endurance,
-  streaming…), switch with `Ctrl+Shift+L` or `Ctrl+Shift+1`–`9`, and export
-  them as files to back up or share.
+  streaming…), switch with `Ctrl+Shift+L`, `Ctrl+Shift+1`–`9` or a wheel
+  button, and export them as files to back up or share.
 - **Any screen size**: widgets are pinned to the nearest screen edge or the
   centre, so a layout made at 1080p lands in the same places at 1440p or 4K.
-- **Dark and light themes**, and a color picker for every color the overlays
-  use, kept separately for each theme.
+- **Three themes**: dark, light, and Box Box (panels styled like a TV timing
+  tower), with a color picker for every color the overlays use, kept
+  separately for each theme.
 - **Reference laps and coaching**: import iRacing's `.blap`/`.olap` best laps or
   any lap from an `.ibt` telemetry file, then compare against it live with the
   delta graph, ghost inputs and live coaching cues.
@@ -286,31 +294,129 @@ the flag's color says what it means.
 to three letters for the safety car board, how long green shows, and whether
 the empty board stays visible.
 
-## Saved layouts
+## The app
 
-Open **Settings → Layouts** to save what's on screen as a layout, give it a
-name, and switch between layouts. While a layout is active, anything you
-change (moving, resizing, options, showing or hiding widgets) is saved into it.
+Tenths runs in the background with an icon in the system tray. It has two
+windows: the **overlay**, a transparent window over your primary monitor that
+holds the widgets and lets every click through to iRacing, and the **settings**
+window, where everything below is set. Settings apply as soon as you change
+them; there's no Save button.
 
-- **Switch**: `Ctrl+Shift+L` for the next layout, `Ctrl+Shift+1` to `9` for a
-  layout by its number in the list, the picker in the edit bar, or **Switch
-  to** in Settings. The overlay shows the layout's name for a moment.
-- **Rename, duplicate, delete** from the list.
+The **tray icon** opens the settings window with a left click. Its right-click
+menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
+with its current key), and Quit Tenths. Closing the settings window only hides
+it; Tenths keeps running until you quit it from the tray.
+
+Along the top of the settings window are the connection status (Waiting for
+iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
+**Edit layout**. Down the side are the General, Layouts, Appearance and
+Controls pages, then a page for each widget with a dot showing whether it's on.
+
+### General
+
+![Settings: General](docs/settings/general.png)
+
+| Setting | Does |
+| ------- | ---- |
+| **Use the demo race** | A fake 21-car, three-class race instead of iRacing, for setting up layouts without the sim running. |
+| **Units** | Metric (km/h, litres, °C, kPa and bar) or imperial (mph, gallons, °F and psi), for every widget. |
+| **Show overlays** | Whenever iRacing is running, or only while you're in the car. In edit mode they always show. |
+| **Shortcuts** | The keys for editing the layout, showing and hiding the overlays and switching layouts, with a button to change them under Controls. |
+| **Size of every widget** | Sets every widget to 75%, 100%, 125%, 150% or 200% at once. At 1440p, 125% looks about the same as 100% at 1080p. |
+| **Widgets** | An on/off switch for every widget. |
+| **Reset layout** | Puts every widget back to its default size, position and options. Theme, colors, keys and saved layouts are kept. |
+
+### Layouts
+
+![Settings: Layouts](docs/settings/layouts.png)
+
+A layout is every widget's position, size, opacity, on/off state and options,
+saved under a name: one for sprints and one for endurance races, say, or one
+for streaming. The theme, colors, units and keys stay the same across layouts.
+
+- **Save**: give what's on screen a name and **Save layout**. While a layout is
+  on screen (marked **On screen**), anything you change, whether moving,
+  resizing, options or showing and hiding widgets, is saved into it. **Save as
+  new** copies it under another name.
+- **Switch**: **Switch to** on the list, the picker in the edit bar, the next
+  layout key (`Ctrl+Shift+L`), or a layout's own key by its number in the list
+  (`Ctrl+Shift+1` to `9`). Any of these can be wheel buttons too. The overlay
+  shows the layout's name for a moment.
+- **Rename**, **Duplicate** and **Delete** (it asks once more) from the list.
 - **Export** saves a layout as a `.json` file, and **Import** adds one, so
-  layouts can be backed up or shared.
+  layouts can be backed up or shared. Importing never overwrites a layout you
+  already have.
 
-A layout holds every widget's position, size, opacity, on/off state and
-options. The theme, colors and units stay the same across layouts.
+### Appearance
 
-## Appearance
+![Settings: Appearance](docs/settings/appearance.png)
 
-**Settings → Appearance** switches between the dark and light themes and has a
-color picker for each color: text, panels, borders, the timing colors
-(fastest, gaining, losing, warnings, lapped cars) and the pedals. Each theme
-keeps its own colors, and every color has a button to go back to its default.
-Shades such as the reference lap's muted colors are mixed from these, so they
-follow your changes. Class colors come from iRacing, and the flag board uses
-real flag colors.
+Three themes:
+
+- **Dark**: dark see-through panels, the default.
+- **Light**: the same panels in a light shade, which can be easier to read over
+  bright tracks and daytime skies.
+- **Box Box**: dressed up like a TV timing tower, with near-black see-through
+  panels with square corners, Titillium Web type, a broadcast-red line under
+  each heading, positions in white boxes (red outside the top ten, grey in the
+  pits), names in bold capitals and straight class stripes.
+
+Below the theme is a color picker for every color the overlays use: text (main,
+secondary and muted), panels (background, raised surfaces, borders, and the
+steering wheel and car), timing (fastest in class, gaining and personal best,
+losing time, warnings, cars you're lapping and cars lapping you) and the pedals
+(throttle and brake follow gaining and losing until you change them, and the
+clutch). Each theme keeps its own colors, each color has a **Default** button,
+and **Reset colors** puts the whole theme back. Shades such as the reference
+lap's muted colors are mixed from these, so they follow your changes. Class
+colors come from iRacing, and the flag board uses real flag colors. The theme
+and colors apply to the settings window too.
+
+### Controls
+
+![Settings: Controls](docs/settings/controls.png)
+
+Every action has a key and a controller button:
+
+| Group | Actions |
+| ----- | ------- |
+| Overlay | Edit layout, show or hide overlays |
+| Layouts | Next layout, layout 1 to 9 |
+| Pit stop | Fuel, more fuel, less fuel, four tires, fast repair, tear-off, untick everything |
+
+Click a box and press the key, or the button on your wheel, button box or
+gamepad. `Esc` cancels and × clears it. Nothing else fires while it's waiting,
+so you can choose a key that's already in use. It warns when two actions share
+a key or button, when a key has no Ctrl, Alt or Shift (it would stop working in
+other programs while Tenths runs; F13 to F24 are fine, since keyboards don't
+have them), and when a bound controller isn't plugged in. The top of the page
+lists the controllers Tenths can see. **Restore defaults** puts back the
+`Ctrl+Shift` keys and clears every button.
+
+Controller buttons are read with Windows Raw Input, so they work while iRacing
+has the focus, and every button counts, not just the first 32. A hat switch
+(the d-pad on most wheels) works as four buttons. Buttons are remembered by the
+device's hardware id, so they keep working on another USB port. To see which
+controllers Tenths finds, run
+`cargo test -p tenths list_controllers -- --ignored --nocapture`.
+
+### Widget pages
+
+![Settings: Pit stop](docs/settings/pitstop.png)
+
+Each widget has its own page, opening with what it shows:
+
+| Setting | Does |
+| ------- | ---- |
+| **Show this widget** | Turns it on or off. **Hide** on its label in edit mode does the same. |
+| **Size** | 50% to 300%. Dragging its corner in edit mode does the same. |
+| **Opacity** | 20% to 100%, for the whole widget. |
+| **Position** | Which edge of the screen it's pinned to. **Reset position** puts it back where it starts, at 100%. |
+| **Options** | The widget's own options, listed with each widget [above](#widgets). Drop-downs explain the choice that's picked. |
+| **Reset options** | Puts its options back to their defaults. |
+
+The Delta page also has **Reference lap and coaching**, for importing the lap
+the Delta, Coach and Inputs widgets compare you with (see below).
 
 ## Reference laps
 
@@ -380,8 +486,8 @@ puts Tenths in its own folder, so it can stay open while you build.
 1. Set the same version in `package.json`, `src-tauri/Cargo.toml` and
    `src-tauri/tauri.conf.json`, and commit it.
 2. Build the installer with `npm run tauri build`.
-3. Tag the commit (`git tag v0.2.0`) and push the tag
-   (`git push origin v0.2.0`).
+3. Tag the commit (`git tag v<version>`, for example `v0.3.0`) and push the
+   tag (`git push origin v<version>`).
 4. On GitHub, draft a release from the tag and attach
    `target\release\bundle\nsis\Tenths_<version>_x64-setup.exe`.
 
@@ -392,8 +498,9 @@ anyway** the first time.
 ## Using it
 
 The overlay covers your primary monitor and lets every click pass through to
-iRacing. A tray icon opens the settings window, switches layouts and quits the
-app.
+iRacing (see [The app](#the-app) for the tray icon and settings window). These
+are the default keys; change them, or put them on wheel buttons, under
+[Controls](#controls).
 
 | Default key              | Does |
 | ------------------------ | ---- |
@@ -402,21 +509,6 @@ app.
 | `Ctrl + Shift + L`       | Next saved layout |
 | `Ctrl + Shift + 1`…`9`   | Saved layout by its number |
 | `Ctrl + Shift + F` `↑` `↓` `T` `R` `W` `X` | Pit stop: fuel, more, less, tires, fast repair, tear-off, untick everything (see [Pit stop](#pit-stop)) |
-
-### Controls
-
-**Settings → Controls** lists every action with a key and a controller button.
-Click a box and press the key, or the button on your wheel, button box or
-gamepad. `Esc` cancels and × clears it. Nothing else fires while it's waiting,
-so you can choose a key that's already in use. It warns when two actions share
-a key or button, when a key has no Ctrl, Alt or Shift (it would stop working in
-other programs while Tenths runs; F13 to F24 are fine, since keyboards don't
-have them), and when a bound controller isn't plugged in.
-
-Controller buttons are read with Windows Raw Input, so they work while iRacing
-has the focus, and every button counts, not just the first 32. A hat switch
-(the d-pad on most wheels) works as four buttons. Buttons are remembered by the
-device's hardware id, so they keep working on another USB port.
 
 ### Editing the layout
 
@@ -441,7 +533,7 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 
 | File or folder   | Holds |
 | ---------------- | ----- |
-| `config.json`    | Settings, theme, colors and the widgets on screen |
+| `config.json`    | Settings, theme, colors, keys and buttons, and the widgets on screen |
 | `layouts\`       | Saved layouts, one `.json` file each |
 | `laps\`          | Lap history and personal best, one file per car and track |
 | `reference.json` | The imported reference lap |
@@ -459,7 +551,7 @@ npm run dev
 Open `http://localhost:1420/overlay.html` and `http://localhost:1420/settings.html`
 side by side. The two tabs stay in sync. On the overlay, `E` edits the layout,
 `L` switches saved layouts and `F` steps through every flag. With the Pit stop
-widget on, `Shift` + `F`, `T`, `R`, `W` or `X` stand in for its hotkeys. These
+widget on, `Shift` + `F`, `↑`, `↓`, `T`, `R`, `W` or `X` stand in for its keys. These
 URL parameters help too:
 
 | Parameter       | Does |
@@ -468,8 +560,10 @@ URL parameters help too:
 | `?warmup=150`   | Races 150 seconds before the first frame, so graphs and traces are full |
 | `?reference`    | Starts with a reference lap loaded, for the Coach and reference inputs |
 | `?flag=16384`   | Starts with a flag out (iRacing's flag bits; 16384 is a caution) |
-| `?theme=light`  | Shows the light theme |
+| `?theme=light`  | Shows the light theme (`?theme=f1` for Box Box) |
 | `?shot=delta`   | Draws one widget on its own, for screenshots |
+| `?pane=controls` | Opens the settings window on a page (`general`, `layouts`, `appearance`, `controls` or a widget's id) |
+| `?sample`       | Fills the settings window with a few saved layouts, for screenshots |
 
 To regenerate the README screenshots, keep `npm run dev` running and run
 `node scripts/screenshots.mjs`. It uses Edge or Chrome, headless.

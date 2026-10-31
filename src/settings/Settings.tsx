@@ -5,7 +5,7 @@ import {
   type AppConfig, type GeneralConfig, type OptionSpec, type WidgetConfig, type WidgetId,
 } from "../lib/config";
 import {
-  ACTIONS, buttonLabel, defaultControls, keyLabel, sameButton, sameKey,
+  ACTIONS, buttonLabel, defaultControls, fullLabel, keyLabel, sameButton, sameKey,
   type ActionId, type ControlBinding, type KeyBinding,
 } from "../lib/controls";
 import { lapTime } from "../lib/format";
@@ -16,7 +16,8 @@ import type { ButtonPress, Controller, IbtSummary } from "../lib/types";
 type Pane = "general" | "layouts" | "appearance" | "controls" | WidgetId;
 
 export function Settings() {
-  const [pane, setPane] = useState<Pane>("general");
+  // Browser preview: ?pane=controls opens a page directly, for README screenshots.
+  const [pane, setPane] = useState<Pane>(() => (!isTauri && (new URLSearchParams(location.search).get("pane") as Pane)) || "general");
   const config = useLive((s) => s.config);
   const loaded = useLive((s) => s.configLoaded);
   if (!loaded) return null;
@@ -46,7 +47,7 @@ export function Settings() {
         ))}
       </nav>
       <main className="pane">
-        {pane === "general" ? <GeneralPane />
+        {pane === "general" ? <GeneralPane onControls={() => setPane("controls")} />
           : pane === "layouts" ? <LayoutsPane />
           : pane === "appearance" ? <AppearancePane />
           : pane === "controls" ? <ControlsPane />
@@ -105,7 +106,13 @@ function TopBar() {
 const setGeneral = (patch: Partial<GeneralConfig>) =>
   updateConfig((c) => ({ ...c, general: { ...c.general, ...patch } }));
 
-function GeneralPane() {
+/** What runs an action now, as a key cap: its key, or its controller button. */
+function Bound({ id }: { id: ActionId }) {
+  const label = useLive((s) => fullLabel(s.config.general.controls[id]));
+  return label ? <kbd>{label}</kbd> : <span className="muted">None</span>;
+}
+
+function GeneralPane({ onControls }: { onControls: () => void }) {
   const g = useLive((s) => s.config.general);
   return (
     <>
@@ -144,16 +151,21 @@ function GeneralPane() {
 
       <Section title="Shortcuts">
         <Field label="Edit layout">
-          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>E</kbd>
+          <Bound id="overlay.edit" />
         </Field>
         <Field label="Show or hide overlays">
-          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>H</kbd>
+          <Bound id="overlay.toggle" />
         </Field>
         <Field label="Next saved layout">
-          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd>
+          <Bound id="layout.next" />
         </Field>
         <Field label="Saved layout 1 to 9">
-          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>1</kbd>–<kbd>9</kbd>
+          <Bound id="layout.1" /> … <Bound id="layout.9" />
+        </Field>
+        <Field label="Change keys and wheel buttons" help="Every shortcut, the Pit stop keys, and buttons on your wheel or button box.">
+          <button className="btn" onClick={onControls}>
+            Controls
+          </button>
         </Field>
         <p className="note">
           Run iRacing in borderless windowed mode. Overlays can't draw on top of exclusive fullscreen.
@@ -230,8 +242,8 @@ function LayoutsPane() {
       </Section>
       {error && <p className="error">{error}</p>}
       <p className="note">
-        Switch with <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd> for the next layout, or <kbd>Ctrl</kbd> <kbd>Shift</kbd> and
-        the layout's number. Layouts are saved as files in the Tenths settings folder, under <code>layouts</code>.
+        Switch with <Bound id="layout.next" /> for the next layout, or each layout's own key from its number (change them
+        under Controls). Layouts are saved as files in the Tenths settings folder, under <code>layouts</code>.
       </p>
     </>
   );
@@ -241,6 +253,9 @@ function LayoutRow({ id, name, updatedAt, index, active, run }: {
   id: string; name: string; updatedAt: number; index: number; active: boolean; run: (w: () => Promise<unknown>) => Promise<void>;
 }) {
   const widgets = useLive((s) => s.config.widgets);
+  const controls = useLive((s) => s.config.general.controls);
+  const own = index < 9 ? fullLabel(controls[`layout.${index + 1}` as ActionId]) : null;
+  const next = fullLabel(controls["layout.next"]);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const widgetsOf = async () => (active ? widgets : (await api.getProfile(id)).widgets);
@@ -254,7 +269,7 @@ function LayoutRow({ id, name, updatedAt, index, active, run }: {
 
   return (
     <div className={`field layout-row ${active ? "is-active" : ""}`}>
-      <span className="layout-key" title={index < 9 ? `Ctrl+Shift+${index + 1}` : "Use Ctrl+Shift+L to reach it"}>
+      <span className="layout-key" title={own ?? (next ? `Use ${next} to reach it` : "Switch to it here")}>
         {index < 9 ? index + 1 : ""}
       </span>
       <div className="field-text">
@@ -449,6 +464,11 @@ function ControlsPane() {
 
   return (
     <>
+      <h1>Controls</h1>
+      <p className="lede">
+        A key and a controller button for every action. Click a box, then press the key or the button on your wheel. Esc
+        cancels.
+      </p>
       <Section title="Controllers">
         <Field
           label="Wheels and button boxes"

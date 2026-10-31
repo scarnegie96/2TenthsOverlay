@@ -12,6 +12,14 @@ import type {
 type Handler = (payload: unknown) => void;
 
 const CONFIG_KEY = "tenths.config";
+/** ?sample: a few saved layouts, with Sprint on screen, for the README screenshots. */
+const SAMPLE = typeof location !== "undefined" && new URLSearchParams(location.search).has("sample");
+const SAMPLE_LAYOUTS: Record<string, Profile> = Object.fromEntries(
+  [["sprint", "Sprint", 2], ["endurance", "Endurance", 9], ["streaming", "Streaming", 30]].map(([id, name, days]) => [
+    id,
+    { format: "tenths-layout", version: 1, name, updatedAt: Math.floor(Date.now() / 1000) - Number(days) * 86400, widgets: {} },
+  ]),
+) as Record<string, Profile>;
 const LAYOUTS_KEY = "tenths.layouts";
 const TRACK_M = 5100;
 const PLAYER = 6;
@@ -134,6 +142,7 @@ class Mock {
       case "load_config": {
         try {
           const raw = localStorage.getItem(CONFIG_KEY);
+          if (!raw && SAMPLE) return { version: 1, general: { activeProfile: "sprint" }, widgets: {} };
           return raw ? JSON.parse(raw) : null;
         } catch {
           return null;
@@ -262,7 +271,8 @@ class Mock {
 
   private layouts(): Record<string, Profile> {
     try {
-      return JSON.parse(localStorage.getItem(LAYOUTS_KEY) ?? "{}");
+      const saved = localStorage.getItem(LAYOUTS_KEY);
+      return saved ? JSON.parse(saved) : SAMPLE ? SAMPLE_LAYOUTS : {};
     } catch {
       return {};
     }
