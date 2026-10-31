@@ -238,7 +238,9 @@ impl DemoSource {
                     wobble *= 1.0 + 0.012 * (pct * std::f32::consts::TAU * 3.0 + lap * 1.7).sin()
                         + 0.006 * (pct * std::f32::consts::TAU * 7.0 + lap * 0.6).sin();
                 }
-                self.progress[i] += (self.v_at(pct) * self.pace[i] * wobble * dt / TRACK_M) as f64;
+                // Down the pit lane at about a third of the speed, which costs the stop's time.
+                let limiter = if pit_stop(i, self.progress[i]).is_some() { 0.35 } else { 1.0 };
+                self.progress[i] += (self.v_at(pct) * self.pace[i] * wobble * limiter * dt / TRACK_M) as f64;
             }
             if lap_of(self.progress[i]) > before {
                 let lap_time = (self.t - self.lap_start[i]) as f32;
@@ -302,8 +304,9 @@ impl DemoSource {
             f.car_f2_time[i] = ((laps + along) * self.class_est[i]).max(0.0);
             f.car_last_lap[i] = self.last[i];
             f.car_best_lap[i] = self.best[i];
-            f.car_on_pit_road[i] = false;
+            f.car_on_pit_road[i] = pit_stop(i, p).is_some();
             f.car_track_surface[i] = track_surface::ON_TRACK;
+            f.car_tire_compound[i] = compound_after(i, stops_before(i, p));
         }
         f.car_on_pit_road[PIT_CAR] = true;
         f.car_track_surface[PIT_CAR] = track_surface::IN_PIT_STALL;
@@ -523,6 +526,41 @@ DriverInfo:
         }
         y
     }
+}
+
+/// Laps between each demo car's pit stops (none for you, the scripted
+/// battle, the car parked in its box and the retired one).
+fn stint_laps(i: usize) -> Option<i64> {
+    if i == PLAYER || i == PIT_CAR || i == RETIRED || BATTLE.iter().any(|b| b.0 == i) {
+        return None;
+    }
+    Some(3 + (hash(i as u32 + 41) * 4.0) as i64)
+}
+
+/// Which stop a car is making at this race progress, if it's in the pit lane:
+/// the end of every `stint_laps` laps, from just before the line to just after.
+fn pit_stop(i: usize, progress: f64) -> Option<i64> {
+    let every = stint_laps(i)?;
+    let lap = progress.floor() as i64;
+    let pct = progress.fract();
+    if pct > 0.965 && lap > 0 && (lap + 1) % every == 0 {
+        Some((lap + 1) / every)
+    } else if pct < 0.03 && lap > 0 && lap % every == 0 {
+        Some(lap / every)
+    } else {
+        None
+    }
+}
+
+/// Stops finished by this point (a stop ends just after the line).
+fn stops_before(i: usize, progress: f64) -> i64 {
+    let Some(every) = stint_laps(i) else { return 0 };
+    ((progress - 0.03) / every as f64).floor().max(0.0) as i64
+}
+
+/// Some cars come out on wets now and then (index 1 in the demo's tyre list).
+fn compound_after(i: usize, stops: i64) -> i32 {
+    if stops > 0 && hash(i as u32 * 7 + stops as u32) > 0.7 { 1 } else { 0 }
 }
 
 /// Drives the demo for `laps` laps and records the player's car as an .ibt.

@@ -365,6 +365,7 @@ impl Irsdk {
         f.car_class_position.resize(n, 0);
         f.car_on_pit_road.resize(n, false);
         f.car_track_surface.resize(n, -1);
+        f.car_tire_compound.resize(n, -1);
         f.car_est_time.resize(n, 0.0);
         f.car_f2_time.resize(n, 0.0);
         f.car_last_lap.resize(n, -1.0);
@@ -377,6 +378,7 @@ impl Irsdk {
         self.fill("CarIdxClassPosition", &mut f.car_class_position, |v| v as i32);
         self.fill("CarIdxOnPitRoad", &mut f.car_on_pit_road, |v| v != 0.0);
         self.fill("CarIdxTrackSurface", &mut f.car_track_surface, |v| v as i32);
+        self.fill("CarIdxTireCompound", &mut f.car_tire_compound, |v| v as i32);
         self.fill("CarIdxEstTime", &mut f.car_est_time, |v| v as f32);
         self.fill("CarIdxF2Time", &mut f.car_f2_time, |v| v as f32);
         self.fill("CarIdxLastLapTime", &mut f.car_last_lap, |v| v as f32);

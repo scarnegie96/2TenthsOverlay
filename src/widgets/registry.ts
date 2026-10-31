@@ -14,6 +14,7 @@ import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Session } from "./Session";
 import { Standings } from "./Standings";
+import { Stints } from "./Stints";
 import { Tires } from "./Tires";
 import { Weather } from "./Weather";
 
@@ -40,4 +41,5 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   instruments: Instruments,
   weather: Weather,
   racepace: RacePace,
+  stints: Stints,
 };

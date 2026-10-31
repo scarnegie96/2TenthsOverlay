@@ -7,10 +7,10 @@ import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } fr
 import { Empty, Panel } from "./Panel";
 import { sessionAside } from "./Relative";
 
-type Slot = StandingRow | "break";
+export type Slot = StandingRow | "break";
 
 /** The top of a class plus a window around the player when they're further back. */
-function pickRows(rows: StandingRow[], max: number): Slot[] {
+export function pickRows(rows: StandingRow[], max: number): Slot[] {
   if (rows.length <= max) return rows;
   const me = rows.findIndex((r) => r.isPlayer);
   if (me < max) return rows.slice(0, max);
@@ -20,7 +20,7 @@ function pickRows(rows: StandingRow[], max: number): Slot[] {
   return [...rows.slice(0, top), "break", ...rows.slice(start, start + around)];
 }
 
-interface Group {
+export interface Group {
   classId: number;
   name: string;
   color: string;
@@ -28,7 +28,7 @@ interface Group {
 }
 
 /** Classes in running order (the class of the overall leader first). */
-function groupByClass(rows: StandingRow[]): Group[] {
+export function groupByClass(rows: StandingRow[]): Group[] {
   const groups = new Map<number, Group>();
   for (const r of rows) {
     let g = groups.get(r.classId);
