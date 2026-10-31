@@ -409,25 +409,93 @@ export function defaultConfig(): AppConfig {
   };
 }
 
-/** Fills in anything missing from a saved config (new widgets, new options). */
-export function normalizeConfig(raw: unknown): AppConfig {
-  const base = defaultConfig();
-  if (!raw || typeof raw !== "object") return base;
-  const saved = raw as Partial<AppConfig>;
-  const widgets = { ...base.widgets };
-  for (const meta of WIDGETS) {
-    const w = saved.widgets?.[meta.id];
-    if (w) {
-      widgets[meta.id] = {
-        ...base.widgets[meta.id],
-        ...w,
-        options: { ...base.widgets[meta.id].options, ...(w.options ?? {}) },
-      };
+// --- Checking saved and imported configs -----------------------------------
+
+/** Same limits as the sliders in the settings window. */
+export const SCALE_MIN = 0.5;
+export const SCALE_MAX = 3;
+export const OPACITY_MIN = 0.2;
+export const OPACITY_MAX = 1;
+
+const ANCHORS_X: readonly AnchorX[] = ["l", "c", "r"];
+const ANCHORS_Y: readonly AnchorY[] = ["t", "m", "b"];
+const UNITS: readonly Units[] = ["metric", "imperial"];
+const SHOW_WHEN: readonly GeneralConfig["showWhen"][] = ["connected", "onTrack"];
+const THEME_IDS: readonly Theme[] = ["dark", "light", "f1"];
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const oneOf = <T extends string>(v: unknown, allowed: readonly T[]): v is T => allowed.includes(v as T);
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** A saved widget over its defaults. Anything of the wrong type falls back to the default. */
+function normalizeWidget(raw: unknown, base: WidgetConfig): WidgetConfig {
+  if (!isObject(raw)) return base;
+  const w: WidgetConfig = {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : base.enabled,
+    x: isNum(raw.x) ? raw.x : base.x,
+    y: isNum(raw.y) ? raw.y : base.y,
+    scale: isNum(raw.scale) ? clamp(raw.scale, SCALE_MIN, SCALE_MAX) : base.scale,
+    opacity: isNum(raw.opacity) ? clamp(raw.opacity, OPACITY_MIN, OPACITY_MAX) : base.opacity,
+    options: { ...base.options },
+  };
+  // An anchor only means something with both halves; otherwise x/y are absolute.
+  if (oneOf(raw.ax, ANCHORS_X) && oneOf(raw.ay, ANCHORS_Y)) {
+    w.ax = raw.ax;
+    w.ay = raw.ay;
+  } else if (raw.ax !== undefined || raw.ay !== undefined) {
+    // A broken anchor makes the offsets meaningless too.
+    w.x = base.x;
+    w.y = base.y;
+  }
+  if (typeof raw.display === "string") w.display = raw.display;
+  if (isObject(raw.options)) {
+    for (const [k, v] of Object.entries(raw.options)) {
+      if (typeof v === "boolean" || typeof v === "string" || isNum(v)) w.options[k] = v;
     }
   }
-  const general = { ...base.general, ...(saved.general ?? {}) };
-  general.colors = { ...base.general.colors, ...(saved.general?.colors ?? {}) };
-  general.controls = { ...base.general.controls, ...(saved.general?.controls ?? {}) };
+  return w;
+}
+
+/** Fills in anything missing from a saved config (new widgets, new options) and drops anything of the wrong type. */
+export function normalizeConfig(raw: unknown): AppConfig {
+  const base = defaultConfig();
+  if (!isObject(raw)) return base;
+  const savedWidgets = isObject(raw.widgets) ? raw.widgets : {};
+  const widgets = { ...base.widgets };
+  for (const meta of WIDGETS) {
+    if (savedWidgets[meta.id] !== undefined) widgets[meta.id] = normalizeWidget(savedWidgets[meta.id], base.widgets[meta.id]);
+  }
+
+  const g = isObject(raw.general) ? raw.general : {};
+  const general: GeneralConfig = {
+    demo: typeof g.demo === "boolean" ? g.demo : base.general.demo,
+    units: oneOf(g.units, UNITS) ? g.units : base.general.units,
+    showWhen: oneOf(g.showWhen, SHOW_WHEN) ? g.showWhen : base.general.showWhen,
+    theme: oneOf(g.theme, THEME_IDS) ? g.theme : base.general.theme,
+    colors: { ...base.general.colors },
+    activeProfile: typeof g.activeProfile === "string" ? g.activeProfile : base.general.activeProfile,
+    controls: { ...base.general.controls },
+  };
+  if (isObject(g.colors)) {
+    for (const t of THEME_IDS) {
+      const saved = g.colors[t];
+      if (!isObject(saved)) continue;
+      // Only strings; the keys themselves are left alone so unknown ones are just ignored.
+      general.colors[t] = Object.fromEntries(Object.entries(saved).filter(([, v]) => typeof v === "string"));
+    }
+  }
+  if (isObject(g.controls)) {
+    for (const id of Object.keys(base.general.controls) as ActionId[]) {
+      const c = g.controls[id];
+      if (isObject(c) && (c.key === null || isObject(c.key)) && (c.button === null || isObject(c.button))) {
+        general.controls[id] = c as unknown as ControlBinding;
+      }
+    }
+  }
   return { version: 1, general, widgets };
 }
 
