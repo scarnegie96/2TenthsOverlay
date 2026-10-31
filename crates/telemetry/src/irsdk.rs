@@ -16,12 +16,14 @@
 //! We wait on that event, pick the buffer with the highest tick count, copy it out,
 //! and check the tick didn't change while copying (iRacing may overwrite it).
 
+use std::cell::Cell;
 use std::collections::HashMap;
-use std::ptr;
+use std::{mem, ptr};
 
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
 use windows_sys::Win32::System::Memory::{
-    MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_READ, MEMORY_MAPPED_VIEW_ADDRESS,
+    MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, VirtualQuery, FILE_MAP_READ, MEMORY_BASIC_INFORMATION,
+    MEMORY_MAPPED_VIEW_ADDRESS,
 };
 use windows_sys::Win32::System::Threading::{OpenEventW, WaitForSingleObject, SYNCHRONIZATION_SYNCHRONIZE};
 use windows_sys::Win32::UI::WindowsAndMessaging::{RegisterWindowMessageW, SendNotifyMessageW, HWND_BROADCAST};
@@ -85,6 +87,10 @@ pub fn send_pit_command(cmd: PitCommand) -> bool {
 pub struct Irsdk {
     map: HANDLE,
     view: MEMORY_MAPPED_VIEW_ADDRESS,
+    /// Size of the mapped view in bytes. Every read is checked against it.
+    view_len: usize,
+    /// Set once we've logged a bad read, so we don't spam the log.
+    warned: Cell<bool>,
     event: HANDLE,
     vars: HashMap<String, VarHeader>,
     /// Layout the var headers were read from; None when we have none.
@@ -110,6 +116,16 @@ impl Irsdk {
                 CloseHandle(map);
                 return None;
             }
+            // Ask how big the view is, so header offsets can be checked.
+            let mut info: MEMORY_BASIC_INFORMATION = mem::zeroed();
+            let got = VirtualQuery(view.Value, &mut info, mem::size_of::<MEMORY_BASIC_INFORMATION>());
+            let view_len = if got == 0 { 0 } else { info.RegionSize };
+            if view_len < shm::HEADER_LEN {
+                eprintln!("[telemetry] iRacing shared memory too small ({view_len} bytes)");
+                UnmapViewOfFile(view);
+                CloseHandle(map);
+                return None;
+            }
             let event = OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(DATA_VALID_EVENT_NAME).as_ptr());
             if event.is_null() {
                 UnmapViewOfFile(view);
@@ -119,6 +135,8 @@ impl Irsdk {
             Some(Self {
                 map,
                 view,
+                view_len,
+                warned: Cell::new(false),
                 event,
                 vars: HashMap::new(),
                 var_layout: None,
@@ -133,8 +151,36 @@ impl Irsdk {
         self.view.Value as *const u8
     }
 
+    /// Start of `len` bytes at `offset` in the view, or None if they don't
+    /// fit. Logs the first bad read only.
+    fn checked(&self, offset: i64, len: i64) -> Option<usize> {
+        let start = shm::checked_range(offset, len, self.view_len);
+        if start.is_none() && !self.warned.replace(true) {
+            eprintln!(
+                "[telemetry] skipped a shared memory read out of range (offset {offset}, len {len}, view {})",
+                self.view_len
+            );
+        }
+        start
+    }
+
+    /// Copies `len` bytes at `offset` into `out`. Returns false, and leaves
+    /// `out` alone, if they don't fit in the view.
+    fn copy_into(&self, offset: i64, len: i64, out: &mut Vec<u8>) -> bool {
+        let Some(start) = self.checked(offset, len) else { return false };
+        let len = len as usize; // checked above: 0..=MAX_READ_LEN
+        out.resize(len, 0);
+        unsafe { ptr::copy_nonoverlapping(self.base().add(start), out.as_mut_ptr(), len) };
+        true
+    }
+
+    /// Reads a header field. Returns 0 if it's outside the view (it can't be,
+    /// as open() checks the view holds the whole header).
     fn header_i32(&self, offset: usize) -> i32 {
-        unsafe { ptr::read_volatile(self.base().add(offset) as *const i32) }
+        match self.checked(offset as i64, 4) {
+            Some(start) => unsafe { ptr::read_volatile(self.base().add(start) as *const i32) },
+            None => 0,
+        }
     }
 
     pub fn is_connected(&self) -> bool {
@@ -172,37 +218,45 @@ impl Irsdk {
     }
 
     fn load_var_headers(&mut self, layout: VarLayout) {
-        let num = layout.num_vars.max(0) as usize;
-        let base_off = layout.var_header_offset.max(0) as usize;
-        let mut raw = vec![0u8; num * VAR_HEADER_SIZE];
-        unsafe { ptr::copy_nonoverlapping(self.base().add(base_off), raw.as_mut_ptr(), raw.len()) };
-        self.vars = vars::parse_headers(&raw, num);
+        let len = layout.num_vars as i64 * VAR_HEADER_SIZE as i64;
+        let mut raw = Vec::new();
+        if !self.copy_into(layout.var_header_offset as i64, len, &mut raw) {
+            // Bad layout: drop the old list and try again next frame.
+            self.vars.clear();
+            self.var_layout = None;
+            return;
+        }
+        self.vars = vars::parse_headers(&raw, layout.num_vars as usize);
         self.var_layout = Some(layout);
     }
 
     fn copy_latest_buffer(&mut self) -> bool {
         let num_buf = (self.header_i32(H_NUM_BUF).max(1) as usize).min(MAX_BUFS);
-        let buf_len = self.header_i32(H_BUF_LEN).max(0) as usize;
+        let buf_len = self.header_i32(H_BUF_LEN);
 
         for _attempt in 0..3 {
-            let (mut best_tick, mut best_off) = (i32::MIN, 0usize);
+            let (mut best_tick, mut best_off) = (i32::MIN, 0i32);
             for i in 0..num_buf {
                 let tick = self.header_i32(H_VAR_BUF + i * 16);
                 if tick > best_tick {
                     best_tick = tick;
-                    best_off = self.header_i32(H_VAR_BUF + i * 16 + 4) as usize;
+                    best_off = self.header_i32(H_VAR_BUF + i * 16 + 4);
                 }
             }
             if best_tick == self.last_tick {
                 return false;
             }
-            self.buf.resize(buf_len, 0);
-            unsafe { ptr::copy_nonoverlapping(self.base().add(best_off), self.buf.as_mut_ptr(), buf_len) };
+            let mut buf = mem::take(&mut self.buf);
+            let copied = self.copy_into(best_off as i64, buf_len as i64, &mut buf);
+            self.buf = buf;
+            if !copied {
+                return false;
+            }
 
             // Verify iRacing didn't recycle the buffer mid-copy.
             let still = (0..num_buf).any(|i| {
                 self.header_i32(H_VAR_BUF + i * 16) == best_tick
-                    && self.header_i32(H_VAR_BUF + i * 16 + 4) as usize == best_off
+                    && self.header_i32(H_VAR_BUF + i * 16 + 4) == best_off
             });
             if still {
                 self.last_tick = best_tick;
@@ -222,10 +276,12 @@ impl Irsdk {
         if update == self.last_session_update {
             return None;
         }
-        let len = self.header_i32(H_SESSION_INFO_LEN).max(0) as usize;
-        let off = self.header_i32(H_SESSION_INFO_OFFSET).max(0) as usize;
-        let mut bytes = vec![0u8; len];
-        unsafe { ptr::copy_nonoverlapping(self.base().add(off), bytes.as_mut_ptr(), len) };
+        let len = self.header_i32(H_SESSION_INFO_LEN);
+        let off = self.header_i32(H_SESSION_INFO_OFFSET);
+        let mut bytes = Vec::new();
+        if !self.copy_into(off as i64, len as i64, &mut bytes) {
+            return None;
+        }
         // Discard if it changed while we were copying; we'll catch it next frame.
         if self.header_i32(H_SESSION_INFO_UPDATE) != update {
             return None;
