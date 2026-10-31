@@ -195,6 +195,8 @@ export const WIDGETS: WidgetMeta[] = [
     x: 24, y: 716, enabled: true,
     options: [
       { key: "maxG", label: "G-meter range", type: "number", default: 3, min: 2, max: 6, suffix: "g" },
+      { key: "envelopeHold", label: "Grip outline holds for", type: "number", default: 10, min: 1, max: 60, suffix: "s", help: "How long each point of the outline stays where you pushed it" },
+      { key: "envelopeReturn", label: "Then shrinks back over", type: "number", default: 10, min: 0, max: 60, suffix: "s", help: "How long a point takes to return to the centre. 0 removes it at once" },
       {
         key: "direction", label: "Dot shows", type: "select", default: "felt",
         choices: [

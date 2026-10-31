@@ -10,13 +10,29 @@ const TRAIL_S = 1.2;
 const ENVELOPE_BUCKETS = 48;
 
 /**
+ * How far a point of the grip outline sits from the centre at `now`: its peak
+ * for `holdS` seconds after it was set, then easing back to the centre over
+ * `returnS` seconds.
+ */
+function envelopeReach(peak: number, setAt: number, now: number, holdS: number, returnS: number): number {
+  const age = now - setAt;
+  if (age <= holdS) return peak;
+  if (returnS <= 0) return 0;
+  const f = Math.min(1, (age - holdS) / returnS);
+  // Ease in and out, so points start drifting gently and settle at the centre.
+  return peak * (1 - f * f * (3 - 2 * f));
+}
+
+/**
  * Car dynamics: a g-meter (with the grip you've used recently as a faint
- * envelope), the car's attitude seen from above (slip), the side (pitch) and
+ * envelope that withdraws to the centre once it's old), the car's attitude seen from above (slip), the side (pitch) and
  * behind (roll), and an understeer / oversteer balance bar.
  */
 export function Dynamics({ config }: { config: WidgetConfig }) {
   const dyn = useLive((s) => s.tick?.dynamics ?? null);
   const maxG = opt(config, "maxG", 3);
+  const holdS = opt(config, "envelopeHold", 10);
+  const returnS = opt(config, "envelopeReturn", 10);
   const felt = opt<string>(config, "direction", "felt") === "felt";
   const exaggerate = opt(config, "exaggerate", 4);
   const showAttitude = opt(config, "showAttitude", true);
@@ -38,7 +54,7 @@ export function Dynamics({ config }: { config: WidgetConfig }) {
     <Panel className="dynamics" title="Car dynamics" aside={`${total.toFixed(2)} g`}>
       <div className="dyn-body">
         <div className="dyn-meter">
-          <GMeter maxG={maxG} felt={felt} />
+          <GMeter maxG={maxG} felt={felt} holdS={holdS} returnS={returnS} />
           <div className="dyn-readouts">
             <Readout label="Lateral" value={Math.abs(lat)} unit="g" />
             <Readout label={long < 0 ? "Braking" : "Accel"} value={Math.abs(long)} unit="g" />
@@ -164,8 +180,13 @@ function Balance({ value, live }: { value: number | null; live: boolean }) {
 /**
  * The g-meter, drawn on a canvas every frame. "Felt" puts the dot where the
  * force pushes you (braking moves it up, a left turn moves it right).
+ *
+ * The grip outline has a point per direction. Each one stays where you last
+ * pushed it for `holdS` seconds, then withdraws to the centre over `returnS`
+ * seconds, so the outline shows what you've used recently and shrinks away
+ * on straights. Pushing past a point's current reach sets it again.
  */
-function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
+function GMeter({ maxG, felt, holdS, returnS }: { maxG: number; felt: boolean; holdS: number; returnS: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const palette = useLive((s) => paletteKey(s.config.general));
 
@@ -187,8 +208,13 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
     const r = c - 8;
     const scale = r / maxG;
     const trail: { t: number; x: number; y: number }[] = [];
-    // Grip used in each direction recently: decays so it tracks the current car and conditions.
+    // Grip used in each direction: the peak, and the session time it was set.
+    const peak = new Float32Array(ENVELOPE_BUCKETS);
+    const setAt = new Float64Array(ENVELOPE_BUCKETS);
+    // Each point's current reach, worked out once per frame.
     const envelope = new Float32Array(ENVELOPE_BUCKETS);
+    let clock = 0;
+    const reach = (k: number, now: number) => envelopeReach(peak[k], setAt[k], now, holdS, returnS);
     let raf = 0;
 
     const toXY = (d: NonNullable<TickPayload["dynamics"]>) => {
@@ -206,8 +232,17 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
       const mag = Math.hypot(p.x, p.y);
       const a = Math.atan2(p.y, p.x);
       const b = ((Math.round((a / (2 * Math.PI)) * ENVELOPE_BUCKETS) % ENVELOPE_BUCKETS) + ENVELOPE_BUCKETS) % ENVELOPE_BUCKETS;
-      for (let i = 0; i < ENVELOPE_BUCKETS; i++) envelope[i] *= 0.9997;
-      envelope[b] = Math.max(envelope[b], mag);
+      const now = t.sessionTime;
+      // Time went backwards (new session, replay): start the outline afresh.
+      if (now < clock) {
+        peak.fill(0);
+        setAt.fill(0);
+      }
+      clock = now;
+      if (mag >= reach(b, now)) {
+        peak[b] = mag;
+        setAt[b] = now;
+      }
     });
 
     const draw = () => {
@@ -238,7 +273,8 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
       ctx.fillText(felt ? "Brake" : "Accel", c, 9);
       ctx.fillText(felt ? "Accel" : "Brake", c, METER - 2);
 
-      // Envelope of grip used.
+      // Envelope of grip used, withdrawing to the centre as it ages.
+      for (let k = 0; k < ENVELOPE_BUCKETS; k++) envelope[k] = reach(k, clock);
       ctx.beginPath();
       for (let i = 0; i <= ENVELOPE_BUCKETS; i++) {
         const k = i % ENVELOPE_BUCKETS;
@@ -288,7 +324,7 @@ function GMeter({ maxG, felt }: { maxG: number; felt: boolean }) {
       cancelAnimationFrame(raf);
       unsub();
     };
-  }, [maxG, felt, palette]);
+  }, [maxG, felt, holdS, returnS, palette]);
 
   return <canvas ref={canvas} className="dyn-gmeter" style={{ width: METER, height: METER }} />;
 }
