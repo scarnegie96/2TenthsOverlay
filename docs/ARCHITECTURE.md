@@ -243,7 +243,9 @@ fuel amount of 0 keeps the amount already set.
   command (every 25 ms: `cursor_position` plus `GetAsyncKeyState` on the main
   button, honouring swapped buttons). Outside the window that drives the
   "Release to move to display N" hint, and when the button comes up the drag
-  finishes there. `dropOnto` turns the pointer into desktop pixels (window
+  finishes there. WebView2 also sends a pointerup or cancel as the mouse
+  leaves the window with the button still held, so while the poll runs those
+  are ignored and only the real button state ends the drag. `dropOnto` turns the pointer into desktop pixels (window
   origin + client position × scale), finds the display under it and converts
   back to that display's CSS pixels, keeping where the widget was held. In the browser
   preview, `?displays=2` adds a second display and `&display=2` makes a tab
