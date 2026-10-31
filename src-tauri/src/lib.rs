@@ -462,6 +462,10 @@ pub fn run() {
                 if window.label() == SETTINGS {
                     api.prevent_close();
                     let _ = window.hide();
+                    // The page stays loaded, so a key or button it was waiting
+                    // for would keep every hotkey off. Turn them back on and tell it.
+                    controls::set_suspended(window.app_handle(), false);
+                    let _ = window.emit_to(SETTINGS, "settings-hidden", ());
                 }
             }
         })
