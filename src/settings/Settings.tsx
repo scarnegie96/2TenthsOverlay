@@ -48,6 +48,7 @@ export function Settings() {
         ))}
       </nav>
       <main className="pane">
+        <ConfigNotice />
         {pane === "general" ? <GeneralPane onControls={() => setPane("controls")} />
           : pane === "layouts" ? <LayoutsPane />
           : pane === "appearance" ? <AppearancePane />
@@ -63,6 +64,25 @@ function NavItem({ active, onClick, children }: { active: boolean; onClick: () =
     <button className={`nav-item ${active ? "is-active" : ""}`} onClick={onClick} aria-current={active ? "page" : undefined}>
       {children}
     </button>
+  );
+}
+
+/** Says so when the settings file couldn't be read and Tenths started fresh. */
+function ConfigNotice() {
+  const [kept, setKept] = useState<string | null>(null);
+  useEffect(() => {
+    void api.configNotice().then(setKept).catch(() => {});
+  }, []);
+  if (!kept) return null;
+  return (
+    <p className="notice" role="status">
+      <span>
+        Your settings file couldn't be read, so Tenths started fresh. The old file was kept as <code>{kept}</code>.
+      </span>
+      <button className="notice-close" onClick={() => setKept(null)} aria-label="Dismiss">
+        ×
+      </button>
+    </p>
   );
 }
 

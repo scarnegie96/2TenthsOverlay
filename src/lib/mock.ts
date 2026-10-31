@@ -174,6 +174,9 @@ class Mock {
           return null;
         }
       }
+      case "config_notice":
+        // ?corrupt shows the notice for a settings file that couldn't be read.
+        return new URLSearchParams(location.search).has("corrupt") ? "config.corrupt-20261031-142501.json" : null;
       case "save_config":
         try {
           localStorage.setItem(CONFIG_KEY, JSON.stringify(args.config));

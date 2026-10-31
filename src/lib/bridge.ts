@@ -30,6 +30,8 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
 
 export const api = {
   loadConfig: () => call<unknown | null>("load_config"),
+  /** The name a broken config.json was kept under this run, or null. */
+  configNotice: () => call<string | null>("config_notice"),
   saveConfig: (config: unknown) => call<void>("save_config", { config }),
   snapshot: () => call<Snapshot>("get_snapshot"),
   setEditMode: (enabled: boolean) => call<void>("set_edit_mode", { enabled }),
