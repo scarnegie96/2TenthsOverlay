@@ -22,9 +22,9 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ## Features
 
-- **15 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
-  inputs, car dynamics, dash lights, fuel, tires, pit stop, weather, a radar
-  and an LED flag board. Each one has its own options.
+- **16 widgets**: timing tables, a race pace chart, a lap delta graph, a lap
+  log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
+  weather, a radar and an LED flag board. Each one has its own options.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
   litres more or less), tires, fast repair and a tear-off for your next stop
   without opening iRacing's pit menu, and see what iRacing has ticked.
@@ -123,6 +123,27 @@ session optimal, last lap, or an imported reference lap.
 *Options*: comparison lap, iRacing's sectors or 4–30 equal mini sectors, last
 lap's line, the lap times row, and a **simple pace readout** that swaps the
 graph for one big number: how far ahead or behind you are right now.
+
+### Race pace
+
+![Race pace widget](docs/widgets/racepace.png)
+
+Everyone in your class against the class leader, through the race. The
+leader is the flat line along the top; every other car is a line below it at
+its gap to the leader, live. A line that slopes down is a car slower than the
+leader, one that rises is catching, and the steeper it is the bigger the
+difference in pace, so you can see at a glance who is quick, who is fading
+and where the fights are. You're picked out in amber. Down the right, each
+car's position, gap and how much the gap changed over the leader's last lap
+(green when it's catching, red when it's dropping back). Lapped and retired
+cars run along the bottom so they don't squash everyone else. Dotted lines
+mark the leader's laps. The history starts when the race does (or when
+Tenths starts, if that's later) and is kept while the widget is hidden. Races
+only; off by default.
+
+*Options*: the whole race or the leader's last 5, 10 or 20 laps; everyone in
+your class or just the leader and the cars around you; a fixed gap scale; and
+the gap change per lap.
 
 ### Lap log
 
@@ -607,7 +628,8 @@ src-tauri/            Windows, tray, hotkeys, click-through, config file
   controllers.rs      Wheel, button box and gamepad buttons, read with Raw Input
   profiles.rs         Saved layouts: list, save, import and export
 src/
-  lib/                Types, config schema, themes, weather and pit maths, bridge to Rust (or browser mock)
+  lib/                Types, config schema, themes, delta and race histories, weather and pit maths,
+                      bridge to Rust (or browser mock)
   overlay/            Transparent overlay: drag, snap, resize, screen anchoring
   widgets/            One file per widget
   settings/           Settings window

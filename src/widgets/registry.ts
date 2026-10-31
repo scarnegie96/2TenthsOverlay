@@ -9,6 +9,7 @@ import { Inputs } from "./Inputs";
 import { Instruments } from "./Instruments";
 import { LapLog } from "./LapLog";
 import { PitStop } from "./PitStop";
+import { RacePace } from "./RacePace";
 import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Session } from "./Session";
@@ -38,4 +39,5 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   dynamics: Dynamics,
   instruments: Instruments,
   weather: Weather,
+  racepace: RacePace,
 };

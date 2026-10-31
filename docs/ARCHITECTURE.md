@@ -157,6 +157,18 @@ fuel amount of 0 keeps the amount already set.
   (-1) = out (garage, towed or left the session; drivers who quit keep their
   entry), in pit stall = pit box, on pit road = pit lane. The Relative
   already leaves out cars that aren't in the world.
+- **Race pace** (`src/lib/raceHistory.ts`): built in the front end from the
+  Standings rows (gap to class leader, which is the `CarIdxF2Time` difference
+  in races). Fed from every 10 Hz field update outside React, like
+  `deltaHistory.ts`, so it keeps recording while the widget is hidden. Each
+  car stores (session time, gap) every 2 s, the gap averaged over those 2 s to
+  smooth timing steps; past 2,400 points every car is thinned by half and
+  the interval doubles, so a long race stays small. Lap lines are when each
+  class leader's completed-lap count goes up. It resets on a new session or
+  when session time goes backwards, and records nothing outside races. The
+  chart scales to cars on the lead lap; lapped and retired cars are pinned to
+  the bottom edge. The gap change per lap compares each car's gap now with
+  its stored gap one leader-lap ago.
 - **Weather**: `AirTemp`, `TrackTempCrew`, `TrackWetness` (1 dry .. 7 extremely
   wet), `Precipitation`, `RelativeHumidity` and `FogLevel` (each accepted as a
   fraction or a percentage), `Skies`, `WeatherDeclaredWet`, and `WindVel` /

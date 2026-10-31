@@ -351,6 +351,18 @@ class Mock {
     requestAnimationFrame(loop);
   }
 
+  /** Share of a lap's time spent getting to each point (1000 steps), for time gaps. */
+  private cumTime: Float32Array | null = null;
+  private timeAt(progress: number) {
+    if (!this.cumTime) {
+      const c = new Float32Array(1001);
+      for (let k = 1; k <= 1000; k++) c[k] = c[k - 1] + 1 / this.speedFactor((k - 0.5) / 1000);
+      for (let k = 0; k <= 1000; k++) c[k] /= c[1000];
+      this.cumTime = c;
+    }
+    return Math.floor(progress) + this.cumTime[Math.round((progress % 1) * 1000)];
+  }
+
   private speedFactor(pct: number) {
     let f = 1;
     for (const c of CORNERS) {
@@ -664,9 +676,10 @@ class Mock {
       return {
         ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
         lap: Math.floor(this.progress[i]),
-        gap: lead === i ? null : (this.progress[lead] - this.progress[i]) * this.pace[i],
+        // Time behind the leader (how long to reach where it is now), like iRacing's.
+        gap: lead === i ? null : (this.timeAt(this.progress[lead]) - this.timeAt(this.progress[i])) * this.pace[i],
         lapsDown: Math.floor(this.progress[lead] - this.progress[i]),
-        interval: ahead === undefined ? null : (this.progress[ahead] - this.progress[i]) * this.pace[i],
+        interval: ahead === undefined ? null : (this.timeAt(this.progress[ahead]) - this.timeAt(this.progress[i])) * this.pace[i],
         startPosition: grid.get(i) ?? null,
         onPitRoad: i === 20, status: this.carStatus(i), isPlayer: i === PLAYER,
       };

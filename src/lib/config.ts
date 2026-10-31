@@ -4,7 +4,7 @@ import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "pitstop" | "flags" | "weather";
+  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -262,6 +262,34 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "fuelStep", label: "Fuel up and down step", type: "number", default: 5, min: 1, max: 20, suffix: "L", help: "How much the more fuel and less fuel controls add or take off, in litres" },
       { key: "autoFuel", label: "Set fuel as you enter the pits", type: "toggle", default: false, help: "Ticks fuel with the planned amount when you cross pit entry, unless it's already set or you've changed it with more or less fuel" },
       { key: "showKeys", label: "Show the hotkeys", type: "toggle", default: true, help: "The key or wheel button for each row" },
+    ],
+  },
+  {
+    id: "racepace",
+    name: "Race pace",
+    description: "Everyone in your class against the class leader through the race: the leader is the flat line at the top, each car a line at its gap below.",
+    // Off by default: turn it on in settings and place it where suits your screen.
+    x: 572, y: 700, enabled: false,
+    options: [
+      {
+        key: "window", label: "Time shown", type: "select", default: "race",
+        choices: [
+          { value: "race", label: "The whole race so far" },
+          { value: "5", label: "The leader's last 5 laps" },
+          { value: "10", label: "The leader's last 10 laps" },
+          { value: "20", label: "The leader's last 20 laps" },
+        ],
+      },
+      {
+        key: "show", label: "Cars", type: "select", default: "all",
+        choices: [
+          { value: "all", label: "Everyone in your class" },
+          { value: "around", label: "The leader and the cars around you" },
+        ],
+      },
+      { key: "around", label: "Places either side of you", type: "number", default: 3, min: 1, max: 10, help: "When showing the cars around you" },
+      { key: "maxGap", label: "Gap scale", type: "number", default: 0, min: 0, max: 600, step: 5, suffix: "s", help: "0 fits everyone shown. A fixed scale keeps far-off cars from squashing the rest; they sit along the bottom" },
+      { key: "showTrend", label: "Show gap change per lap", type: "toggle", default: true, help: "Next to each name: how much the gap to the leader changed over the leader's last lap" },
     ],
   },
   {
