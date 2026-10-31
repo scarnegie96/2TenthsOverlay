@@ -19,8 +19,8 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 | # | Fix | Group | Status | Notes |
 |---|-----|-------|--------|-------|
 | 5 | Bounds checks on iRacing's shared memory | `irsdk` | 🔧 | |
-| 6 | Lap file writes moved off the telemetry thread | `laps` | 🔧 | |
-| 7 | Repeated identical official lap times recognised | `laps` | 🔧 | |
+| 6 | Lap file writes moved off the telemetry thread | `laps` | ✅ | Laps kept in memory; one writer thread writes the newest copy (tmp + rename). A lap finished in the last instant before quitting can still be lost, as before. |
+| 7 | Repeated identical official lap times recognised | `laps` | ✅ | After the 3 s wait, iRacing's time is used if within 0.25 s of our own. |
 | 8 | Corrupt config kept aside with a notice; reference saved atomically | `shell` | 🔧 | |
 | 9 | Demo race keeps real time | `engine` | 🔧 | |
 
@@ -55,3 +55,4 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 
 - 2026-10-31: plan agreed; six groups started in parallel.
 - 2026-10-31: `pitloss` merged (#1).
+- 2026-10-31: `laps` merged (#6, #7).
