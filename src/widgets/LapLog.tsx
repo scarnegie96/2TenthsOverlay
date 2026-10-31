@@ -12,7 +12,11 @@ function age(unix: number) {
   return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
 }
 
-/** Every lap this session, newest first, with the session and all-time bests on top. */
+/**
+ * Every lap this session, newest first, with the session and all-time bests
+ * on top. Shows `rows` laps; more than that scroll (in edit layout mode,
+ * since the overlay lets the mouse through to the game while you drive).
+ */
 export function LapLog({ config }: { config: WidgetConfig }) {
   const log = useLive((s) => s.field?.lapLog);
   const units = useLive((s) => s.config.general.units);
@@ -26,7 +30,9 @@ export function LapLog({ config }: { config: WidgetConfig }) {
   const sessionBest = log?.sessionBest ?? null;
   const personalBest = log?.personalBest ?? null;
   const best = compareTo === "personal" ? personalBest?.time ?? sessionBest : sessionBest;
-  const laps = [...(log?.laps ?? [])].reverse().slice(0, rows);
+  // The engine sends the last 100 laps.
+  const laps = [...(log?.laps ?? [])].reverse();
+  const scrolls = laps.length > rows;
   const cols = ["34px", "1fr", showDelta && "64px", showTemp && "40px", showFuel && "62px"].filter(Boolean).join(" ");
 
   return (
@@ -53,10 +59,15 @@ export function LapLog({ config }: { config: WidgetConfig }) {
       {laps.length === 0 ? (
         <Empty>Laps appear here as you complete them.</Empty>
       ) : (
-        laps.map((l) => (
-          <Row key={l.lap} lap={l} best={best} sessionBest={sessionBest} cols={cols} units={units}
-            showDelta={showDelta} showTemp={showTemp} showFuel={showFuel} />
-        ))
+        <div
+          className={`ll-list ${scrolls ? "is-scrolling" : ""}`}
+          style={{ maxHeight: `calc(${rows} * var(--row-h))` }}
+        >
+          {laps.map((l) => (
+            <Row key={l.lap} lap={l} best={best} sessionBest={sessionBest} cols={cols} units={units}
+              showDelta={showDelta} showTemp={showTemp} showFuel={showFuel} />
+          ))}
+        </div>
       )}
     </Panel>
   );
