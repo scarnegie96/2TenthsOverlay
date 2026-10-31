@@ -585,7 +585,10 @@ PC (keep the private key and its password safe and out of the repo; if they're
 lost, existing installs can't take updates signed with a new key):
 
 ```powershell
+# PowerShell
 npx tauri signer generate -w "$env:USERPROFILE\.tauri\tenths.key"
+# Command Prompt
+npx tauri signer generate -w "%USERPROFILE%\.tauri\tenths.key"
 ```
 
 Then:
