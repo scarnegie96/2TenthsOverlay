@@ -280,8 +280,8 @@ fuel amount of 0 keeps the amount already set.
   Tenths and reopens it. An empty `pubkey` (before the key is set up) turns
   updates off. Releases come from pushing a `v*` tag: the workflow checks the
   tag matches the app version and the key is set, then `tauri-action` builds
-  with `tauri.release.conf.json` (`createUpdaterArtifacts`), signs with the
-  `TAURI_SIGNING_PRIVATE_KEY` secret and publishes the installer, `.sig` and
+  with `tauri.release.conf.json` (`createUpdaterArtifacts`), signs it with the
+  repository's signing secrets and publishes the installer, `.sig` and
   `latest.json`, using the tag message as release notes.
 
 ## Front end (`src`)

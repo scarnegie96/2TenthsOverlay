@@ -578,29 +578,7 @@ building locally.
    `latest.json`. Running copies of Tenths see it at their next check.
 
 The build stops early if the tag doesn't match the app version, or if the
-update key below isn't set up.
-
-**One-time update key setup.** The updater needs a key pair. Make it on your
-PC (keep the private key and its password safe and out of the repo; if they're
-lost, existing installs can't take updates signed with a new key):
-
-```powershell
-# PowerShell
-npx tauri signer generate -w "$env:USERPROFILE\.tauri\tenths.key"
-# Command Prompt
-npx tauri signer generate -w "%USERPROFILE%\.tauri\tenths.key"
-```
-
-Then:
-
-1. Put the **public** key (the contents of `tenths.key.pub`) in
-   `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`, and commit it.
-2. In the GitHub repo, **Settings → Secrets and variables → Actions**, add
-   `TAURI_SIGNING_PRIVATE_KEY` (the contents of `tenths.key`) and
-   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-
-To build a signed release locally instead, set those two as environment
-variables and run `npm run tauri build -- --config src-tauri/tauri.release.conf.json`.
+repo's signing setup is missing.
 
 The installer isn't code-signed for Windows (that's a separate, paid
 certificate), so SmartScreen asks people to click **More info → Run anyway**

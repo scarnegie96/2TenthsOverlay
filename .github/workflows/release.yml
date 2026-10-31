@@ -2,10 +2,7 @@
 # tag (v0.4.2) is pushed. The release carries the installer, its signature and
 # latest.json, which the app's updater reads (src-tauri/src/updates.rs).
 #
-# Needs two repository secrets (Settings > Secrets and variables > Actions):
-#   TAURI_SIGNING_PRIVATE_KEY           the private key from `npx tauri signer generate`
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
-# and the matching public key in src-tauri/tauri.conf.json (plugins.updater.pubkey).
+# Signing uses the repository's TAURI_SIGNING_* secrets.
 #
 # The tag's message becomes the release notes shown in the app:
 #   git tag -a v0.4.2 -m "- What changed" && git push origin v0.4.2
