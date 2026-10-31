@@ -1861,12 +1861,15 @@
 }
 .wx-arrow line {
   stroke: var(--lapped);
-  stroke-width: 4;
+  stroke-width: 7;
   stroke-linecap: round;
 }
 .wx-arrow polygon,
 .wx-arrow circle {
   fill: var(--lapped);
+  stroke: var(--lapped);
+  stroke-width: 2;
+  stroke-linejoin: round;
 }
 .wx-car rect {
   fill: var(--ink-2);
@@ -1877,25 +1880,38 @@
 .wx-car-nose {
   fill: var(--attention);
 }
+/* Wind speed, big and centered beside the compass, labelled underneath. */
 .wx-wind-text {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  text-align: center;
 }
-.wx-wind-text .wx-reading {
-  margin-bottom: 2px;
-}
-.wx-sub {
-  font-size: 14px;
-  color: var(--ink-2);
-}
-.wx-sub b {
+.wx-wind-speed {
+  font-size: 48px;
   font-weight: 700;
-  color: var(--ink);
+  line-height: 1;
+  white-space: nowrap;
+}
+.wx-wind-speed small {
+  margin-left: 4px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.wx-wind-label {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 .wx-note {
-  margin-top: 2px;
+  margin-top: 6px;
   font-size: 13px;
   color: var(--ink-3);
 }

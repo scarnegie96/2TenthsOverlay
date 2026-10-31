@@ -170,7 +170,9 @@ clutch, shift light and reference strip.
 
 ![Car dynamics widget](docs/widgets/dynamics.png)
 
-A g-meter with the grip you've been using recently drawn around it, the
+A g-meter with the grip you've been using drawn around it: each point of the
+outline holds for 10 seconds, then shrinks back to the centre over the next
+10, so it shows recent grip and fades away on the straights. Beside it are the
 lateral, longitudinal and vertical g, top, side and rear views of the car
 showing slip, pitch and roll, and a balance bar estimating understeer or
 oversteer from how the car rotates for the steering you put in.
@@ -207,7 +209,7 @@ Track and air temperature, how wet the track is (iRacing's seven steps from
 dry to extremely wet), rain, humidity and fog, with arrows showing which way
 each has moved over the last three minutes. Below, a wind compass that turns
 with your car: the car always points up and the arrow shows where the wind is
-hitting you from, with the headwind or tailwind and crosswind it gives. iRacing
+hitting you from, with the wind speed beside it. iRacing
 doesn't publish a forecast or rain radar, so the trend arrows are the closest
 thing to one. Wind is measured at the start/finish line. Off by default.
 
@@ -321,8 +323,8 @@ One-time setup:
 Then:
 
 ```powershell
-git clone https://github.com/YOUR-USERNAME/tenths.git
-cd tenths
+git clone https://github.com/scarnegie96/Tenths---iRacing-Overlay.git
+cd Tenths---iRacing-Overlay
 npm install
 npm run tauri dev      # run with hot reload
 npm run tauri build    # installer in target\release\bundle\nsis\
@@ -330,6 +332,25 @@ npm run tauri build    # installer in target\release\bundle\nsis\
 
 In iRacing, set the display mode to **borderless windowed**. No overlay can draw
 over exclusive fullscreen.
+
+Quit Tenths from its tray icon before running `npm run tauri build`. If a copy
+started from `target\release\tenths.exe` is still open, Windows locks the file
+and the build stops with "Access is denied". Running the installer instead
+puts Tenths in its own folder, so it can stay open while you build.
+
+### Making a release
+
+1. Set the same version in `package.json`, `src-tauri/Cargo.toml` and
+   `src-tauri/tauri.conf.json`, and commit it.
+2. Build the installer with `npm run tauri build`.
+3. Tag the commit (`git tag v0.2.0`) and push the tag
+   (`git push origin v0.2.0`).
+4. On GitHub, draft a release from the tag and attach
+   `target\release\bundle\nsis\Tenths_<version>_x64-setup.exe`.
+
+The installer is attached to the release, not committed to the repo. It isn't
+code-signed, so Windows SmartScreen asks people to click **More info → Run
+anyway** the first time.
 
 ## Using it
 
@@ -421,6 +442,7 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   irsdk.rs            Shared-memory reader (our own, about 300 lines)
   session.rs          Session YAML parser, tolerant of iRacing's quirks
   engine.rs           Relative gaps, standings, fuel maths, SoF, deltas, optimal lap
+  grid.rs             Starting grid for places gained/lost, and each car's pit or garage status
   laps.rs             Lap log and personal bests, saved per car and track
   vars.rs             Variable header parsing shared by live data and .ibt files
   ibt.rs              .ibt telemetry file reader: finds complete laps
@@ -434,7 +456,7 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
 src-tauri/            Windows, tray, hotkeys, click-through, config file
   profiles.rs         Saved layouts: list, save, import and export
 src/
-  lib/                Types, config schema, themes, bridge to Rust (or browser mock)
+  lib/                Types, config schema, themes, weather maths, bridge to Rust (or browser mock)
   overlay/            Transparent overlay: drag, snap, resize, screen anchoring
   widgets/            One file per widget
   settings/           Settings window

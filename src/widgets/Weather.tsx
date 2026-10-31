@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import type { Units } from "../lib/format";
 import { useLive } from "../lib/store";
 import {
-  addSample, compassPoint, SKIES, trend, WETNESS, windComponents, windFromCar, wrap, type Sample,
+  addSample, SKIES, trend, WETNESS, type Sample,
 } from "../lib/weather";
 import { Panel } from "./Panel";
 
@@ -167,7 +167,6 @@ function Wind({ speed, dir, heading, turnWithCar, units }: {
   const car = turnWithCar ? 0 : h;
   const deg = (r: number) => (r * 180) / Math.PI;
   const calm = speed == null || speed < 0.3;
-  const parts = speed != null && dir != null && hasHeading ? windComponents(speed, dir, h) : null;
 
   return (
     <div className="wx-wind">
@@ -205,53 +204,30 @@ function Wind({ speed, dir, heading, turnWithCar, units }: {
           <CarIcon />
         </g>
       </svg>
+      {/* The compass shows the direction; this is just how hard it blows. */}
       <div className="wx-wind-text">
-        <div className="wx-reading">
-          <span>Wind</span>
-          <b>
-            {speed == null ? "–" : calm ? "Calm" : windSpeed(speed, units)}
-            {!calm && speed != null && <small>{windUnit(units)}</small>}
-          </b>
-        </div>
-        {!calm && dir != null && <div className="wx-sub">From the {compassPoint(dir)}</div>}
-        {!calm && parts && (
-          <>
-            <div className="wx-sub">
-              {parts.head >= 0 ? "Headwind" : "Tailwind"} <b>{windSpeed(parts.head, units)}</b>
-            </div>
-            <div className="wx-sub">
-              {windSpeed(parts.cross, units) === 0 ? "No crosswind" : (
-                <>From the {parts.cross >= 0 ? "right" : "left"} <b>{windSpeed(parts.cross, units)}</b></>
-              )}
-            </div>
-          </>
-        )}
-        {!hasHeading && <div className="wx-sub wx-note">No heading from iRacing: north is up</div>}
-        {hasHeading && dir != null && !calm && (
-          <div className="wx-sub wx-note">{sideText(windFromCar(dir, h))}</div>
-        )}
+        <b className="wx-wind-speed">
+          {speed == null ? "–" : calm ? "Calm" : windSpeed(speed, units)}
+          {!calm && speed != null && <small>{windUnit(units)}</small>}
+        </b>
+        <span className="wx-wind-label">Wind</span>
+        {!hasHeading && <div className="wx-note">No heading from iRacing: north is up</div>}
       </div>
     </div>
   );
 }
 
-/** "Hits the front left" and so on, for a wind direction relative to the car. */
-function sideText(rel: number): string {
-  const sectors = ["Head on", "Front right", "Right side", "Rear right", "From behind", "Rear left", "Left side", "Front left"];
-  return sectors[Math.round((wrap(rel) * 180) / Math.PI / 45) % 8];
-}
-
 /** An arrow on the compass card that starts on the side the wind comes from and points the way it blows. */
 function WindArrow({ dir }: { dir: number }) {
   const deg = (dir * 180) / Math.PI;
-  const tail = C - RING + 6;
-  const tip = C - 32; // stops short of the car, pointing at it
+  const tail = C - RING + 3;
+  const tip = C - 30; // stops short of the car, pointing at it
   return (
     <g className="wx-arrow" transform={`rotate(${deg} ${C} ${C})`}>
       {/* Drawn as if the wind came from the north (top) and blew south. */}
       <line x1={C} y1={tail} x2={C} y2={tip - 14} />
-      <polygon points={`${C},${tip} ${C - 9},${tip - 18} ${C + 9},${tip - 18}`} />
-      <circle cx={C} cy={tail} r={4} />
+      <polygon points={`${C},${tip} ${C - 12},${tip - 19} ${C + 12},${tip - 19}`} />
+      <circle cx={C} cy={tail} r={5.5} />
     </g>
   );
 }
