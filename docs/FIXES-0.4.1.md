@@ -10,7 +10,7 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 | # | Fix | Group | Status | Notes |
 |---|-----|-------|--------|-------|
 | 1 | Tows and resets aren't counted as pit stops; tiny stops dropped from the average | `pitloss` | ✅ | Entry must be a small step onto pit road from track; average keeps 0.5–1.5× median. 3 new tests. |
-| 2 | Variable list re-read after iRacing disconnects or the layout moves | `irsdk` | 🔧 | |
+| 2 | Variable list re-read after iRacing disconnects or the layout moves | `irsdk` | ✅ | Re-read when count, header offset or buffer size change, and on every disconnect (session info re-sent too). Type-checked against the Windows API; untested in iRacing. |
 | 3 | Closing Settings mid-capture no longer leaves hotkeys switched off | `shell` | 🔧 | |
 | 4 | Fuel to finish in timed races: one tested function, `timed_finish` example | `engine` | 🔧 | End-of-race rule needs a timed-race .ibt to confirm |
 
@@ -18,7 +18,7 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 
 | # | Fix | Group | Status | Notes |
 |---|-----|-------|--------|-------|
-| 5 | Bounds checks on iRacing's shared memory | `irsdk` | 🔧 | |
+| 5 | Bounds checks on iRacing's shared memory | `irsdk` | ✅ | View size from VirtualQuery; every read checked (negative, overflow, past end, 16 MB cap); a bad frame is skipped and logged once. |
 | 6 | Lap file writes moved off the telemetry thread | `laps` | ✅ | Laps kept in memory; one writer thread writes the newest copy (tmp + rename). A lap finished in the last instant before quitting can still be lost, as before. |
 | 7 | Repeated identical official lap times recognised | `laps` | ✅ | After the 3 s wait, iRacing's time is used if within 0.25 s of our own. |
 | 8 | Corrupt config kept aside with a notice; reference saved atomically | `shell` | 🔧 | |
@@ -56,3 +56,4 @@ Status: ⏳ to do · 🔧 in progress · ✅ done · ⚠️ done with a caveat
 - 2026-10-31: plan agreed; six groups started in parallel.
 - 2026-10-31: `pitloss` merged (#1).
 - 2026-10-31: `laps` merged (#6, #7).
+- 2026-10-31: `irsdk` merged (#2, #5). 71 Rust tests pass.
