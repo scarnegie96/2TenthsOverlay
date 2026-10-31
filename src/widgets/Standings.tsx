@@ -170,11 +170,11 @@ function withRejoin(slots: Slot[], rejoin: Rejoin | null): { slot: Slot | "rejoi
 
 const fmt = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}` : s.toFixed(1));
 
-/** "Pit now → P9 · 1.4 behind #52 · 2.1 ahead of #66", across the row. */
+/** "Rejoin after pit P9 · 1.4 behind #52 · 2.1 ahead of #66", across the row. */
 function RejoinMarker({ r, stops }: { r: Rejoin; stops: number }) {
   return (
     <div className="row row-rejoin" title={`If you pitted now. A stop costs ${r.loss.toFixed(1)} s here on average (from ${stops} stops this session).`}>
-      <span className="rejoin-tag">Pit now</span>
+      <span className="rejoin-tag">Rejoin after pit</span>
       <span className="rejoin-pos">P{r.position}</span>
       <span className="rejoin-text">
         {r.behind && (

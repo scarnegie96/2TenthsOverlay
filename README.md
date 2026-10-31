@@ -94,7 +94,7 @@ solid **P** that it's stopped in its pit box. A car that has left the sim gets
 **OUT** in a race (retired, quit or towed to the garage) and **GAR** in
 practice and qualifying, and its row fades.
 
-**Pit now** (races): once a few pit stops have been timed this session, a
+**Rejoin after pit** (races): once a few pit stops have been timed this session, a
 dashed line in your class shows where you'd come out if you pitted now: the
 position, how far behind the car ahead you'd be and how far ahead of the car
 behind. Tenths times every car's stops (pit entry to exit, minus the time
