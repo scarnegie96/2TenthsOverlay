@@ -592,7 +592,12 @@ function bindingWarning(
   const others = ACTIONS.filter((a) => a.id !== id);
   const keyClash = others.find((a) => sameKey(all[a.id].key, b.key));
   const buttonClash = others.find((a) => sameButton(all[a.id].button, b.button));
-  const unplugged = b.button && connected && !connected.some((c) => c.device === b.button!.device);
+  // Two boxes of one model get "<model>#<instance>" ids; a binding to the model works on either (controls.rs).
+  const base = (d: string) => d.split("#")[0];
+  const unplugged = b.button && connected && !connected.some((c) => {
+    const d = b.button!.device;
+    return c.device === d || (base(c.device) === base(d) && (!c.device.includes("#") || !d.includes("#")));
+  });
   const notes = [
     keyClash && `Same key as ${keyClash.label.toLowerCase()}`,
     buttonClash && `Same button as ${buttonClash.label.toLowerCase()}`,

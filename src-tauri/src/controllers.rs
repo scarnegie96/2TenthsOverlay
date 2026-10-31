@@ -9,7 +9,9 @@
 //! 1002 right, 1003 down, 1004 left.
 //!
 //! Devices are named by the hardware id in their path ("VID_0EB7&PID_0E04&MI_00"),
-//! which stays the same across USB ports and restarts.
+//! which stays the same across USB ports and restarts. Two of the same model
+//! plugged in at once would share that, so then each one also gets its
+//! instance id: "VID_0EB7&PID_0E04&MI_00#7&2B1C3E&0&0000".
 
 use serde::Serialize;
 
@@ -20,6 +22,32 @@ use crate::controls::ButtonPress;
 pub struct Controller {
     pub device: String,
     pub name: String,
+}
+
+/// `\\?\HID#VID_0EB7&PID_0E04&MI_00#7&2b1c...#{guid}` -> `VID_0EB7&PID_0E04&MI_00`.
+#[cfg_attr(not(windows), allow(dead_code))] // only the Windows reader uses it
+pub fn hardware_id(path: &str) -> String {
+    path.split('#').nth(1).unwrap_or(path).to_ascii_uppercase()
+}
+
+/// The device's id: its hardware id, plus its instance id when another
+/// connected device (in `connected`, paths) has the same hardware id.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn device_id<S: AsRef<str>>(path: &str, connected: &[S]) -> String {
+    let hardware = hardware_id(path);
+    let twin = connected
+        .iter()
+        .map(AsRef::as_ref)
+        .any(|other| !other.eq_ignore_ascii_case(path) && hardware_id(other) == hardware);
+    match path.split('#').nth(2).filter(|_| twin) {
+        Some(instance) => format!("{hardware}#{}", instance.to_ascii_uppercase()),
+        None => hardware,
+    }
+}
+
+/// The hardware id part of a device id, without any instance id.
+pub fn base_id(id: &str) -> &str {
+    id.split('#').next().unwrap_or(id)
 }
 
 #[cfg(not(windows))]
@@ -58,7 +86,7 @@ mod win {
         WM_INPUT_DEVICE_CHANGE, WNDCLASSW,
     };
 
-    use super::{ButtonPress, Controller};
+    use super::{device_id, hardware_id, ButtonPress, Controller};
 
     /// HID usage page 1 (generic desktop): joystick, gamepad, multi-axis controller.
     const USAGE_PAGE_GENERIC: u16 = 0x01;
@@ -75,6 +103,7 @@ mod win {
 
     struct Device {
         id: String,
+        path: String,
         name: String,
         preparsed: Vec<u8>,
         max_usages: usize,
@@ -140,14 +169,22 @@ mod win {
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_INPUT_DEVICE_CHANGE => {
-                // Handles can be reused by the next device plugged in.
-                if wparam == GIDC_REMOVAL {
-                    STATE.with(|s| {
-                        if let Some(state) = s.borrow_mut().as_mut() {
-                            state.devices.remove(&lparam);
+                STATE.with(|s| {
+                    let mut s = s.borrow_mut();
+                    let Some(state) = s.as_mut() else { return };
+                    let mut paths = controller_paths();
+                    // Handles can be reused by the next device plugged in.
+                    if wparam == GIDC_REMOVAL {
+                        if let Some(gone) = state.devices.remove(&lparam) {
+                            // It may still be listed while it goes away.
+                            paths.retain(|p| !p.eq_ignore_ascii_case(&gone.path));
                         }
-                    });
-                }
+                    }
+                    // A twin coming or going changes the ids of the others.
+                    for dev in state.devices.values_mut() {
+                        dev.id = device_id(&dev.path, &paths);
+                    }
+                });
                 0
             }
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),
@@ -273,8 +310,9 @@ mod win {
                     .map(|v| (v.LogicalMin, v.LogicalMax));
             }
         }
-        let id = hardware_id(&path);
-        Some(Device { name: product_name(&path).unwrap_or_else(|| format!("Controller {id}")), id, preparsed, max_usages, hat, held: Vec::new() })
+        let id = device_id(&path, &controller_paths());
+        let name = product_name(&path).unwrap_or_else(|| format!("Controller {}", hardware_id(&path)));
+        Some(Device { id, path, name, preparsed, max_usages, hat, held: Vec::new() })
     }
 
     unsafe fn device_path(handle: HANDLE) -> Option<String> {
@@ -291,11 +329,6 @@ mod win {
         Some(String::from_utf16_lossy(&name[..end]))
     }
 
-    /// `\\?\HID#VID_0EB7&PID_0E04&MI_00#7&2b1c...#{guid}` -> `VID_0EB7&PID_0E04&MI_00`.
-    pub fn hardware_id(path: &str) -> String {
-        path.split('#').nth(1).unwrap_or(path).to_ascii_uppercase()
-    }
-
     unsafe fn product_name(path: &str) -> Option<String> {
         let file = CreateFileW(wide(path).as_ptr(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, null(), OPEN_EXISTING, 0, null_mut());
         if file == INVALID_HANDLE_VALUE {
@@ -309,41 +342,51 @@ mod win {
         (ok && !name.is_empty()).then_some(name)
     }
 
+    /// The path of every wheel, button box and gamepad plugged in now.
+    unsafe fn controller_paths() -> Vec<String> {
+        let mut count = 0u32;
+        let entry = size_of::<RAWINPUTDEVICELIST>() as u32;
+        GetRawInputDeviceList(null_mut(), &mut count, entry);
+        let mut list: Vec<RAWINPUTDEVICELIST> = vec![zeroed(); count as usize];
+        let got = GetRawInputDeviceList(list.as_mut_ptr(), &mut count, entry);
+        if got == u32::MAX {
+            return Vec::new();
+        }
+        let mut out: Vec<String> = Vec::new();
+        for d in &list[..got as usize] {
+            if d.dwType != RIM_TYPEHID {
+                continue;
+            }
+            let mut info: RID_DEVICE_INFO = zeroed();
+            info.cbSize = size_of::<RID_DEVICE_INFO>() as u32;
+            let mut size = info.cbSize;
+            if GetRawInputDeviceInfoW(d.hDevice, RIDI_DEVICEINFO, (&mut info as *mut RID_DEVICE_INFO).cast(), &mut size) == u32::MAX {
+                continue;
+            }
+            let hid = info.Anonymous.hid;
+            if hid.usUsagePage != USAGE_PAGE_GENERIC || !CONTROLLER_USAGES.contains(&hid.usUsage) {
+                continue;
+            }
+            let Some(path) = device_path(d.hDevice) else { continue };
+            if !out.iter().any(|p| p.eq_ignore_ascii_case(&path)) {
+                out.push(path);
+            }
+        }
+        out
+    }
+
     /// Wheels, button boxes and gamepads plugged in now.
     pub fn list() -> Vec<Controller> {
         unsafe {
-            let mut count = 0u32;
-            let entry = size_of::<RAWINPUTDEVICELIST>() as u32;
-            GetRawInputDeviceList(null_mut(), &mut count, entry);
-            let mut list: Vec<RAWINPUTDEVICELIST> = vec![zeroed(); count as usize];
-            let got = GetRawInputDeviceList(list.as_mut_ptr(), &mut count, entry);
-            if got == u32::MAX {
-                return Vec::new();
-            }
-            let mut out: Vec<Controller> = Vec::new();
-            for d in &list[..got as usize] {
-                if d.dwType != RIM_TYPEHID {
-                    continue;
-                }
-                let mut info: RID_DEVICE_INFO = zeroed();
-                info.cbSize = size_of::<RID_DEVICE_INFO>() as u32;
-                let mut size = info.cbSize;
-                if GetRawInputDeviceInfoW(d.hDevice, RIDI_DEVICEINFO, (&mut info as *mut RID_DEVICE_INFO).cast(), &mut size) == u32::MAX {
-                    continue;
-                }
-                let hid = info.Anonymous.hid;
-                if hid.usUsagePage != USAGE_PAGE_GENERIC || !CONTROLLER_USAGES.contains(&hid.usUsage) {
-                    continue;
-                }
-                let Some(path) = device_path(d.hDevice) else { continue };
-                let device = hardware_id(&path);
-                if out.iter().any(|c| c.device == device) {
-                    continue;
-                }
-                let name = product_name(&path).unwrap_or_else(|| format!("Controller {device}"));
-                out.push(Controller { device, name });
-            }
-            out
+            let paths = controller_paths();
+            paths
+                .iter()
+                .map(|path| {
+                    let device = device_id(path, &paths);
+                    let name = product_name(path).unwrap_or_else(|| format!("Controller {}", hardware_id(path)));
+                    Controller { device, name }
+                })
+                .collect()
         }
     }
 
@@ -361,14 +404,6 @@ mod win {
             assert_eq!(hat_buttons(2, 0, 3), vec![1003]);
         }
 
-        #[test]
-        fn hardware_id_from_path() {
-            assert_eq!(
-                hardware_id(r"\\?\HID#VID_0eb7&PID_0e04&MI_00#7&2b1c3e&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}"),
-                "VID_0EB7&PID_0E04&MI_00"
-            );
-        }
-
         /// Prints what's plugged in: `cargo test -p tenths list_controllers -- --nocapture --ignored`.
         #[test]
         #[ignore]
@@ -377,5 +412,41 @@ mod win {
                 println!("{}  {}", c.device, c.name);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BOX_A: &str = r"\\?\HID#VID_0eb7&PID_0e04&MI_00#7&2b1c3e&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}";
+    const BOX_B: &str = r"\\?\HID#VID_0eb7&PID_0e04&MI_00#7&91ad07&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}";
+    const WHEEL: &str = r"\\?\HID#VID_346e&PID_0004#6&1f0a2b&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}";
+
+    #[test]
+    fn hardware_id_from_path() {
+        assert_eq!(hardware_id(BOX_A), "VID_0EB7&PID_0E04&MI_00");
+    }
+
+    #[test]
+    fn one_of_a_kind_keeps_the_plain_id() {
+        assert_eq!(device_id(BOX_A, &[BOX_A, WHEEL]), "VID_0EB7&PID_0E04&MI_00");
+        assert_eq!(device_id(BOX_A, &[] as &[&str]), "VID_0EB7&PID_0E04&MI_00");
+        // Listed twice is still one device.
+        assert_eq!(device_id(BOX_A, &[BOX_A, BOX_A.to_ascii_uppercase().as_str()]), "VID_0EB7&PID_0E04&MI_00");
+    }
+
+    #[test]
+    fn twins_get_their_instance_id() {
+        let connected = [BOX_A, BOX_B, WHEEL];
+        assert_eq!(device_id(BOX_A, &connected), "VID_0EB7&PID_0E04&MI_00#7&2B1C3E&0&0000");
+        assert_eq!(device_id(BOX_B, &connected), "VID_0EB7&PID_0E04&MI_00#7&91AD07&0&0000");
+        assert_eq!(device_id(WHEEL, &connected), "VID_346E&PID_0004");
+    }
+
+    #[test]
+    fn base_id_drops_the_instance() {
+        assert_eq!(base_id("VID_0EB7&PID_0E04&MI_00#7&2B1C3E&0&0000"), "VID_0EB7&PID_0E04&MI_00");
+        assert_eq!(base_id("VID_346E&PID_0004"), "VID_346E&PID_0004");
     }
 }
