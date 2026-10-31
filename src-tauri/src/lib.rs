@@ -244,6 +244,12 @@ fn my_display(window: WebviewWindow, state: State<Displays>) -> Option<String> {
     state.windows.lock().unwrap().get(window.label()).cloned()
 }
 
+/// The mouse on the desktop and whether its button is held, for dragging widgets between displays.
+#[tauri::command]
+fn pointer(app: AppHandle) -> Option<displays::Pointer> {
+    displays::pointer(&app)
+}
+
 #[tauri::command]
 fn set_demo(app: AppHandle, state: State<AppState>, enabled: bool) {
     state.control.demo.store(enabled, Ordering::Relaxed);
@@ -503,6 +509,7 @@ pub fn run() {
             set_demo,
             get_displays,
             my_display,
+            pointer,
             open_settings,
             pit_command,
             set_pit_active,

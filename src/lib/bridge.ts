@@ -39,6 +39,11 @@ export const api = {
   setDemo: (enabled: boolean) => call<void>("set_demo", { enabled }),
   /** The connected displays, primary first. */
   getDisplays: () => call<Display[]>("get_displays"),
+  /**
+   * The mouse on the desktop (physical px) and whether its button is held.
+   * Null where that can't be read (the browser preview).
+   */
+  pointer: () => call<{ x: number; y: number; down: boolean } | null>("pointer"),
   /** The display this overlay window covers; null in other windows. */
   myDisplay: () => call<string | null>("my_display"),
   openSettings: () => call<void>("open_settings"),

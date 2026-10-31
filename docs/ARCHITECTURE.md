@@ -237,11 +237,15 @@ fuel amount of 0 keeps the amount already set.
   A widget's `display` picks its window; missing or unplugged means the
   primary, so nothing is lost. Its anchored position is within that display.
   Moving between displays: the edit label's button re-anchors it on the next
-  display at the same offsets; dragging past the window edge works because
-  the window keeps the pointer while the button is held, so on release
-  `dropOnto` turns the pointer into desktop pixels (window origin + client
-  position × scale), finds the display under it and converts back to that
-  display's CSS pixels, keeping where the widget was held. In the browser
+  display at the same offsets; dragging past the window edge: WebView2
+  stops sending pointer events once the mouse leaves its window, so while a
+  widget is moved with more than one display the overlay polls the `pointer`
+  command (every 25 ms: `cursor_position` plus `GetAsyncKeyState` on the main
+  button, honouring swapped buttons). Outside the window that drives the
+  "Release to move to display N" hint, and when the button comes up the drag
+  finishes there. `dropOnto` turns the pointer into desktop pixels (window
+  origin + client position × scale), finds the display under it and converts
+  back to that display's CSS pixels, keeping where the widget was held. In the browser
   preview, `?displays=2` adds a second display and `&display=2` makes a tab
   its overlay.
 - **settings** window: normal window. Closing it hides it; the tray icon brings

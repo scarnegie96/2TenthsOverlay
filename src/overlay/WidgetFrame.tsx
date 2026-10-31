@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { api, isTauri } from "../lib/bridge";
 import { widgetMeta, type WidgetConfig, type WidgetId } from "../lib/config";
 import { cssSize, dropOnto, nextDisplay } from "../lib/displays";
 import type { Display } from "../lib/types";
@@ -9,6 +10,9 @@ import { snap, type Guide, type Rect } from "./snapping";
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 3;
 const SCALE_STEP = 0.05;
+
+/** How often to ask where the mouse is while a widget is dragged (ms). */
+const POINTER_POLL_MS = 25;
 
 const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s / SCALE_STEP) * SCALE_STEP));
 
@@ -47,6 +51,12 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
   const [live, setLive] = useState<{ x: number; y: number; scale: number } | null>(null);
   // While dragging past the edge onto another display: its number, for the hint.
   const [leaving, setLeaving] = useState<number | null>(null);
+  // The same as `live`, for the pointer poll, which outlives a render.
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  // Set while the pointer poll runs (see startPointerPoll).
+  const polling = useRef(false);
+  useEffect(() => () => void (polling.current = false), []);
 
   const scale = live?.scale ?? config.scale;
   const size: Size = natural ? { w: natural.w * scale, h: natural.h * scale } : { w: 0, h: 0 };
@@ -89,7 +99,43 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
       ? { mode: "scale", px: e.clientX, py: e.clientY, scale, w: size.w }
       : { mode: "move", px: e.clientX, py: e.clientY, x, y, moved: false };
     e.preventDefault();
+    if (!isHandle) startPointerPoll();
   };
+
+  /**
+   * The web view stops getting pointer events once the mouse leaves its
+   * window, so a drag onto another display can't be followed from the DOM.
+   * While moving a widget with more than one display, ask the app where the
+   * mouse is and whether the button is still held, and finish the drag from
+   * that when it's let go. Inside the window the DOM events do the work.
+   */
+  const startPointerPoll = () => {
+    if (!isTauri || !display || displays.length < 2 || polling.current) return;
+    polling.current = true;
+    const from = display;
+    const tick = async () => {
+      if (!polling.current || !drag.current) return void (polling.current = false);
+      const p = await api.pointer().catch(() => null);
+      if (!polling.current || !drag.current) return void (polling.current = false);
+      if (!p) return void (polling.current = false); // can't tell here: DOM events only
+      const at = { clientX: (p.x - from.x) / from.scale, clientY: (p.y - from.y) / from.scale };
+      if (!p.down) {
+        // Let go: wherever it is, inside this window or over another display.
+        if (drag.current.mode === "move") drag.current.moved = true;
+        finish(at);
+        return;
+      }
+      if (!inWindow(at)) {
+        if (drag.current.mode === "move") drag.current.moved = true;
+        setLeaving(crossing(at)?.display.number ?? null);
+      }
+      window.setTimeout(() => void tick(), POINTER_POLL_MS);
+    };
+    void tick();
+  };
+
+  const inWindow = (e: { clientX: number; clientY: number }) =>
+    e.clientX >= 0 && e.clientY >= 0 && e.clientX < screen.w && e.clientY < screen.h;
 
   const move = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
@@ -113,12 +159,20 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
   const crossing = (e: { clientX: number; clientY: number }) => {
     const d = drag.current;
     if (!d || d.mode !== "move" || !display || displays.length < 2) return null;
-    const inside = e.clientX >= 0 && e.clientY >= 0 && e.clientX < screen.w && e.clientY < screen.h;
-    if (inside) return null;
+    if (inWindow(e)) return null;
     return dropOnto(display, e.clientX, e.clientY, { x: d.px - d.x, y: d.py - d.y }, displays);
   };
 
-  const up = (e: ReactPointerEvent<HTMLDivElement>) => {
+  const up = (e: ReactPointerEvent<HTMLDivElement>) => finish(e);
+
+  /** The pointer may leave the window mid-drag; the poll finishes the drag then. */
+  const cancel = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!polling.current) finish(e);
+  };
+
+  /** Ends a drag where the pointer was let go. */
+  const finish = (e: { clientX: number; clientY: number }) => {
+    polling.current = false;
     if (!drag.current) return;
     const across = drag.current.mode === "move" && drag.current.moved ? crossing(e) : null;
     drag.current = null;
@@ -130,8 +184,9 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
       const target = cssSize(across.display);
       const p = clampOnScreen(across.left, across.top, sz, target);
       onCommit(id, { ...toAnchored(p.x, p.y, sz, target), scale, display: across.display.key });
-    } else if (live) {
-      save(live.x, live.y, live.scale);
+    } else if (liveRef.current) {
+      const l = liveRef.current;
+      save(l.x, l.y, l.scale);
     }
     setLive(null);
   };
@@ -172,7 +227,8 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
-      onPointerCancel={up}
+      onPointerCancel={cancel}
+      onLostPointerCapture={cancel}
     >
       <Widget config={config} editing={editing} />
       {editing && (

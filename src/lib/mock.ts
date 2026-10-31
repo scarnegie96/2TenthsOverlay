@@ -278,6 +278,8 @@ class Mock {
         return;
       case "list_controllers":
         return [];
+      case "pointer":
+        return null;
       // ?update pretends a newer version is out.
       case "update_status":
         return { current: "0.4.1", available: this.update, lastChecked: this.updateChecked, enabled: true };

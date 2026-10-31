@@ -178,3 +178,37 @@ pub fn watch(app: AppHandle) {
         sync(&app);
     });
 }
+
+/// Where the mouse is on the desktop (physical pixels) and whether its main
+/// button is held. While a widget is dragged, the overlay asks for this so it
+/// can follow the pointer onto another display: the web view stops getting
+/// pointer events once the mouse leaves its window, so it can't see that by
+/// itself.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct Pointer {
+    pub x: f64,
+    pub y: f64,
+    pub down: bool,
+}
+
+/// None where the button state can't be read (not Windows).
+pub fn pointer(app: &AppHandle) -> Option<Pointer> {
+    let pos = app.cursor_position().ok()?;
+    Some(Pointer { x: pos.x, y: pos.y, down: main_button_down()? })
+}
+
+#[cfg(windows)]
+fn main_button_down() -> Option<bool> {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_SWAPBUTTON};
+    // GetAsyncKeyState reads the physical buttons, so follow "switch primary and secondary buttons".
+    let swapped = unsafe { GetSystemMetrics(SM_SWAPBUTTON) } != 0;
+    let vk = if swapped { VK_RBUTTON } else { VK_LBUTTON };
+    // The high bit is set while the button is down.
+    Some(unsafe { GetAsyncKeyState(vk as i32) } < 0)
+}
+
+#[cfg(not(windows))]
+fn main_button_down() -> Option<bool> {
+    None
+}
