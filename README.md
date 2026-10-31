@@ -106,10 +106,12 @@ temperature when you set it. Your session best is green. A red dot marks a lap
 that wasn't clean (off track or an incident), "Pit" marks in and out laps, and
 "PB" marks a lap that beat your all-time personal best. The header shows the
 session best and your personal best for this car and track, with when you set
-it.
+it. It shows 8 laps; older ones scroll below, with a fade at the bottom when
+there are more. While you drive the overlay lets the mouse through to the
+game, so scroll the list in edit layout mode.
 
-*Options*: laps shown, gap to session best or to personal best, and the gap,
-temperature and fuel-used columns.
+*Options*: how many laps to show before the list scrolls, gap to session best
+or to personal best, and the gap, temperature and fuel-used columns.
 
 ### Coach
 
@@ -133,13 +135,22 @@ lap for this track is loaded.
 
 ![Inputs widget](docs/widgets/inputs.png)
 
-Gear, speed, steering wheel angle, a scrolling throttle and brake trace, and
-throttle, brake and clutch bars. The gear turns red at the shift point. With a
-reference lap loaded, a slimmer strip above shows the reference's gear, speed,
-pedals and (for `.ibt` laps) wheel at the same spot on track.
+Gear, speed, a steering wheel that turns with yours, a scrolling throttle and
+brake trace, and throttle, brake and clutch bars. The gear turns red at the
+shift point. With a reference lap loaded, a slimmer strip above shows the
+reference's gear, speed, pedals and (for `.ibt` laps) wheel at the same spot on
+track.
 
-*Options*: trace length, and whether to show the trace, wheel, clutch, shift
-light and reference strip.
+![Steering wheel styles](docs/widgets/wheels.png)
+
+The wheel comes in four styles: round (road cars), GT, formula and oval. The
+GT and formula wheels have shift lights that fill green, amber and red as you
+near the shift point. *Automatic* picks one from the car's name (formula and
+prototype cars get the formula wheel, GT cars the GT wheel, stock cars and
+short-track cars the oval wheel, anything else the round one).
+
+*Options*: trace length, wheel style, and whether to show the trace, wheel,
+clutch, shift light and reference strip.
 
 ### Car dynamics
 
