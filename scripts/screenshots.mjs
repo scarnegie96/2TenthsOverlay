@@ -39,6 +39,7 @@ const WIDGETS = {
   fuel: {},
   radar: {},
   tires: {},
+  pitstop: {},
   flags: { params: "flag=16384" },
   weather: {},
 };

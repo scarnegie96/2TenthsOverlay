@@ -296,6 +296,25 @@ impl Engine {
         }
     }
 
+    fn pit(&self, f: &RawFrame, s: &SessionInfo) -> PitPayload {
+        use crate::pit::flags;
+        let Some(sv) = f.pit_service else { return PitPayload::default() };
+        let on = |bit: u32| sv.flags & bit != 0;
+        PitPayload {
+            available: true,
+            tires: flags::TIRES.map(on),
+            pressures: sv.pressure,
+            compound: s.tire_compounds.get(sv.compound.max(0) as usize).cloned().unwrap_or_default(),
+            fuel: on(flags::FUEL),
+            fuel_amount: sv.fuel,
+            tearoff: on(flags::TEAROFF),
+            fast_repair: on(flags::FAST_REPAIR),
+            fast_repairs_left: f.fast_repairs_available.filter(|n| (0..255).contains(n)),
+            status: f.pit_sv_status,
+            in_pit_stall: f.in_pit_stall,
+        }
+    }
+
     /// Call at ~10 Hz. Builds relative, standings, fuel and clock.
     pub fn field(&self, f: &RawFrame) -> FieldPayload {
         let Some(session) = &self.session else { return FieldPayload::default() };
@@ -305,6 +324,7 @@ impl Engine {
             standings: self.standings(f, session),
             fuel: self.fuel.payload(f, session, self.is_race(f.session_num)),
             tires: self.tires(f, session),
+            pit: self.pit(f, session),
             lap_log: self.laps.payload(),
         }
     }

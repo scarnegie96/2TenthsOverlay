@@ -1732,6 +1732,130 @@
   color: var(--attention);
 }
 
+/* ---------- Pit stop ---------------------------------------------------------- */
+
+.pitstop {
+  width: 300px;
+}
+.pit-problem {
+  color: var(--attention);
+  font-weight: 700;
+}
+.pit-row {
+  display: grid;
+  grid-template-columns: 12px 76px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.pit-row + .pit-row {
+  border-top: 1px solid var(--line);
+}
+/* A tick box: hollow until iRacing reports it ticked. */
+.pit-check {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink-3);
+}
+.pit-row.is-on .pit-check {
+  border-color: var(--gain);
+  background: var(--gain);
+}
+.pit-label {
+  font-size: 15px;
+  color: var(--ink-3);
+}
+.pit-row.is-on .pit-label {
+  color: var(--ink);
+  font-weight: 600;
+}
+.pit-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pit-value {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.pit-row:not(.is-on) .pit-value {
+  color: var(--ink-3);
+}
+.pit-note {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.pit-note.is-warn {
+  color: var(--attention);
+}
+.pit-tires {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+.pit-tire {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.pit-tire b {
+  font-weight: 500;
+}
+.pit-tire.is-on {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--gain) 24%, transparent);
+}
+.pit-keys {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.pit-key-line {
+  display: flex;
+  gap: 3px;
+}
+.pit-key {
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: var(--ink-3);
+  /* Fades out after lighting up. */
+  transition: color 0.35s, background-color 0.35s, border-color 0.35s;
+}
+/* Lights at once when its key or button is pressed. */
+.pit-key.is-lit {
+  color: var(--panel-solid);
+  background: var(--gain);
+  border-color: var(--gain);
+  transition: none;
+}
+.pit-foot {
+  padding: 6px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.pit-foot.is-sent {
+  color: var(--gain);
+  font-weight: 600;
+}
+
 /* ---------- Weather ----------------------------------------------------------- */
 
 .weather {

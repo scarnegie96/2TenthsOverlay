@@ -337,12 +337,63 @@ export interface TiresPayload {
   hasData: boolean;
 }
 
+/** What iRacing has ticked for your next pit stop. */
+export interface PitPayload {
+  /** False while spectating, when iRacing doesn't publish pit service. */
+  available: boolean;
+  /** Tires to change, LF, RF, LR, RR. */
+  tires: [boolean, boolean, boolean, boolean];
+  /** kPa each tire will be set to. */
+  pressures: [number, number, number, number];
+  compound: string;
+  fuel: boolean;
+  /** Litres to add. */
+  fuelAmount: number;
+  tearoff: boolean;
+  fastRepair: boolean;
+  /** null when unlimited or unknown. */
+  fastRepairsLeft: number | null;
+  /** 0 none, 1 in progress, 2 done, 100+ a problem (too far forward...). */
+  status: number;
+  inPitStall: boolean;
+}
+
+/** A pit command for iRacing. Fuel is in whole litres and pressure in kPa; 0 keeps iRacing's current value. */
+export type PitCommand =
+  | { kind: "clear" }
+  | { kind: "fuel"; litres: number }
+  | { kind: "clearFuel" }
+  | { kind: "tire"; corner: number; kpa: number }
+  | { kind: "clearTires" }
+  | { kind: "tearoff" }
+  | { kind: "clearTearoff" }
+  | { kind: "fastRepair" }
+  | { kind: "clearFastRepair" }
+  | { kind: "compound"; index: number };
+
+/** A wheel, button box or gamepad. */
+export interface Controller {
+  device: string;
+  name: string;
+}
+
+/** A controller button press, sent to every window. */
+export interface ButtonPress {
+  device: string;
+  name: string;
+  button: number;
+}
+
+/** What a pit hotkey asks for. */
+export type PitAction = "fuel" | "fuelUp" | "fuelDown" | "tires" | "fastRepair" | "tearoff" | "clear";
+
 export interface FieldPayload {
   clock: SessionClock;
   relative: RelativeRow[];
   standings: StandingRow[];
   fuel: FuelPayload;
   tires: TiresPayload;
+  pit: PitPayload;
   lapLog: LapLogPayload;
 }
 

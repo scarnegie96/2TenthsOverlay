@@ -5,8 +5,8 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CarStatus, CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow, StatusPayload,
-  TickPayload, TiresPayload,
+  CarStatus, CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
+  StatusPayload, TickPayload, TiresPayload,
 } from "./types";
 
 type Handler = (payload: unknown) => void;
@@ -62,6 +62,11 @@ class Mock {
   private lapStart = Array.from({ length: N }, () => 0);
   private sides = new Map<number, number>();
   private fuel = 31.4;
+  /** What's ticked for the next stop: four tires and some fuel, like the Rust demo. */
+  private pit: PitPayload = {
+    available: true, tires: [true, true, true, true], pressures: [165, 165, 162, 162], compound: "Hard", fuel: true,
+    fuelAmount: 30, tearoff: false, fastRepair: false, fastRepairsLeft: 1, status: 0, inPitStall: false,
+  };
   private lapLog: LapRecord[] = [];
   private dyn = { speed: 0, time: 0, longG: 0, balance: null as number | null };
   private started = false;
@@ -221,12 +226,38 @@ class Mock {
       case "set_overlay_visible":
         this.broadcast("overlay-visible", args.visible);
         return;
+      case "pit_command":
+        this.applyPit(args.action as PitCommand);
+        return;
       case "set_demo":
       case "open_settings":
+      case "set_pit_active":
+      case "set_controls":
+      case "suspend_controls":
         return;
+      case "list_controllers":
+        return [];
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }
+  }
+
+  /** What iRacing does with a pit command (the Rust demo does the same in pit.rs). */
+  private applyPit(c: PitCommand) {
+    const p = { ...this.pit, tires: [...this.pit.tires] as PitPayload["tires"], pressures: [...this.pit.pressures] as PitPayload["pressures"] };
+    switch (c.kind) {
+      case "clear": Object.assign(p, { tires: [false, false, false, false], fuel: false, tearoff: false, fastRepair: false }); break;
+      case "fuel": p.fuel = true; if (c.litres > 0) p.fuelAmount = c.litres; break;
+      case "clearFuel": p.fuel = false; break;
+      case "tire": p.tires[c.corner] = true; if (c.kpa > 0) p.pressures[c.corner] = c.kpa; break;
+      case "clearTires": p.tires = [false, false, false, false]; break;
+      case "tearoff": p.tearoff = true; break;
+      case "clearTearoff": p.tearoff = false; break;
+      case "fastRepair": p.fastRepair = true; break;
+      case "clearFastRepair": p.fastRepair = false; break;
+      case "compound": break;
+    }
+    this.pit = p;
   }
 
   private layouts(): Record<string, Profile> {
@@ -665,6 +696,7 @@ class Mock {
         toFinish: lapsToGo * perLap - this.fuel, samples: 5,
       },
       tires,
+      pit: this.pit,
       lapLog: {
         laps: this.lapLog.slice(-100),
         sessionBest: Math.min(...this.lapLog.filter((l) => l.clean && l.time != null).map((l) => l.time!)),
@@ -692,7 +724,8 @@ let flagPreview: number | null =
 const PREVIEW_FLAGS = [0x8000 | 0x4000, 0x100 | 0x8, 0x20, 0x40, 0x2, 0x1, 0x10, 0x10000, 0x100000, 0x80000, 0x20000, 0x200, 0x4];
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() !== "f" || e.ctrlKey || e.metaKey) return;
+    // Shift+F is the pit stop's fuel key.
+    if (e.key.toLowerCase() !== "f" || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const i = flagPreview == null ? 0 : PREVIEW_FLAGS.indexOf(flagPreview) + 1;
     flagPreview = i < PREVIEW_FLAGS.length ? PREVIEW_FLAGS[i] : null;
   });

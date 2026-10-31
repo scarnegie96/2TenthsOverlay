@@ -1,6 +1,8 @@
 //! Tauri shell: windows, tray, hotkeys, config storage, and the bridge from
 //! the telemetry thread to the web views.
 
+mod controllers;
+mod controls;
 mod profiles;
 
 use std::fs;
@@ -13,13 +15,13 @@ use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
-use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::ShortcutState;
 use telemetry::ibt::IbtSummary;
 use telemetry::lapfile;
 use telemetry::reference::ReferenceLap;
-use telemetry::{FieldPayload, ReferencePayload, RunnerControl, SessionPayload, Sink, StatusPayload, TickPayload};
+use telemetry::{FieldPayload, PitCommand, ReferencePayload, RunnerControl, SessionPayload, Sink, StatusPayload, TickPayload};
 
-const OVERLAY: &str = "overlay";
+pub(crate) const OVERLAY: &str = "overlay";
 const SETTINGS: &str = "settings";
 
 /// What a freshly opened window needs to render immediately.
@@ -238,6 +240,41 @@ fn open_settings(app: AppHandle) {
 }
 
 // ---------------------------------------------------------------------------
+// Pit service
+// ---------------------------------------------------------------------------
+
+/// Sends a pit command to iRacing (or the demo race).
+#[tauri::command]
+fn pit_command(state: State<AppState>, action: PitCommand) {
+    state.control.pit_command(action);
+}
+
+/// The pit hotkeys and buttons only work while the Pit stop widget is on and
+/// you're in the car, so they don't take keys from other programs otherwise.
+#[tauri::command]
+fn set_pit_active(app: AppHandle, active: bool) {
+    controls::set_pit_active(&app, active);
+}
+
+/// The key and controller button for each action, from the config.
+#[tauri::command]
+fn set_controls(app: AppHandle, controls: std::collections::HashMap<String, controls::Binding>) {
+    controls::set_bindings(&app, controls);
+}
+
+/// Wheels, button boxes and gamepads plugged in now.
+#[tauri::command]
+fn list_controllers() -> Vec<controllers::Controller> {
+    controllers::list()
+}
+
+/// Stops every hotkey and button while the settings window waits for a new one.
+#[tauri::command]
+fn suspend_controls(app: AppHandle, suspended: bool) {
+    controls::set_suspended(&app, suspended);
+}
+
+// ---------------------------------------------------------------------------
 // Window behaviour
 // ---------------------------------------------------------------------------
 
@@ -290,12 +327,18 @@ fn show_settings(app: &AppHandle) {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open settings", true, None::<&str>)?;
-    let edit = MenuItem::with_id(app, "edit", "Edit layout   Ctrl+Shift+E", true, None::<&str>)?;
-    let hide = MenuItem::with_id(app, "toggle", "Show / hide overlays   Ctrl+Shift+H", true, None::<&str>)?;
-    let next = MenuItem::with_id(app, "next-layout", "Next layout   Ctrl+Shift+L", true, None::<&str>)?;
+    // Their shortcuts are added to the text once the overlay sends the bindings.
+    let edit = MenuItem::with_id(app, "edit", "Edit layout", true, None::<&str>)?;
+    let hide = MenuItem::with_id(app, "toggle", "Show / hide overlays", true, None::<&str>)?;
+    let next = MenuItem::with_id(app, "next-layout", "Next layout", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Tenths", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &edit, &hide, &next, &sep, &quit])?;
+    app.state::<controls::Controls>().set_tray(vec![
+        ("overlay.edit", edit.clone(), "Edit layout"),
+        ("overlay.toggle", hide.clone(), "Show / hide overlays"),
+        ("layout.next", next.clone(), "Next layout"),
+    ]);
 
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip("Tenths")
@@ -305,9 +348,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "open" => show_settings(app),
             "edit" => toggle_edit(app),
             "toggle" => toggle_visible(app),
-            "next-layout" => {
-                let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step: Some(1), index: None });
-            }
+            "next-layout" => switch_layout(app, Some(1), None),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -323,6 +364,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Asks the overlay to switch layouts: `step` +1 for the next, or `index` from 0.
+fn switch_layout(app: &AppHandle, step: Option<i32>, index: Option<usize>) {
+    let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step, index });
+}
+
 fn toggle_edit(app: &AppHandle) {
     let on = app.state::<AppState>().edit_mode.load(Ordering::Relaxed);
     apply_edit_mode(app, !on);
@@ -335,42 +381,22 @@ fn toggle_visible(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let edit_key = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyE);
-    let hide_key = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyH);
-    let next_layout_key = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyL);
-    let digits = [
-        Code::Digit1, Code::Digit2, Code::Digit3, Code::Digit4, Code::Digit5, Code::Digit6, Code::Digit7, Code::Digit8,
-        Code::Digit9,
-    ];
-    let layout_keys: Vec<Shortcut> = digits.iter().map(|&d| Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), d)).collect();
-    let mut shortcuts = vec![edit_key, hide_key, next_layout_key];
-    shortcuts.extend(layout_keys.iter().copied());
-
     let control = RunnerControl::default();
     let latest = Arc::new(Mutex::new(Snapshot::default()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(
+            // Shortcuts are registered from the bindings the overlay sends (controls.rs).
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts(shortcuts)
-                .expect("register shortcuts")
-                .with_handler(move |app, shortcut, event| {
-                    if event.state() != ShortcutState::Pressed {
-                        return;
-                    }
-                    if shortcut == &edit_key {
-                        toggle_edit(app);
-                    } else if shortcut == &hide_key {
-                        toggle_visible(app);
-                    } else if shortcut == &next_layout_key {
-                        let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step: Some(1), index: None });
-                    } else if let Some(i) = layout_keys.iter().position(|k| k == shortcut) {
-                        let _ = app.emit_to(OVERLAY, "layout-shortcut", LayoutShortcut { step: None, index: Some(i) });
+                .with_handler(|app, shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        controls::on_shortcut(app, shortcut);
                     }
                 })
                 .build(),
         )
+        .manage(controls::Controls::default())
         .manage(AppState {
             control: control.clone(),
             edit_mode: AtomicBool::new(false),
@@ -386,6 +412,11 @@ pub fn run() {
             set_overlay_visible,
             set_demo,
             open_settings,
+            pit_command,
+            set_pit_active,
+            set_controls,
+            suspend_controls,
+            list_controllers,
             inspect_lap_file,
             load_reference,
             clear_reference,
@@ -405,6 +436,8 @@ pub fn run() {
                 w.show()?;
             }
             build_tray(&handle)?;
+            let buttons = handle.clone();
+            controllers::spawn(move |press| controls::on_button(&buttons, press));
             if let Some(reference) = load_saved_reference(&handle) {
                 control.set_reference(Some(reference));
             }

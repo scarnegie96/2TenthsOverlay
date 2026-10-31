@@ -480,3 +480,63 @@ kbd {
   font: inherit;
   color: var(--ink-2);
 }
+
+/* ---------- Controls ------------------------------------------------------------ */
+
+.controllers {
+  max-width: 280px;
+  text-align: right;
+  color: var(--ink-2);
+}
+.section-note {
+  margin: 8px 0;
+}
+.bind {
+  display: inline-flex;
+  align-items: stretch;
+  width: 150px;
+  height: 32px;
+  border-radius: 5px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-raised);
+  overflow: hidden;
+}
+.bind + .bind {
+  margin-left: 6px;
+}
+.bind-main {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.bind.is-empty .bind-main {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.bind.is-waiting {
+  border-color: var(--attention);
+}
+.bind.is-waiting .bind-main {
+  color: var(--attention);
+}
+.bind-clear {
+  width: 26px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: none;
+  color: var(--ink-3);
+  font-size: 16px;
+  cursor: pointer;
+}
+.bind-clear:hover,
+.bind:not(.is-waiting) .bind-main:hover {
+  color: var(--ink);
+}

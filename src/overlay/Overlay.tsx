@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, isTauri, on } from "../lib/bridge";
 import { WIDGETS, type WidgetConfig, type WidgetId } from "../lib/config";
+import { usePitControl } from "../lib/pit";
 import { cycleProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import type { Guide, Rect } from "./snapping";
 import { WidgetFrame } from "./WidgetFrame";
@@ -19,6 +20,13 @@ export function Overlay() {
   const profiles = useLive((s) => s.profiles);
   const activeProfile = config.general.activeProfile;
   const toast = useLayoutToast(activeProfile, profiles.find((p) => p.id === activeProfile)?.name);
+  usePitControl();
+
+  // Rust owns the global shortcuts and controller buttons; keep it up to date with the config.
+  const controls = config.general.controls;
+  useEffect(() => {
+    if (loaded) void api.setControls(controls);
+  }, [loaded, controls]);
 
   useEffect(() => {
     // Ctrl+Shift+L and Ctrl+Shift+1..9, from the app's global shortcuts.

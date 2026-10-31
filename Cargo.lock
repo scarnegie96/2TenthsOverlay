@@ -3445,6 +3445,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-global-shortcut",
  "telemetry",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

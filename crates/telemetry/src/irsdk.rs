@@ -24,12 +24,16 @@ use windows_sys::Win32::System::Memory::{
     MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_READ, MEMORY_MAPPED_VIEW_ADDRESS,
 };
 use windows_sys::Win32::System::Threading::{OpenEventW, WaitForSingleObject, SYNCHRONIZATION_SYNCHRONIZE};
+use windows_sys::Win32::UI::WindowsAndMessaging::{RegisterWindowMessageW, SendNotifyMessageW, HWND_BROADCAST};
 
 use crate::model::{Deltas, RawFrame, MAX_CARS};
+use crate::pit::{PitCommand, PitService, BROADCAST_PIT_COMMAND};
 use crate::vars::{self, VarHeader, VAR_HEADER_SIZE};
 
 const MEM_MAP_NAME: &str = "Local\\IRSDKMemMapFileName";
 const DATA_VALID_EVENT_NAME: &str = "Local\\IRSDKDataValidEvent";
+const BROADCAST_MSG_NAME: &str = "IRSDK_BROADCASTMSG";
+const PIT_PRESSURE_VARS: [&str; 4] = ["PitSvLFP", "PitSvRFP", "PitSvLRP", "PitSvRRP"];
 const STATUS_CONNECTED: i32 = 1;
 const MAX_BUFS: usize = 4;
 
@@ -61,6 +65,19 @@ const H_VAR_BUF: usize = 48; // 4 x 16 bytes
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+/// Sends a pit command to iRacing the way the SDK's `irsdk_broadcastMsg` does:
+/// a broadcast window message with the message type and command packed into
+/// wParam and the parameter in lParam. Doesn't wait, and iRacing never
+/// replies; the `PitSv*` variables show whether it took.
+pub fn send_pit_command(cmd: PitCommand) -> bool {
+    let (mode, param) = cmd.encode();
+    let wparam = (BROADCAST_PIT_COMMAND as u32 | (mode as u32) << 16) as usize;
+    unsafe {
+        let msg = RegisterWindowMessageW(wide(BROADCAST_MSG_NAME).as_ptr());
+        msg != 0 && SendNotifyMessageW(HWND_BROADCAST, msg, wparam, param as isize) != 0
+    }
 }
 
 /// Connection to the shared memory. Dropping it unmaps and closes the handles.
@@ -329,6 +346,16 @@ impl Irsdk {
         f.tire_sets_used = self.i32("TireSetsUsed");
         f.tire_sets_available = self.num("TireSetsAvailable", 0).map(|v| v as i32).unwrap_or(255);
         f.in_pit_stall = self.bool("PlayerCarInPitStall");
+
+        // Not published while spectating.
+        f.pit_service = self.var("PitSvFlags").map(|_| PitService {
+            flags: self.num("PitSvFlags", 0).unwrap_or(0.0) as u32,
+            fuel: self.f32("PitSvFuel"),
+            pressure: PIT_PRESSURE_VARS.map(|name| self.f32(name)),
+            compound: self.i32("PitSvTireCompound"),
+        });
+        f.pit_sv_status = self.i32("PlayerCarPitSvStatus");
+        f.fast_repairs_available = self.num("FastRepairAvailable", 0).map(|v| v as i32);
 
         let n = MAX_CARS;
         f.car_lap.resize(n, 0);

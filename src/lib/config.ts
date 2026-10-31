@@ -1,9 +1,10 @@
+import { defaultControls, type ActionId, type ControlBinding } from "./controls";
 import type { Units } from "./format";
 import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "flags" | "weather";
+  | "radar" | "tires" | "pitstop" | "flags" | "weather";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -36,6 +37,8 @@ export interface GeneralConfig {
   colors: Record<Theme, Partial<Record<ColorKey, string>>>;
   /** The saved layout the widgets belong to; changes to them are saved into it. */
   activeProfile: string | null;
+  /** The key and controller button for each action. */
+  controls: Record<ActionId, ControlBinding>;
 }
 
 export interface AppConfig {
@@ -49,7 +52,7 @@ export interface AppConfig {
 export type OptionSpec =
   | { key: string; label: string; type: "toggle"; default: boolean; help?: string }
   | { key: string; label: string; type: "number"; default: number; min: number; max: number; step?: number; suffix?: string; help?: string }
-  | { key: string; label: string; type: "select"; default: string; choices: { value: string; label: string }[] }
+  | { key: string; label: string; type: "select"; default: string; choices: { value: string; label: string; help?: string }[]; help?: string }
   | { key: string; label: string; type: "text"; default: string; maxLength?: number; help?: string };
 
 export interface WidgetMeta {
@@ -242,6 +245,26 @@ export const WIDGETS: WidgetMeta[] = [
     ],
   },
   {
+    id: "pitstop",
+    name: "Pit stop",
+    description: "What iRacing will do at your next stop, set while you drive with hotkeys or wheel buttons (choose them in Controls). By default Ctrl+Shift with F for fuel, ↑ and ↓ for more or less, T tires, R fast repair, W tear-off and X to clear everything.",
+    // Off by default: it sends commands to iRacing, so it's something to choose.
+    x: 572, y: 250, enabled: false,
+    options: [
+      {
+        key: "fuelMode", label: "Fuel hotkey adds", type: "select", default: "finish",
+        choices: [
+          { value: "finish", label: "Enough to finish", help: "What you need for the rest of the race plus the Fuel widget's safety margin, rounded up to a whole litre" },
+          { value: "full", label: "A full tank", help: "Whatever it takes to fill the tank" },
+          { value: "manual", label: "iRacing's amount", help: "Ticks fuel and leaves the amount as it's set in iRacing's pit menu" },
+        ],
+      },
+      { key: "fuelStep", label: "Fuel up and down step", type: "number", default: 5, min: 1, max: 20, suffix: "L", help: "How much the more fuel and less fuel controls add or take off, in litres" },
+      { key: "autoFuel", label: "Set fuel as you enter the pits", type: "toggle", default: false, help: "Ticks fuel with the planned amount when you cross pit entry, unless it's already set or you've changed it with more or less fuel" },
+      { key: "showKeys", label: "Show the hotkeys", type: "toggle", default: true, help: "The key or wheel button for each row" },
+    ],
+  },
+  {
     id: "weather",
     name: "Weather",
     description: "Track and air temperature, track wetness, rain, humidity and a wind compass that turns with your car, with trend arrows.",
@@ -319,7 +342,7 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls() },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }
@@ -342,6 +365,7 @@ export function normalizeConfig(raw: unknown): AppConfig {
   }
   const general = { ...base.general, ...(saved.general ?? {}) };
   general.colors = { ...base.general.colors, ...(saved.general?.colors ?? {}) };
+  general.controls = { ...base.general.controls, ...(saved.general?.controls ?? {}) };
   return { version: 1, general, widgets };
 }
 

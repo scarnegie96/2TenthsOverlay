@@ -143,6 +143,13 @@ pub struct RawFrame {
     pub tire_sets_available: i32,
     pub in_pit_stall: bool,
 
+    /// What's ticked for the next pit stop (`PitSv*`). None when not published (spectating).
+    pub pit_service: Option<crate::pit::PitService>,
+    /// PlayerCarPitSvStatus (irsdk_PitSvStatus): 0 none, 1 in progress, 2 done, 100+ a problem.
+    pub pit_sv_status: i32,
+    /// FastRepairAvailable; 255 when unlimited.
+    pub fast_repairs_available: Option<i32>,
+
     pub car_lap: Vec<i32>,
     pub car_lap_completed: Vec<i32>,
     pub car_lap_dist_pct: Vec<f32>,
@@ -508,6 +515,30 @@ pub struct TiresPayload {
     pub has_data: bool,
 }
 
+/// What iRacing has ticked for your next pit stop.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PitPayload {
+    /// False when iRacing doesn't publish pit service (spectating).
+    pub available: bool,
+    /// Tires to change, LF, RF, LR, RR.
+    pub tires: [bool; 4],
+    /// kPa each tire will be set to.
+    pub pressures: [f32; 4],
+    /// The compound that will be fitted.
+    pub compound: String,
+    pub fuel: bool,
+    /// Litres to add.
+    pub fuel_amount: f32,
+    pub tearoff: bool,
+    pub fast_repair: bool,
+    /// None when unlimited or unknown.
+    pub fast_repairs_left: Option<i32>,
+    /// irsdk_PitSvStatus: 0 none, 1 in progress, 2 done, 100+ a problem (too far forward...).
+    pub status: i32,
+    pub in_pit_stall: bool,
+}
+
 /// Sent at 10 Hz: everything about the field and strategy.
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -517,5 +548,6 @@ pub struct FieldPayload {
     pub standings: Vec<StandingRow>,
     pub fuel: FuelPayload,
     pub tires: TiresPayload,
+    pub pit: PitPayload,
     pub lap_log: crate::laps::LapLogPayload,
 }

@@ -7,6 +7,7 @@
 //! through the same parser as live data.
 
 use crate::model::{car_left_right as clr, track_surface, RawFrame, MAX_CARS};
+use crate::pit::{self, PitCommand, PitService};
 
 const TRACK_M: f32 = 5_100.0;
 const V_MAX: f32 = 78.0;
@@ -21,6 +22,8 @@ const RACE_LAPS: i32 = 30;
 /// Cars that dice with the player: (car idx, mean offset m, swing m, period s).
 const BATTLE: &[(usize, f32, f32, f32)] = &[(7, -4.0, 9.0, 22.0), (8, 14.0, 11.0, 31.0)];
 const FUEL_PER_LAP: f32 = 2.62;
+/// Cold pressures set in the garage, kPa, LF, RF, LR, RR.
+const TIRE_PRESSURES: [f32; 4] = [165.0, 165.0, 162.0, 162.0];
 
 /// (position on lap, minimum speed m/s)
 const CORNERS: &[(f32, f32)] = &[
@@ -56,6 +59,8 @@ pub struct DemoSource {
     best: Vec<f32>,
     last: Vec<f32>,
     fuel: f32,
+    /// What's ticked for the next stop; the overlay's pit commands change it.
+    pit: PitService,
     prev_speed: f32,
     long_accel: f32,
     yaml_sent: bool,
@@ -161,6 +166,13 @@ impl DemoSource {
             best: (0..n).map(|i| class_est[i] + 0.4 + hash(i as u32 + 3) * 1.8).collect(),
             last: (0..n).map(|i| class_est[i] + 0.9 + hash(i as u32 + 5) * 2.0).collect(),
             fuel: 41.7,
+            // Four tires and some fuel ticked, as iRacing often starts.
+            pit: PitService {
+                flags: pit::flags::TIRES.iter().fold(pit::flags::FUEL, |a, b| a | b),
+                fuel: 30.0,
+                pressure: TIRE_PRESSURES,
+                compound: 0,
+            },
             prev_speed: 0.0,
             long_accel: 0.0,
             yaml_sent: false,
@@ -184,6 +196,11 @@ impl DemoSource {
 
     fn cum_at(&self, pct: f32) -> f32 {
         self.cum[Self::idx(pct)]
+    }
+
+    /// Ticks or unticks pit service, as iRacing would.
+    pub fn pit_command(&mut self, cmd: PitCommand) {
+        self.pit.apply(cmd);
     }
 
     /// The YAML is delivered once, like iRacing does on connect.
@@ -402,11 +419,14 @@ impl DemoSource {
         // Readings from the last stop: a little hotter and more worn on the right.
         f.tire_temp = [[78.0, 82.5, 86.0], [91.0, 88.5, 84.0], [80.5, 83.0, 85.5], [89.0, 87.0, 83.5]];
         f.tire_wear = [[0.94, 0.93, 0.91], [0.86, 0.88, 0.9], [0.95, 0.94, 0.94], [0.89, 0.9, 0.92]];
-        f.tire_cold_pressure = [165.0, 165.0, 162.0, 162.0];
+        f.tire_cold_pressure = TIRE_PRESSURES;
         f.tire_compound = 0;
         f.tire_sets_used = 2;
         f.tire_sets_available = 3;
         f.in_pit_stall = false;
+        f.pit_service = Some(self.pit);
+        f.pit_sv_status = 0;
+        f.fast_repairs_available = Some(1);
         &self.frame
     }
 
@@ -615,5 +635,25 @@ mod tests {
         assert!((per_lap - FUEL_PER_LAP).abs() < 0.6, "per lap {per_lap}");
         // Ref lap time sanity: roughly a 90-100 s lap.
         assert!((80.0..110.0).contains(&demo.ref_lap), "ref lap {}", demo.ref_lap);
+    }
+
+    #[test]
+    fn demo_takes_pit_commands() {
+        let mut demo = DemoSource::new();
+        let info = crate::session::parse(&demo.take_session_yaml().unwrap()).unwrap();
+        let mut engine = Engine::new();
+        engine.set_session(info);
+        demo.pit_command(PitCommand::Clear);
+        demo.pit_command(PitCommand::Fuel { litres: 18 });
+        demo.pit_command(PitCommand::Tire { corner: 0, kpa: 170 });
+        demo.pit_command(PitCommand::FastRepair);
+        let f = demo.step(1.0 / 60.0).clone();
+        let pit = engine.field(&f).pit;
+        assert!(pit.available);
+        assert_eq!(pit.tires, [true, false, false, false]);
+        assert_eq!(pit.pressures[0], 170.0);
+        assert!(pit.fuel && pit.fast_repair && !pit.tearoff);
+        assert_eq!(pit.fuel_amount, 18.0);
+        assert_eq!(pit.fast_repairs_left, Some(1));
     }
 }

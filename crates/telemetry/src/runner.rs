@@ -16,6 +16,7 @@ use crate::demo::DemoSource;
 use crate::engine::Engine;
 use crate::laps::LapStore;
 use crate::model::*;
+use crate::pit::PitCommand;
 use crate::reference::ReferenceLap;
 
 pub trait Sink: Send + 'static {
@@ -35,12 +36,19 @@ pub struct RunnerControl {
     pub reference_rev: Arc<AtomicU64>,
     /// Folder for saved laps from iRacing (never the demo). None to not save.
     pub laps_dir: Option<PathBuf>,
+    /// Pit commands waiting to go to the sim (or the demo).
+    pub pit: Arc<Mutex<Vec<PitCommand>>>,
 }
 
 impl RunnerControl {
     pub fn set_reference(&self, reference: Option<ReferenceLap>) {
         *self.reference.lock().unwrap() = reference;
         self.reference_rev.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Queues a pit command for whichever sim is running. Dropped when none is.
+    pub fn pit_command(&self, cmd: PitCommand) {
+        self.pit.lock().unwrap().push(cmd);
     }
 }
 
@@ -114,6 +122,19 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
                     report(SourceKind::None, false, "Waiting for iRacing");
                     thread::sleep(RECONNECT_INTERVAL);
                     continue;
+                }
+            }
+        }
+
+        let commands = std::mem::take(&mut *control.pit.lock().unwrap());
+        for cmd in commands {
+            match source.as_mut().expect("source set above") {
+                Source::Demo(demo) => demo.pit_command(cmd),
+                #[cfg(windows)]
+                Source::Iracing(_) => {
+                    if !crate::irsdk::send_pit_command(cmd) {
+                        eprintln!("[telemetry] pit command {cmd:?} not sent");
+                    }
                 }
             }
         }

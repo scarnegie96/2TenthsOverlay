@@ -48,6 +48,11 @@ export function fuelUnit(units: Units): string {
   return units === "imperial" ? "gal" : "L";
 }
 
+/** Tire pressure from kPa: "165 kPa" or "23.9 psi". */
+export function pressure(kpa: number, units: Units): string {
+  return units === "imperial" ? `${(kpa * 0.145038).toFixed(1)} psi` : `${Math.round(kpa)} kPa`;
+}
+
 export function gear(g: number): string {
   if (g < 0) return "R";
   if (g === 0) return "N";

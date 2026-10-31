@@ -3,7 +3,8 @@
 //  * in a plain browser (`npm run dev`, e.g. on a Mac) -> a local mock with a fake race,
 //    so the UI can be worked on without Windows or iRacing.
 
-import type { IbtSummary, Profile, ProfileSummary, Snapshot } from "./types";
+import type { ActionId, ControlBinding } from "./controls";
+import type { Controller, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -35,6 +36,14 @@ export const api = {
   setOverlayVisible: (visible: boolean) => call<void>("set_overlay_visible", { visible }),
   setDemo: (enabled: boolean) => call<void>("set_demo", { enabled }),
   openSettings: () => call<void>("open_settings"),
+  pitCommand: (action: PitCommand) => call<void>("pit_command", { action }),
+  /** Pit hotkeys and buttons only work while this is on (widget on, you in the car). */
+  setPitActive: (active: boolean) => call<void>("set_pit_active", { active }),
+  /** The key and button for each action. The overlay sends these whenever they change. */
+  setControls: (controls: Record<ActionId, ControlBinding>) => call<void>("set_controls", { controls }),
+  /** Pauses every hotkey and button while Settings waits for a new one. */
+  suspendControls: (suspended: boolean) => call<void>("suspend_controls", { suspended }),
+  listControllers: () => call<Controller[]>("list_controllers"),
   /** Asks for a lap file (.blap, .olap or .ibt). Returns its path, or null if cancelled. */
   pickLapFile: async (): Promise<string | null> => {
     if (!isTauri) return "demo.blap";

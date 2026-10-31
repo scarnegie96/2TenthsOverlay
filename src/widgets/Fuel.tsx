@@ -1,5 +1,6 @@
 import { opt, type WidgetConfig } from "../lib/config";
 import { fuel as conv, fuelUnit } from "../lib/format";
+import { fuelToFinish } from "../lib/pit";
 import { useLive } from "../lib/store";
 import { Panel } from "./Panel";
 
@@ -12,7 +13,7 @@ export function Fuel({ config }: { config: WidgetConfig }) {
 
   const level = f?.level ?? 0;
   const tankPct = f && f.max > 0 ? Math.min(1, level / f.max) : 0;
-  const need = f?.toFinish != null && f.perLap != null ? f.toFinish + margin * f.perLap : null;
+  const need = fuelToFinish(f, margin);
   const enough = need != null && need <= 0;
 
   return (

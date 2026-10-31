@@ -19,7 +19,7 @@ knows which source it's reading from, so the demo exercises the real maths.
 | Event     | Rate          | Contents                                          | Goes to        |
 | --------- | ------------- | ------------------------------------------------- | -------------- |
 | `tick`    | every frame, 60 Hz | Player car: inputs, gear, speed, lap times, delta, fuel level, side-by-side warnings and nearby cars for the radar | overlay only |
-| `field`   | 10 Hz         | Relative, standings, fuel strategy, tires, session clock | all windows    |
+| `field`   | 10 Hz         | Relative, standings, fuel strategy, tires, pit service, session clock | all windows    |
 | `session` | on change     | Track, session type, car, fuel tank size, shift RPM | all windows  |
 | `status`  | on change     | Source and connection state                       | all windows    |
 
@@ -35,6 +35,27 @@ knows which source it's reading from, so the demo exercises the real maths.
 
 Session YAML is decoded from Latin-1. Free-text keys (driver and team names) are
 quoted before parsing, because iRacing doesn't escape them.
+
+### Pit commands
+
+The only thing Tenths sends to iRacing. `irsdk::send_pit_command` does what the
+SDK's `irsdk_broadcastMsg` does: it registers the `IRSDK_BROADCASTMSG` window
+message and broadcasts it with `SendNotifyMessageW`, packing the message type
+(9, pit command) and the command into wParam and the parameter (litres, kPa or a
+compound number) into lParam. The numbering is in `pit.rs`, from
+`irsdk_defines.h`. iRacing never replies, so the readback is the `PitSv*`
+variables (`PitSvFlags`, `PitSvFuel`, `PitSvLFP`…, `PitSvTireCompound`) plus
+`PlayerCarPitSvStatus` and `FastRepairAvailable`, sent as `field.pit`.
+
+Commands go through `RunnerControl::pit_command` to the telemetry thread, which
+sends them to iRacing or applies them to the demo race's own pit service
+(`PitService::apply`, mirrored in the browser mock). The overlay decides what to
+send (`src/lib/pit.ts`), because it has the fuel plan and the widget's options:
+each hotkey toggles against what iRacing last reported. There's no command to
+untick one tire, so the tire hotkey is all four or none. Rust only takes the
+pit keys and buttons (`set_pit_active`) while the Pit stop widget is on and the player is
+in the car. To be confirmed in the sim: the variable names above, and that a
+fuel amount of 0 keeps the amount already set.
 
 ### Engine maths worth knowing
 
@@ -158,6 +179,25 @@ quoted before parsing, because iRacing doesn't escape them.
   it back, and Quit lives in the tray menu.
 - Config is a JSON file owned by the front end (`src/lib/config.ts`). Rust only
   stores it and broadcasts `config-changed` so both windows stay in sync.
+- **Controls** (`controls.rs`): every action ("overlay.edit", "layout.3",
+  "pit.fuel"...) has a key and a controller button in `general.controls`
+  (`src/lib/controls.ts`). The overlay sends them with `set_controls` on load
+  and whenever they change. Rust registers only the shortcuts that should be
+  live: pit actions only while `set_pit_active` is on, and nothing while the
+  settings window is learning a key (`suspend_controls`). The tray menu's
+  shortcut text follows the bindings.
+- **Controller buttons** (`controllers.rs`): a message-only window on its own
+  thread registers for Raw Input from joysticks, gamepads and multi-axis
+  controllers (HID usage page 1, usages 4, 5 and 8) with `RIDEV_INPUTSINK`, so
+  input arrives while iRacing has the focus. Each `WM_INPUT` report is decoded
+  with the device's preparsed HID data: `HidP_GetUsages` on the button page
+  gives the buttons held, and the hat switch (usage 0x39) becomes buttons 1001
+  to 1004. A press is a button held now that wasn't in the last report. Every
+  press goes to all windows as `controller-button` (Settings learns buttons
+  from it) and runs any action bound to it. Devices are keyed by the hardware
+  id from their path, like `VID_0EB7&PID_0E04&MI_00`, and named with
+  `HidD_GetProductString`. `cargo test -p tenths list_controllers -- --ignored
+  --nocapture` prints what's plugged in.
 
 ## Front end (`src`)
 
@@ -192,7 +232,8 @@ quoted before parsing, because iRacing doesn't escape them.
 
 ## Ideas for next
 
-- Broadcast messages (`IRSDK_BROADCASTMSG`): pit service buttons, replay control.
+- More broadcast messages: tire compound in the Pit stop widget, chat macros,
+  starting and stopping telemetry recording, replay control.
 - Track map from `CarIdxLapDistPct` plus a recorded track outline.
 - Coach cues for lateral line, using the sideways-position channel in .blap
   files, and audio for the brake countdown.

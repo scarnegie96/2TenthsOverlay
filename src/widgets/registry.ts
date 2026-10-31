@@ -8,6 +8,7 @@ import { Fuel } from "./Fuel";
 import { Inputs } from "./Inputs";
 import { Instruments } from "./Instruments";
 import { LapLog } from "./LapLog";
+import { PitStop } from "./PitStop";
 import { Radar } from "./Radar";
 import { Relative } from "./Relative";
 import { Session } from "./Session";
@@ -32,6 +33,7 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   fuel: Fuel,
   radar: Radar,
   tires: Tires,
+  pitstop: PitStop,
   coach: Coach,
   dynamics: Dynamics,
   instruments: Instruments,

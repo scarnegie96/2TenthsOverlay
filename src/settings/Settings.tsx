@@ -1,15 +1,19 @@
-import { useState, type ReactNode } from "react";
-import { api, isTauri } from "../lib/bridge";
+import { useEffect, useState, type ReactNode } from "react";
+import { api, isTauri, on } from "../lib/bridge";
 import {
   WIDGETS, defaultConfig, defaultWidgetConfig, widgetMeta,
   type AppConfig, type GeneralConfig, type OptionSpec, type WidgetConfig, type WidgetId,
 } from "../lib/config";
+import {
+  ACTIONS, buttonLabel, defaultControls, keyLabel, sameButton, sameKey,
+  type ActionId, type ControlBinding, type KeyBinding,
+} from "../lib/controls";
 import { lapTime } from "../lib/format";
 import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import { COLOR_GROUPS, THEMES, THEME_COLORS, effectiveColor, type ColorKey } from "../lib/theme";
-import type { IbtSummary } from "../lib/types";
+import type { ButtonPress, Controller, IbtSummary } from "../lib/types";
 
-type Pane = "general" | "layouts" | "appearance" | WidgetId;
+type Pane = "general" | "layouts" | "appearance" | "controls" | WidgetId;
 
 export function Settings() {
   const [pane, setPane] = useState<Pane>("general");
@@ -30,6 +34,9 @@ export function Settings() {
         <NavItem active={pane === "appearance"} onClick={() => setPane("appearance")}>
           Appearance
         </NavItem>
+        <NavItem active={pane === "controls"} onClick={() => setPane("controls")}>
+          Controls
+        </NavItem>
         <div className="nav-heading">Widgets</div>
         {WIDGETS.map((w) => (
           <NavItem key={w.id} active={pane === w.id} onClick={() => setPane(w.id)}>
@@ -42,6 +49,7 @@ export function Settings() {
         {pane === "general" ? <GeneralPane />
           : pane === "layouts" ? <LayoutsPane />
           : pane === "appearance" ? <AppearancePane />
+          : pane === "controls" ? <ControlsPane />
           : <WidgetPane id={pane} />}
       </main>
     </div>
@@ -386,6 +394,152 @@ function setWidget(id: WidgetId, mutate: (w: WidgetConfig) => WidgetConfig) {
   updateConfig((c: AppConfig) => ({ ...c, widgets: { ...c.widgets, [id]: mutate(c.widgets[id]) } }));
 }
 
+// --- Controls ---------------------------------------------------------------
+
+const MODIFIER_KEYS = ["Control", "Shift", "Alt", "Meta", "AltGraph"];
+const GROUP_NOTES: Record<string, string> = {
+  "Pit stop": "These work while the Pit stop widget is on and you're in the car.",
+};
+
+const setControl = (id: ActionId, patch: Partial<ControlBinding>) =>
+  updateConfig((c) => ({
+    ...c,
+    general: { ...c.general, controls: { ...c.general.controls, [id]: { ...c.general.controls[id], ...patch } } },
+  }));
+
+/** Every action, with a key and a controller button each. Click a box, then press what you want. */
+function ControlsPane() {
+  const controls = useLive((s) => s.config.general.controls);
+  const [capture, setCapture] = useState<{ id: ActionId; kind: "key" | "button" } | null>(null);
+  const [connected, setConnected] = useState<Controller[] | null>(null);
+
+  useEffect(() => {
+    void api.listControllers().then(setConnected);
+  }, []);
+
+  // Nothing fires while waiting, so pressing a bound key or button doesn't also run its action.
+  useEffect(() => {
+    if (!capture) return;
+    void api.suspendControls(true);
+    const key = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") return setCapture(null);
+      if (capture.kind !== "key" || MODIFIER_KEYS.includes(e.key)) return;
+      setControl(capture.id, { key: { code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey } });
+      setCapture(null);
+    };
+    window.addEventListener("keydown", key, true);
+    const off =
+      capture.kind === "button"
+        ? on<ButtonPress>("controller-button", (p) => {
+            setControl(capture.id, { button: { device: p.device, name: p.name, button: p.button } });
+            setCapture(null);
+          })
+        : null;
+    return () => {
+      window.removeEventListener("keydown", key, true);
+      void off?.then((f) => f());
+      void api.suspendControls(false);
+    };
+  }, [capture]);
+
+  const groups = [...new Set(ACTIONS.map((a) => a.group))];
+  const isOn = (id: ActionId, kind: "key" | "button") => capture?.id === id && capture.kind === kind;
+
+  return (
+    <>
+      <Section title="Controllers">
+        <Field
+          label="Wheels and button boxes"
+          help={
+            !isTauri
+              ? "Controller buttons need the desktop app. The browser preview only learns keys."
+              : "Buttons work while iRacing has the focus. Plug a controller in and come back here to see it."
+          }
+        >
+          <span className="controllers">
+            {connected == null ? "Looking…" : connected.length ? connected.map((c) => c.name).join(", ") : "None found"}
+          </span>
+        </Field>
+      </Section>
+      {groups.map((group) => (
+        <Section key={group} title={group}>
+          {GROUP_NOTES[group] && <p className="note section-note">{GROUP_NOTES[group]}</p>}
+          {ACTIONS.filter((a) => a.group === group).map((a) => {
+            const b = controls[a.id];
+            return (
+              <Field key={a.id} label={a.label} help={bindingWarning(a.id, b, controls, connected)}>
+                <BindBox
+                  label={b.key ? keyLabel(b.key) : null}
+                  waiting={isOn(a.id, "key") ? "Press a key…" : null}
+                  empty="No key"
+                  onClick={() => setCapture(isOn(a.id, "key") ? null : { id: a.id, kind: "key" })}
+                  onClear={() => setControl(a.id, { key: null })}
+                />
+                <BindBox
+                  label={b.button ? buttonLabel(b.button) : null}
+                  title={b.button?.name}
+                  waiting={isOn(a.id, "button") ? "Press a button…" : null}
+                  empty="No button"
+                  onClick={() => setCapture(isOn(a.id, "button") ? null : { id: a.id, kind: "button" })}
+                  onClear={() => setControl(a.id, { button: null })}
+                />
+              </Field>
+            );
+          })}
+        </Section>
+      ))}
+      <Section title="Reset">
+        <Field label="Restore the default keys" help="Ctrl+Shift with a letter for each action. Clears every controller button.">
+          <button className="btn" onClick={() => updateConfig((c) => ({ ...c, general: { ...c.general, controls: defaultControls() } }))}>
+            Restore defaults
+          </button>
+        </Field>
+      </Section>
+    </>
+  );
+}
+
+function BindBox({ label, title, waiting, empty, onClick, onClear }: {
+  label: string | null; title?: string; waiting: string | null; empty: string; onClick: () => void; onClear: () => void;
+}) {
+  return (
+    <span className={`bind ${waiting ? "is-waiting" : ""} ${label ? "" : "is-empty"}`}>
+      <button className="bind-main" onClick={onClick} title={waiting ? "Esc cancels" : title}>
+        {waiting ?? label ?? empty}
+      </button>
+      {label && !waiting && (
+        <button className="bind-clear" onClick={onClear} aria-label={`Clear ${label}`}>
+          ×
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** Clashes and other things worth knowing about a binding. */
+function bindingWarning(
+  id: ActionId, b: ControlBinding, all: Record<ActionId, ControlBinding>, connected: Controller[] | null,
+): string | undefined {
+  const others = ACTIONS.filter((a) => a.id !== id);
+  const keyClash = others.find((a) => sameKey(all[a.id].key, b.key));
+  const buttonClash = others.find((a) => sameButton(all[a.id].button, b.button));
+  const unplugged = b.button && connected && !connected.some((c) => c.device === b.button!.device);
+  const notes = [
+    keyClash && `Same key as ${keyClash.label.toLowerCase()}`,
+    buttonClash && `Same button as ${buttonClash.label.toLowerCase()}`,
+    b.key && bareKey(b.key) && "Without Ctrl, Alt or Shift, this key stops working in other programs while Tenths runs",
+    b.button && `On ${b.button.name}${unplugged ? ", not plugged in" : ""}`,
+  ].filter(Boolean);
+  return notes.length ? notes.join(". ") : undefined;
+}
+
+/** A key with no modifier, other than F13 to F24 (which keyboards don't have, so button boxes use them). */
+function bareKey(k: KeyBinding): boolean {
+  return !k.ctrl && !k.alt && !k.shift && !k.meta && !/^F(1[3-9]|2[0-4])$/.test(k.code);
+}
+
 function WidgetPane({ id }: { id: WidgetId }) {
   const meta = widgetMeta(id);
   const w = useLive((s) => s.config.widgets[id]);
@@ -554,7 +708,7 @@ function OptionField({ spec, value, onChange }: { spec: OptionSpec; value: unkno
       );
     case "select":
       return (
-        <Field label={spec.label}>
+        <Field label={spec.label} help={spec.choices.find((c) => c.value === value)?.help ?? spec.help}>
           <Select value={String(value)} choices={spec.choices} onChange={onChange} />
         </Field>
       );

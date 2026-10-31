@@ -15,9 +15,14 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ## Features
 
-- **14 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
-  inputs, car dynamics, dash lights, fuel, tires, weather, a radar and an LED
-  flag board. Each one has its own options.
+- **15 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
+  inputs, car dynamics, dash lights, fuel, tires, pit stop, weather, a radar
+  and an LED flag board. Each one has its own options.
+- **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
+  litres more or less), tires, fast repair and a tear-off for your next stop
+  without opening iRacing's pit menu, and see what iRacing has ticked.
+- **Your keys, your wheel buttons**: every shortcut can be changed, and any
+  action can also go on a button on your wheel, button box or gamepad.
 - **Edit layout mode**: drag any widget anywhere, resize it, snap it to the
   screen edges and other widgets, and turn widgets on or off from the edit bar.
 - **Saved layouts**: keep as many layouts as you like (sprint, endurance,
@@ -225,6 +230,38 @@ pressures, the compound and how many sets you have left.
 
 *Options*: show cold pressure.
 
+### Pit stop
+
+![Pit stop widget](docs/widgets/pitstop.png)
+
+What iRacing will do at your next stop, and keys or wheel buttons to change it
+while you drive. Each one changes one item in iRacing's pit menu. These are the
+default keys; put them on other keys or on buttons in
+[Settings → Controls](#controls):
+
+| Default key          | Does |
+| -------------------- | ---- |
+| `Ctrl + Shift + F`   | Fuel: the amount to finish (from the Fuel widget, with its safety margin), or a full tank. Press again to untick it, or to update it once the amount has changed. |
+| `Ctrl + Shift + ↑` `↓` | A few litres more or less (5 by default). Quick presses add up. |
+| `Ctrl + Shift + T`   | All four tires, or untick them |
+| `Ctrl + Shift + R`   | Fast repair |
+| `Ctrl + Shift + W`   | Windscreen tear-off |
+| `Ctrl + Shift + X`   | Untick everything |
+
+iRacing never confirms a command, so each row shows what iRacing reports as
+ticked, not what was asked for. The fuel line turns amber when the amount
+ticked doesn't match what you need. Pressures are the ones iRacing will set,
+and the header says if you've stopped too far from your box. The keys and
+buttons only work while this widget is on and you're in the car, so they don't
+take `Ctrl+Shift+T` and the rest from other programs the rest of the time. Each
+row shows its key, or its wheel button if it has one, and lights it up for a
+moment when you press it. Off by default.
+
+*Options*: what the fuel key adds (enough to finish, a full tank, or the
+amount already set in iRacing), how much more or less fuel changes it, set
+fuel automatically as you enter the pits (skipped if you've changed it by
+hand), and show the keys.
+
 ### Radar
 
 ![Radar widget](docs/widgets/radar.png)
@@ -358,12 +395,28 @@ The overlay covers your primary monitor and lets every click pass through to
 iRacing. A tray icon opens the settings window, switches layouts and quits the
 app.
 
-| Shortcut                 | Does |
+| Default key              | Does |
 | ------------------------ | ---- |
 | `Ctrl + Shift + E`       | Edit layout. `Esc` finishes. |
 | `Ctrl + Shift + H`       | Show or hide all overlays |
 | `Ctrl + Shift + L`       | Next saved layout |
 | `Ctrl + Shift + 1`…`9`   | Saved layout by its number |
+| `Ctrl + Shift + F` `↑` `↓` `T` `R` `W` `X` | Pit stop: fuel, more, less, tires, fast repair, tear-off, untick everything (see [Pit stop](#pit-stop)) |
+
+### Controls
+
+**Settings → Controls** lists every action with a key and a controller button.
+Click a box and press the key, or the button on your wheel, button box or
+gamepad. `Esc` cancels and × clears it. Nothing else fires while it's waiting,
+so you can choose a key that's already in use. It warns when two actions share
+a key or button, when a key has no Ctrl, Alt or Shift (it would stop working in
+other programs while Tenths runs; F13 to F24 are fine, since keyboards don't
+have them), and when a bound controller isn't plugged in.
+
+Controller buttons are read with Windows Raw Input, so they work while iRacing
+has the focus, and every button counts, not just the first 32. A hat switch
+(the d-pad on most wheels) works as four buttons. Buttons are remembered by the
+device's hardware id, so they keep working on another USB port.
 
 ### Editing the layout
 
@@ -405,8 +458,9 @@ npm run dev
 
 Open `http://localhost:1420/overlay.html` and `http://localhost:1420/settings.html`
 side by side. The two tabs stay in sync. On the overlay, `E` edits the layout,
-`L` switches saved layouts and `F` steps through every flag. These URL
-parameters help too:
+`L` switches saved layouts and `F` steps through every flag. With the Pit stop
+widget on, `Shift` + `F`, `T`, `R`, `W` or `X` stand in for its hotkeys. These
+URL parameters help too:
 
 | Parameter       | Does |
 | --------------- | ---- |
@@ -451,12 +505,15 @@ crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
   coach.rs            Corners from the reference and the live coaching cues
   dynamics.rs         g-forces, slip, pitch, roll and the understeer/oversteer estimate
   instruments.rs      Engine warning lights, gauges, low fuel and brake bias
+  pit.rs              Pit commands sent to iRacing, and what's ticked for the next stop
   demo.rs             Fake 21-car, 3-class race with a scripted battle for the radar
   runner.rs           Telemetry thread: 60 Hz tick, 10 Hz field
 src-tauri/            Windows, tray, hotkeys, click-through, config file
+  controls.rs         Which key or controller button runs which action
+  controllers.rs      Wheel, button box and gamepad buttons, read with Raw Input
   profiles.rs         Saved layouts: list, save, import and export
 src/
-  lib/                Types, config schema, themes, weather maths, bridge to Rust (or browser mock)
+  lib/                Types, config schema, themes, weather and pit maths, bridge to Rust (or browser mock)
   overlay/            Transparent overlay: drag, snap, resize, screen anchoring
   widgets/            One file per widget
   settings/           Settings window

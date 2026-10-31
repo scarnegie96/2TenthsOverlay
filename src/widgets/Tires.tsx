@@ -1,5 +1,5 @@
 import { opt, type WidgetConfig } from "../lib/config";
-import type { Units } from "../lib/format";
+import { pressure, type Units } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { TireCorner } from "../lib/types";
 import { Empty, Panel } from "./Panel";
@@ -74,10 +74,6 @@ function Corner({ name, short, corner, units, showPressure }: {
 
 function temp(c: number, units: Units) {
   return Math.round(units === "imperial" ? (c * 9) / 5 + 32 : c);
-}
-
-function pressure(kpa: number, units: Units) {
-  return units === "imperial" ? `${(kpa * 0.145038).toFixed(1)} psi` : `${Math.round(kpa)} kPa`;
 }
 
 /** Cold blue, working green, overheating red. */
