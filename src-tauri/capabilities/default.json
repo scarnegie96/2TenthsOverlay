@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Event listening and app commands for both windows",
-  "windows": ["overlay", "settings"],
+  "description": "Event listening and app commands for the settings window and every display's overlay",
+  "windows": ["overlay", "overlay-*", "settings"],
   "permissions": ["core:default", "dialog:allow-open", "dialog:allow-save"]
 }

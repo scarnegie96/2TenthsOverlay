@@ -22,9 +22,9 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ## Features
 
-- **15 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
-  inputs, car dynamics, dash lights, fuel, tires, pit stop, weather, a radar
-  and an LED flag board. Each one has its own options.
+- **16 widgets**: timing tables, a race pace chart, a lap delta graph, a lap
+  log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
+  weather, a radar and an LED flag board. Each one has its own options.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
   litres more or less), tires, fast repair and a tear-off for your next stop
   without opening iRacing's pit menu, and see what iRacing has ticked.
@@ -32,6 +32,8 @@ subscriptions, no third-party services, and every line of it is yours to change.
   action can also go on a button on your wheel, button box or gamepad.
 - **Edit layout mode**: drag any widget anywhere, resize it, snap it to the
   screen edges and other widgets, and turn widgets on or off from the edit bar.
+- **Any screen**: with more than one monitor, put each widget on whichever
+  display you like; drag it across in edit mode.
 - **Saved layouts**: keep as many layouts as you like (sprint, endurance,
   streaming…), switch with `Ctrl+Shift+L`, `Ctrl+Shift+1`–`9` or a wheel
   button, and export them as files to back up or share.
@@ -123,6 +125,27 @@ session optimal, last lap, or an imported reference lap.
 *Options*: comparison lap, iRacing's sectors or 4–30 equal mini sectors, last
 lap's line, the lap times row, and a **simple pace readout** that swaps the
 graph for one big number: how far ahead or behind you are right now.
+
+### Race pace
+
+![Race pace widget](docs/widgets/racepace.png)
+
+Everyone in your class against the class leader, through the race. The
+leader is the flat line along the top; every other car is a line below it at
+its gap to the leader, live. A line that slopes down is a car slower than the
+leader, one that rises is catching, and the steeper it is the bigger the
+difference in pace, so you can see at a glance who is quick, who is fading
+and where the fights are. You're picked out in amber. Down the right, each
+car's position, gap and how much the gap changed over the leader's last lap
+(green when it's catching, red when it's dropping back). Lapped and retired
+cars run along the bottom so they don't squash everyone else. Dotted lines
+mark the leader's laps. The history starts when the race does (or when
+Tenths starts, if that's later) and is kept while the widget is hidden. Races
+only; off by default.
+
+*Options*: the whole race or the leader's last 5, 10 or 20 laps; everyone in
+your class or just the leader and the cars around you; a fixed gap scale; and
+the gap change per lap.
 
 ### Lap log
 
@@ -297,7 +320,7 @@ the empty board stays visible.
 ## The app
 
 Tenths runs in the background with an icon in the system tray. It has two
-windows: the **overlay**, a transparent window over your primary monitor that
+windows: the **overlay**, a transparent window over each of your monitors that
 holds the widgets and lets every click through to iRacing, and the **settings**
 window, where everything below is set. Settings apply as soon as you change
 them; there's no Save button.
@@ -411,7 +434,8 @@ Each widget has its own page, opening with what it shows:
 | **Show this widget** | Turns it on or off. **Hide** on its label in edit mode does the same. |
 | **Size** | 50% to 300%. Dragging its corner in edit mode does the same. |
 | **Opacity** | 20% to 100%, for the whole widget. |
-| **Position** | Which edge of the screen it's pinned to. **Reset position** puts it back where it starts, at 100%. |
+| **Screen** | With more than one monitor: which display it's on. |
+| **Position** | Which edge of the screen it's pinned to. **Reset position** puts it back where it starts, on the main display at 100%. |
 | **Options** | The widget's own options, listed with each widget [above](#widgets). Drop-downs explain the choice that's picked. |
 | **Reset options** | Puts its options back to their defaults. |
 
@@ -497,7 +521,7 @@ anyway** the first time.
 
 ## Using it
 
-The overlay covers your primary monitor and lets every click pass through to
+The overlay covers every monitor and lets every click pass through to
 iRacing (see [The app](#the-app) for the tray icon and settings window). These
 are the default keys; change them, or put them on wheel buttons, under
 [Controls](#controls).
@@ -520,6 +544,15 @@ are the default keys; change them, or put them on wheel buttons, under
 - Each widget is pinned to its nearest screen edge or the centre, so a layout
   made at 1080p lands in the same places at 1440p or 4K. Resizing grows a
   widget away from the edge it's pinned to.
+- **More than one monitor**: every display gets its own overlay and edit bar.
+  Drag a widget past the edge of one screen and let go on another to move it
+  there ("Release to move to display 2" shows while you're over it), or use
+  the **⇥ 2** button on its label to send it to the next display, where it
+  keeps its place relative to the screen edges. Settings has a **Screen**
+  choice per widget too. Plugging in, unplugging or rearranging monitors is
+  picked up within a couple of seconds. A widget whose display isn't
+  connected shows on the main one until it's back. Displays are numbered
+  main first, then left to right.
 - On a 1440p screen at 100% Windows scaling, set every widget to 125% to get
   about the size they'd have at 1080p (**General → Widgets** sets them all at
   once). If Windows scaling is already 125%, leave them at 100%.
@@ -607,7 +640,8 @@ src-tauri/            Windows, tray, hotkeys, click-through, config file
   controllers.rs      Wheel, button box and gamepad buttons, read with Raw Input
   profiles.rs         Saved layouts: list, save, import and export
 src/
-  lib/                Types, config schema, themes, weather and pit maths, bridge to Rust (or browser mock)
+  lib/                Types, config schema, themes, delta and race histories, weather and pit maths,
+                      bridge to Rust (or browser mock)
   overlay/            Transparent overlay: drag, snap, resize, screen anchoring
   widgets/            One file per widget
   settings/           Settings window

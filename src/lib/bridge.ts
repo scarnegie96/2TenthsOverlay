@@ -4,7 +4,7 @@
 //    so the UI can be worked on without Windows or iRacing.
 
 import type { ActionId, ControlBinding } from "./controls";
-import type { Controller, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot } from "./types";
+import type { Controller, Display, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -35,6 +35,10 @@ export const api = {
   setEditMode: (enabled: boolean) => call<void>("set_edit_mode", { enabled }),
   setOverlayVisible: (visible: boolean) => call<void>("set_overlay_visible", { visible }),
   setDemo: (enabled: boolean) => call<void>("set_demo", { enabled }),
+  /** The connected displays, primary first. */
+  getDisplays: () => call<Display[]>("get_displays"),
+  /** The display this overlay window covers; null in other windows. */
+  myDisplay: () => call<string | null>("my_display"),
   openSettings: () => call<void>("open_settings"),
   pitCommand: (action: PitCommand) => call<void>("pit_command", { action }),
   /** Pit hotkeys and buttons only work while this is on (widget on, you in the car). */

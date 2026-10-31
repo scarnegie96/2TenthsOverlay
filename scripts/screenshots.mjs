@@ -42,6 +42,8 @@ const WIDGETS = {
   pitstop: {},
   flags: { params: "flag=16384" },
   weather: {},
+  // A longer race, so the lines have a few laps of history.
+  racepace: { params: "warmup=560" },
 };
 
 const profile = mkdtempSync(join(tmpdir(), "tenths-shots-"));
@@ -63,7 +65,8 @@ try {
   const race = "warmup=150";
   const wait = 5000;
   for (const [id, { params = "" }] of Object.entries(WIDGETS)) {
-    const url = `${BASE}/overlay.html?shot=${id}&${race}${params ? `&${params}` : ""}`;
+    // A widget's own warmup replaces the default one.
+    const url = `${BASE}/overlay.html?shot=${id}${params.includes("warmup") ? "" : `&${race}`}${params ? `&${params}` : ""}`;
     // The first launch of a fresh profile sometimes returns before the page has run, so try again.
     let size = null;
     for (let i = 0; i < 3 && !size; i++) size = /data-shot-size="(\d+),(\d+)"/.exec(run([`--virtual-time-budget=${wait}`, "--dump-dom", url]));

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, isTauri, on } from "../lib/bridge";
 import { WIDGETS, type WidgetConfig, type WidgetId } from "../lib/config";
+import { displayName, primaryKey, widgetDisplay } from "../lib/displays";
 import { usePitControl } from "../lib/pit";
 import { cycleProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import type { Guide, Rect } from "./snapping";
@@ -19,14 +20,21 @@ export function Overlay() {
   const [screen, setScreen] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
   const profiles = useLive((s) => s.profiles);
   const activeProfile = config.general.activeProfile;
+  // One overlay window per display: which one is this?
+  const displays = useLive((s) => s.displays);
+  const myKey = useLive((s) => s.myDisplay) ?? primaryKey(displays);
+  const me = displays.find((d) => d.key === myKey) ?? null;
+  // The primary display's window does the app-wide jobs (layout toast, pit
+  // commands, sending the controls), so they don't happen once per screen.
+  const isPrimary = displays.length === 0 || !!me?.primary;
   const toast = useLayoutToast(activeProfile, profiles.find((p) => p.id === activeProfile)?.name);
-  usePitControl();
+  usePitControl(isPrimary);
 
   // Rust owns the global shortcuts and controller buttons; keep it up to date with the config.
   const controls = config.general.controls;
   useEffect(() => {
-    if (loaded) void api.setControls(controls);
-  }, [loaded, controls]);
+    if (loaded && isPrimary) void api.setControls(controls);
+  }, [loaded, isPrimary, controls]);
 
   useEffect(() => {
     // Ctrl+Shift+L and Ctrl+Shift+1..9, from the app's global shortcuts.
@@ -65,11 +73,25 @@ export function Overlay() {
   if (!loaded) return null;
 
   const show = editing || (connected && (config.general.showWhen === "connected" || onTrack));
+  // This window's widgets: those placed on its display, plus (on the primary)
+  // any whose display isn't connected, so nothing goes missing.
+  const here = WIDGETS.filter(
+    (m) => config.widgets[m.id].enabled && (displays.length === 0 || widgetDisplay(config.widgets[m.id], displays) === myKey),
+  );
 
   return (
     <div className={`overlay ${editing ? "is-editing" : ""} ${isTauri ? "" : "is-preview"}`}>
-      {editing && (
+      {editing && !isPrimary && me && (
+        <div className="edit-bar is-secondary">
+          <span>
+            <b>{displayName(me)}</b>. Drag widgets here from another screen, or use the display button on a widget.
+          </span>
+          <button onClick={() => void api.setEditMode(false)}>Done</button>
+        </div>
+      )}
+      {editing && isPrimary && (
         <div className="edit-bar">
+          {displays.length > 1 && me && <span className="edit-display">{displayName(me)}</span>}
           <span>Drag to move. Drag the corner, or use − and +, to resize.</span>
           <select
             className="edit-layout"
@@ -111,20 +133,22 @@ export function Overlay() {
         <div key={i} className={`guide guide-${g.axis}`} style={g.axis === "x" ? { left: g.pos } : { top: g.pos }} />
       ))}
       {show &&
-        WIDGETS.filter((m) => config.widgets[m.id].enabled).map((m) => (
+        here.map((m) => (
           <WidgetFrame
             key={m.id}
             id={m.id}
             config={config.widgets[m.id]}
             editing={editing}
             screen={screen}
+            display={me}
+            displays={displays}
             others={() => [...rects.current].filter(([k]) => k !== m.id).map(([, r]) => r)}
             onRect={onRect}
             onGuides={setGuides}
             onCommit={commit}
           />
         ))}
-      {toast && <div key={toast.key} className="layout-toast">Layout: <b>{toast.name}</b></div>}
+      {toast && isPrimary && <div key={toast.key} className="layout-toast">Layout: <b>{toast.name}</b></div>}
       {!isTauri && !editing && <div className="preview-hint">Browser preview. Press E to edit the layout, L to switch layouts.</div>}
     </div>
   );

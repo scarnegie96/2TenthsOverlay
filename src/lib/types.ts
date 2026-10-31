@@ -464,3 +464,19 @@ export const CarLeftRight = {
   TwoCarsLeft: 5,
   TwoCarsRight: 6,
 } as const;
+
+/** A connected display (monitor), from the app. */
+export interface Display {
+  /** Stable id: Windows' device name, like "\\.\DISPLAY2". */
+  key: string;
+  /** 1 for the primary, then left to right. */
+  number: number;
+  primary: boolean;
+  /** Physical pixels on the desktop. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Windows display scaling: 1 = 100%, 1.5 = 150%. */
+  scale: number;
+}

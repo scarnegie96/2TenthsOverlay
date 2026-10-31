@@ -5,7 +5,7 @@
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
 import type {
-  CarStatus, CoachPayload, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
+  CarStatus, CoachPayload, Display, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
   StatusPayload, TickPayload, TiresPayload,
 } from "./types";
 
@@ -246,6 +246,13 @@ class Mock {
         return;
       case "list_controllers":
         return [];
+      case "get_displays":
+        return previewDisplays();
+      case "my_display": {
+        // ?display=2 pretends this tab is the overlay on the second display.
+        const n = Number(new URLSearchParams(location.search).get("display") || 1);
+        return previewDisplays()[n - 1]?.key ?? previewDisplays()[0].key;
+      }
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }
@@ -349,6 +356,18 @@ class Mock {
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  /** Share of a lap's time spent getting to each point (1000 steps), for time gaps. */
+  private cumTime: Float32Array | null = null;
+  private timeAt(progress: number) {
+    if (!this.cumTime) {
+      const c = new Float32Array(1001);
+      for (let k = 1; k <= 1000; k++) c[k] = c[k - 1] + 1 / this.speedFactor((k - 0.5) / 1000);
+      for (let k = 0; k <= 1000; k++) c[k] /= c[1000];
+      this.cumTime = c;
+    }
+    return Math.floor(progress) + this.cumTime[Math.round((progress % 1) * 1000)];
   }
 
   private speedFactor(pct: number) {
@@ -664,9 +683,10 @@ class Mock {
       return {
         ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
         lap: Math.floor(this.progress[i]),
-        gap: lead === i ? null : (this.progress[lead] - this.progress[i]) * this.pace[i],
+        // Time behind the leader (how long to reach where it is now), like iRacing's.
+        gap: lead === i ? null : (this.timeAt(this.progress[lead]) - this.timeAt(this.progress[i])) * this.pace[i],
         lapsDown: Math.floor(this.progress[lead] - this.progress[i]),
-        interval: ahead === undefined ? null : (this.progress[ahead] - this.progress[i]) * this.pace[i],
+        interval: ahead === undefined ? null : (this.timeAt(this.progress[ahead]) - this.timeAt(this.progress[i])) * this.pace[i],
         startPosition: grid.get(i) ?? null,
         onPitRoad: i === 20, status: this.carStatus(i), isPlayer: i === PLAYER,
       };
@@ -742,3 +762,15 @@ if (typeof window !== "undefined") {
 }
 
 export const mock = new Mock();
+
+/**
+ * Browser preview displays: one, or with ?displays=2 a second screen to the
+ * right at 150% scaling, to try moving widgets between screens (open
+ * overlay.html?displays=2 and overlay.html?displays=2&display=2 side by side).
+ */
+function previewDisplays(): Display[] {
+  const two = new URLSearchParams(location.search).get("displays") === "2";
+  const main: Display = { key: "\\\\.\\DISPLAY1", number: 1, primary: true, x: 0, y: 0, width: 1920, height: 1080, scale: 1 };
+  if (!two) return [main];
+  return [main, { key: "\\\\.\\DISPLAY2", number: 2, primary: false, x: 1920, y: 0, width: 3840, height: 2160, scale: 1.5 }];
+}

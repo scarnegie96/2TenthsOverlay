@@ -294,7 +294,12 @@ impl DemoSource {
             f.car_lap_completed[i] = lap_of(p);
             f.car_lap_dist_pct[i] = pct;
             f.car_est_time[i] = self.cum[Self::idx(pct)] * self.class_est[i];
-            f.car_f2_time[i] = ((self.progress[leader] - p) as f32 * self.class_est[i]).max(0.0);
+            // Time behind the leader, as iRacing gives it: how long this car takes to
+            // reach where the leader is now, not the distance between them.
+            let lead = self.progress[leader];
+            let laps = (lead.floor() - p.floor()) as f32;
+            let along = self.cum[Self::idx(lead.fract() as f32)] - self.cum[Self::idx(p.fract() as f32)];
+            f.car_f2_time[i] = ((laps + along) * self.class_est[i]).max(0.0);
             f.car_last_lap[i] = self.last[i];
             f.car_best_lap[i] = self.best[i];
             f.car_on_pit_road[i] = false;
