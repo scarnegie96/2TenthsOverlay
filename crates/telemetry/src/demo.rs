@@ -367,6 +367,20 @@ impl DemoSource {
             t if (50.0..55.0).contains(&t) => fl::GREEN | fl::BLUE,
             _ => fl::GREEN,
         };
+        // Heading: one clockwise lap of the compass per lap, swinging through
+        // the corners. YawNorth turns anticlockwise, so it's the negative.
+        let bearing = pct * std::f32::consts::TAU + 0.25 * (pct * std::f32::consts::TAU * 8.0).sin();
+        f.yaw_north = Some(-bearing);
+        // Weather that changes slowly: a light shower comes and goes every 10
+        // minutes, the track gets a little damp behind it, and the wind veers.
+        let cycle = ((self.t / 600.0).fract() * std::f64::consts::TAU).sin().max(0.0) as f32;
+        f.precipitation = Some(0.35 * cycle * cycle);
+        f.skies = Some(if cycle > 0.5 { 3 } else if cycle > 0.1 { 2 } else { 1 });
+        f.track_wetness = Some(if cycle > 0.8 { 3 } else if cycle > 0.4 { 2 } else { 1 });
+        f.wind_dir = Some((5.5 + 0.4 * (self.t as f32 / 240.0).sin()).rem_euclid(std::f32::consts::TAU));
+        f.wind_speed = Some(3.4 + 1.2 * (self.t as f32 / 37.0).sin().abs());
+        f.humidity = Some(0.56 + 0.3 * cycle);
+        f.fog_level = Some(0.0);
         f.lap = f.car_lap[PLAYER];
         f.lap_completed = f.car_lap_completed[PLAYER];
         f.lap_dist_pct = pct;

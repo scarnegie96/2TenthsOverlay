@@ -13,6 +13,7 @@ import { Relative } from "./Relative";
 import { Session } from "./Session";
 import { Standings } from "./Standings";
 import { Tires } from "./Tires";
+import { Weather } from "./Weather";
 
 export interface WidgetProps {
   config: WidgetConfig;
@@ -34,4 +35,5 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   coach: Coach,
   dynamics: Dynamics,
   instruments: Instruments,
+  weather: Weather,
 };

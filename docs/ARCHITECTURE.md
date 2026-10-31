@@ -123,6 +123,19 @@ quoted before parsing, because iRacing doesn't escape them.
   mid-lap, visited pit road or refuelled. Laps to go come from
   `SessionLapsRemainEx` in lap races, or time remaining divided by average lap
   time (plus the lap you finish on) in timed races.
+- **Weather**: `AirTemp`, `TrackTempCrew`, `TrackWetness` (1 dry .. 7 extremely
+  wet), `Precipitation`, `RelativeHumidity` and `FogLevel` (each accepted as a
+  fraction or a percentage), `Skies`, `WeatherDeclaredWet`, and `WindVel` /
+  `WindDir` measured at the start/finish line. `WindDir` is read as the bearing
+  the wind blows *from*, clockwise from north. The car's heading comes from
+  `YawNorth`, which turns anticlockwise like the yaw rate, so the engine sends
+  `heading = -YawNorth` wrapped to 0..2π. The widget's compass card is rotated
+  by `-heading` so the car points up; the wind relative to the car is
+  `WindDir - heading` (0 = head on, 90° = from the right), giving
+  headwind = speed·cos and crosswind = speed·sin of it. Both sign conventions
+  should be confirmed in the sim (drive north with a known wind). iRacing has no
+  forecast or radar variables; trend arrows compare each reading with ~3
+  minutes ago, sampled every 15 s of session time (`src/lib/weather.ts`).
 
 ## The app shell (`src-tauri`)
 

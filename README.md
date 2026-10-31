@@ -15,9 +15,9 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ## Features
 
-- **13 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
-  inputs, car dynamics, dash lights, fuel, tires, a radar and an LED flag
-  board. Each one has its own options.
+- **14 widgets**: timing tables, a lap delta graph, a lap log, live coaching,
+  inputs, car dynamics, dash lights, fuel, tires, weather, a radar and an LED
+  flag board. Each one has its own options.
 - **Edit layout mode**: drag any widget anywhere, resize it, snap it to the
   screen edges and other widgets, and turn widgets on or off from the edit bar.
 - **Saved layouts**: keep as many layouts as you like (sprint, endurance,
@@ -150,7 +150,8 @@ lateral, longitudinal and vertical g, top, side and rear views of the car
 showing slip, pitch and roll, and a balance bar estimating understeer or
 oversteer from how the car rotates for the steering you put in.
 
-*Options*: g-meter range, which way the dot moves, slip/pitch/roll views and
+*Options*: g-meter range, how long the grip outline holds and how quickly it
+shrinks back to the centre, which way the dot moves, slip/pitch/roll views and
 how much to exaggerate them, and the balance bar.
 
 ### Instruments
@@ -172,6 +173,21 @@ Fuel in the tank, use per lap (the average of your last 5 green laps), laps
 the tank will last, laps to go, and how much to add at your stop to finish.
 
 *Options*: a safety margin in laps.
+
+### Weather
+
+![Weather widget](docs/widgets/weather.png)
+
+Track and air temperature, how wet the track is (iRacing's seven steps from
+dry to extremely wet), rain, humidity and fog, with arrows showing which way
+each has moved over the last three minutes. Below, a wind compass that turns
+with your car: the car always points up and the arrow shows where the wind is
+hitting you from, with the headwind or tailwind and crosswind it gives. iRacing
+doesn't publish a forecast or rain radar, so the trend arrows are the closest
+thing to one. Wind is measured at the start/finish line. Off by default.
+
+*Options*: show the compass, turn it with the car or keep north up, and the
+trend arrows.
 
 ### Tires
 

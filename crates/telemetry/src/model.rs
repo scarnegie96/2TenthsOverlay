@@ -125,6 +125,12 @@ pub struct RawFrame {
     pub wind_dir: Option<f32>,
     /// 0..1
     pub humidity: Option<f32>,
+    /// Precipitation, 0..1. Only published since iRacing added rain.
+    pub precipitation: Option<f32>,
+    /// FogLevel, 0..1.
+    pub fog_level: Option<f32>,
+    /// YawNorth: the car's heading relative to north, radians.
+    pub yaw_north: Option<f32>,
 
     /// Tires in LF, RF, LR, RR order. iRacing only refreshes temps and wear
     /// while the car sits in its pit box; on track they hold the last reading.
@@ -271,6 +277,9 @@ pub struct TickPayload {
     pub dynamics: crate::dynamics::DynamicsPayload,
     /// Warning lights, engine gauges and brake bias.
     pub instruments: crate::instruments::InstrumentsPayload,
+    /// The car's compass heading, radians clockwise from north. For the
+    /// weather widget's wind compass, which turns with the car.
+    pub heading: Option<f32>,
 }
 
 /// Live delta against each kind of comparison lap. None when iRacing (or the
@@ -416,6 +425,10 @@ pub struct SessionClock {
     pub wind_dir: Option<f32>,
     /// 0..1
     pub humidity: Option<f32>,
+    /// Precipitation, 0..1, when iRacing publishes it.
+    pub precipitation: Option<f32>,
+    /// Fog, 0..1.
+    pub fog_level: Option<f32>,
     /// The player's count, or the team's in team events (what the limit applies to).
     pub incidents: i32,
     /// None when unlimited.

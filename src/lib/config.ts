@@ -3,7 +3,7 @@ import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "flags";
+  | "radar" | "tires" | "flags" | "weather";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -227,6 +227,24 @@ export const WIDGETS: WidgetMeta[] = [
     x: 1580, y: 340, enabled: true,
     options: [
       { key: "marginLaps", label: "Safety margin", type: "number", default: 0.5, min: 0, max: 3, step: 0.25, suffix: "laps" },
+    ],
+  },
+  {
+    id: "weather",
+    name: "Weather",
+    description: "Track and air temperature, track wetness, rain, humidity and a wind compass that turns with your car, with trend arrows.",
+    // Off by default: turn it on in settings and place it where suits your screen.
+    x: 1396, y: 24, enabled: false,
+    options: [
+      { key: "showCompass", label: "Show wind compass", type: "toggle", default: true },
+      {
+        key: "compass", label: "Compass", type: "select", default: "car",
+        choices: [
+          { value: "car", label: "Turns with the car (car points up)" },
+          { value: "north", label: "North up (the car turns)" },
+        ],
+      },
+      { key: "showTrends", label: "Show trend arrows", type: "toggle", default: true, help: "Which way temperatures, wetness and rain have moved over the last few minutes" },
     ],
   },
   {

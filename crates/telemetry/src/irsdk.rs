@@ -312,6 +312,11 @@ impl Irsdk {
         f.wind_dir = opt("WindDir");
         // Documented as a percentage but published as a fraction; accept either.
         f.humidity = opt("RelativeHumidity").map(|h| if h > 1.0 { h / 100.0 } else { h });
+        // Same story for these: accept a fraction or a percentage.
+        let frac = |v: f32| if v > 1.0 { v / 100.0 } else { v };
+        f.precipitation = opt("Precipitation").map(frac);
+        f.fog_level = opt("FogLevel").map(frac);
+        f.yaw_north = opt("YawNorth");
 
         for k in 0..4 {
             for j in 0..3 {

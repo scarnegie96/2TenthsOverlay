@@ -175,6 +175,7 @@ impl Engine {
             coach,
             dynamics: self.dynamics.update(f),
             instruments: crate::instruments::build(f, mean(&self.fuel.per_lap)),
+            heading: f.yaw_north.map(heading_from_yaw_north),
         }
     }
 
@@ -316,6 +317,8 @@ impl Engine {
             wind_speed: f.wind_speed,
             wind_dir: f.wind_dir,
             humidity: f.humidity,
+            precipitation: f.precipitation,
+            fog_level: f.fog_level,
             incidents: if s.team_racing { f.team_incidents } else { f.incidents },
             incident_limit: s.incident_limit,
             fast_repairs_used: f.fast_repairs_used,
@@ -800,6 +803,13 @@ fn mean(q: &VecDeque<f32>) -> Option<f32> {
     (!q.is_empty()).then(|| q.iter().sum::<f32>() / q.len() as f32)
 }
 
+/// iRacing's `YawNorth` turns the same way as its yaw rate (positive = left,
+/// anticlockwise seen from above). A compass heading runs clockwise from
+/// north, so it's the negative, wrapped to 0..2π.
+pub fn heading_from_yaw_north(yaw_north: f32) -> f32 {
+    (-yaw_north).rem_euclid(std::f32::consts::TAU)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -976,5 +986,17 @@ mod tests {
         assert_eq!(c.len(), 2);
         assert_eq!((c[0].class_id, c[0].cars, c[0].strength_of_field), (1, 1, Some(3000)));
         assert_eq!((c[1].class_id, c[1].cars, c[1].strength_of_field), (2, 2, Some(1500)));
+    }
+
+    #[test]
+    fn heading_runs_clockwise_from_north() {
+        use std::f32::consts::{FRAC_PI_2, PI};
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
+        assert!(close(heading_from_yaw_north(0.0), 0.0));
+        // Turned left (anticlockwise) a quarter: facing west.
+        assert!(close(heading_from_yaw_north(FRAC_PI_2), 3.0 * FRAC_PI_2));
+        // Turned right a quarter: facing east.
+        assert!(close(heading_from_yaw_north(-FRAC_PI_2), FRAC_PI_2));
+        assert!(close(heading_from_yaw_north(PI), PI));
     }
 }

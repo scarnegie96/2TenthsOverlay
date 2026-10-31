@@ -40,6 +40,7 @@ const WIDGETS = {
   radar: {},
   tires: {},
   flags: { params: "flag=16384" },
+  weather: {},
 };
 
 const profile = mkdtempSync(join(tmpdir(), "tenths-shots-"));

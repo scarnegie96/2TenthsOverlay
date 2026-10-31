@@ -98,6 +98,8 @@ export interface TickPayload {
   dynamics: DynamicsPayload;
   /** Warning lights, engine gauges and brake bias. */
   instruments: InstrumentsPayload;
+  /** Car's compass heading, radians clockwise from north. Null when iRacing doesn't publish it. */
+  heading: number | null;
 }
 
 export interface Warnings {
@@ -289,6 +291,10 @@ export interface SessionClock {
   windDir: number | null;
   /** 0..1 */
   humidity: number | null;
+  /** 0..1, when iRacing publishes it. */
+  precipitation: number | null;
+  /** 0..1 */
+  fogLevel: number | null;
   /** Yours, or the team's in team events. */
   incidents: number;
   incidentLimit: number | null;

@@ -396,11 +396,29 @@ class Mock {
       coach: null,
       dynamics: { latG: 0, longG: 0, vertG: 1, pitchDeg: 0, rollDeg: 0, slipDeg: 0, yawRateDeg: 0, balance: null },
       instruments: null as unknown as TickPayload["instruments"],
+      // One clockwise lap of the compass per lap, swinging through the corners.
+      heading: (((pct + 0.04 * Math.sin(pct * Math.PI * 16)) * Math.PI * 2) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2),
     };
     t.dynamics = this.dynamics(t, pct);
     t.instruments = this.instruments(t);
     t.coach = this.coach(t);
     return t;
+  }
+
+  /** Weather that changes slowly: a light shower every 10 minutes, a veering wind. */
+  private weather() {
+    const cycle = Math.max(0, Math.sin((this.t / 600) * Math.PI * 2));
+    return {
+      skies: cycle > 0.5 ? 3 : cycle > 0.1 ? 2 : 1,
+      trackWetness: cycle > 0.8 ? 3 : cycle > 0.4 ? 2 : 1,
+      precipitation: 0.35 * cycle * cycle,
+      fogLevel: 0,
+      windSpeed: 3.4 + 1.2 * Math.abs(Math.sin(this.t / 37)),
+      windDir: 5.5 + 0.4 * Math.sin(this.t / 240),
+      humidity: 0.56 + 0.3 * cycle,
+      trackTemp: 31.4 - 4 * cycle,
+      airTemp: 22.8 - 2 * cycle,
+    };
   }
 
   /** Engine gauges that follow the revs; a water temperature warning comes on now and then. */
@@ -615,9 +633,9 @@ class Mock {
     return {
       clock: {
         sessionType: "Race", timeRemain: null, lapsRemain: 30 - Math.floor(this.progress[order[0]]), totalLaps: 30,
-        flags: this.flags(), trackTemp: 31.4, airTemp: 22.8, strengthOfField: classes[1].strengthOfField, classes,
-        timeOfDay: 14 * 3600 + (performance.now() / 1000) % 3600, skies: 1, trackWetness: 1, declaredWet: false,
-        windSpeed: 3.4, windDir: 5.5, humidity: 0.56, incidents: 2, incidentLimit: 17, fastRepairsUsed: 0,
+        flags: this.flags(), strengthOfField: classes[1].strengthOfField, classes,
+        timeOfDay: 14 * 3600 + (performance.now() / 1000) % 3600, ...this.weather(), declaredWet: false,
+        incidents: 2, incidentLimit: 17, fastRepairsUsed: 0,
         fastRepairsLimit: 1,
       },
       relative,
