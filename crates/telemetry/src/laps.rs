@@ -325,7 +325,10 @@ impl LapLog {
         let waited = f.session_time - p.ended_at > OFFICIAL_TIME_WAIT || f.session_time < p.ended_at;
         if official || waited {
             let p = self.pending.take().expect("checked above");
-            let time = if official { Some(f.lap_last) } else { p.own_time };
+            // Two laps in the same time leave LapLastLapTime unchanged, so trust
+            // it when it agrees with our own timing.
+            let matches_own = p.own_time.is_some_and(|own| f.lap_last > 0.0 && (f.lap_last - own).abs() <= 0.25);
+            let time = if official || matches_own { Some(f.lap_last) } else { p.own_time };
             self.finish(p.record, time);
         }
     }
@@ -435,6 +438,23 @@ mod tests {
         assert_eq!(p.session_best, Some(90.1));
         assert_eq!(p.personal_best.map(|b| b.time), Some(90.1));
         assert!(p.laps[1].fuel_used.is_some());
+    }
+
+    #[test]
+    fn same_official_time_twice_is_still_official() {
+        let mut log = LapLog::default();
+        let mut f = frame();
+        log.update(&f);
+        lap(&mut log, &mut f, 79.4, Some(80.4), false);
+        lap(&mut log, &mut f, 79.4, Some(80.4), false);
+        lap(&mut log, &mut f, 79.4, Some(80.4), false);
+        f.session_time += 5.0;
+        log.update(&f);
+
+        let p = log.payload();
+        assert_eq!(p.laps.len(), 3);
+        assert_eq!(p.laps[1].time, Some(80.4));
+        assert_eq!(p.laps[2].time, Some(80.4));
     }
 
     #[test]
