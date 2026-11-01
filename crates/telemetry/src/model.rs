@@ -374,6 +374,9 @@ pub struct RelativeRow {
     pub on_pit_road: bool,
     pub status: CarStatus,
     pub is_player: bool,
+    /// Tyre compound fitted (`CarIdxTireCompound`): an index into the session's
+    /// `tire_compounds`, or -1 when unknown.
+    pub compound: i32,
 }
 
 /// Where a car is, for the pit and out symbols in the timing tables.

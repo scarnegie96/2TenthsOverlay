@@ -246,6 +246,8 @@ export interface RelativeRow extends DriverCell, LapInfo {
   onPitRoad: boolean;
   status: CarStatus;
   isPlayer: boolean;
+  /** Tyre compound fitted: an index into the session's tireCompounds, -1 when unknown. */
+  compound: number;
 }
 
 export interface StandingRow extends DriverCell, LapInfo {

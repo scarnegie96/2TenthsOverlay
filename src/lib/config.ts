@@ -87,6 +87,15 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showLastLap", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showPit", label: "Show cars in the pits", type: "toggle", default: true },
       { key: "showInterval", label: "Show gap to the car ahead", type: "toggle", default: true, help: "Each car's gap to the one in front of it on track, amber when under a second" },
+      {
+        key: "showCompound", label: "Tyre column", type: "select", default: "auto",
+        help: "The compound each car is on: W wet, S soft, M medium, H hard. Names come from your car's tyre list, so another class's may differ.",
+        choices: [
+          { value: "auto", label: "When the car has more than one compound" },
+          { value: "always", label: "Always" },
+          { value: "never", label: "Never" },
+        ],
+      },
       { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "For your class, in the header" },
     ],
   },

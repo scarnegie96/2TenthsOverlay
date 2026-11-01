@@ -2732,3 +2732,14 @@
 [data-theme="f1"] .class-group + .class-group {
   margin-top: 0;
 }
+
+/* Tyre compound in the Relative */
+.rel-tyre {
+  display: grid;
+  place-items: center;
+}
+.rel-tyre .tyre-badge {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}

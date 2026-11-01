@@ -74,10 +74,13 @@ in front of it on track (yours included), amber when it's under a second, so
 you can see the fights going on around you. A car in the pit lane has an
 outlined **P** next to its name, and a solid **P** once it's stopped in its
 pit box. Cars that have left the sim aren't on track, so they drop out of the
-relative. The header shows the lap count and your class's strength of field.
+relative. The header shows the lap count and your class's strength of field. When
+there's a choice of tyres, a badge shows the compound each car is on (W wet, S
+soft, M medium, H hard).
 
 *Options*: how many cars ahead and behind, and whether to show iRating,
-license, last lap, the gap to the car ahead, cars in the pits and SoF.
+license, last lap, the gap to the car ahead, cars in the pits and SoF, and when
+to show the tyre column.
 
 ### Standings
 

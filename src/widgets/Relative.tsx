@@ -5,6 +5,7 @@ import { useLive } from "../lib/store";
 import type { RelativeRow, SessionClock } from "../lib/types";
 import { ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
+import { compoundKind } from "./Stints";
 
 export function sessionAside(c: SessionClock | undefined) {
   if (!c) return null;
@@ -27,6 +28,10 @@ export function Relative({ config }: { config: WidgetConfig }) {
   const showLast = opt(config, "showLastLap", true);
   const showPit = opt(config, "showPit", true);
   const showInterval = opt(config, "showInterval", true);
+  const compounds = useLive((s) => s.session?.tireCompounds ?? []);
+  const showCompound = opt<string>(config, "showCompound", "auto");
+  // Only worth the space when there's a choice of tyres.
+  const showTyre = showCompound === "always" || (showCompound === "auto" && compounds.length > 1);
 
   const rows = (field?.relative ?? []).filter((r) => showPit || !r.onPitRoad || r.isPlayer);
   const me = rows.findIndex((r) => r.isPlayer);
@@ -45,6 +50,7 @@ export function Relative({ config }: { config: WidgetConfig }) {
   const sof = opt(config, "showSoF", true) ? field?.clock.strengthOfField : null;
   const cols = [
     "24px 8px 34px minmax(0, 1fr)",
+    showTyre && "22px",
     showLic && "auto",
     showIR && "40px",
     showLast && "62px",
@@ -67,7 +73,8 @@ export function Relative({ config }: { config: WidgetConfig }) {
           {slots.map((s, k) =>
             s ? (
               <Row key={s.r.carIdx} r={s.r} interval={showInterval ? s.interval : undefined} race={race}
-                showIR={showIR} showLic={showLic} showLast={showLast} multiclass={multiclass} />
+                showIR={showIR} showLic={showLic} showLast={showLast} multiclass={multiclass}
+                tyre={showTyre ? (s.r.compound >= 0 ? compounds[s.r.compound] ?? "" : "") : null} />
             ) : (
               <div key={`e${k}`} className="row row-empty" />
             ),
@@ -81,8 +88,10 @@ export function Relative({ config }: { config: WidgetConfig }) {
 /** Within this many seconds of the car ahead counts as a close fight. */
 const CLOSE_S = 1.0;
 
-function Row({ r, interval, race, showIR, showLic, showLast, multiclass }: {
+function Row({ r, interval, race, showIR, showLic, showLast, multiclass, tyre }: {
   r: RelativeRow;
+  /** The compound's name ("" when unknown); null when the column is off. */
+  tyre: string | null;
   race: boolean;
   /** Seconds to the car in front; null for the front row; undefined when the column is off. */
   interval: number | null | undefined;
@@ -99,6 +108,11 @@ function Row({ r, interval, race, showIR, showLic, showLast, multiclass }: {
         <span className="name-text">{r.name}</span>
         <StatusBadge status={r.status} race={race} />
       </span>
+      {tyre !== null && (
+        <span className="rel-tyre">
+          {tyre && <i className={`tyre-badge tyre-${compoundKind(tyre)}`} title={tyre}>{tyre[0].toUpperCase()}</i>}
+        </span>
+      )}
       {showLic && (
         <span className="lic" style={{ borderLeftColor: r.licenseColor || undefined }}>
           {lic.letter}

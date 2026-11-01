@@ -716,6 +716,7 @@ class Mock {
       classPos.set(i, ++counts[classOf(i)]);
     });
     const me = this.progress[PLAYER];
+    const stints = this.stints();
     const relative: RelativeRow[] = order
       // Cars out of the sim aren't on track, so they're not in the relative.
       .filter((i) => i !== RETIRED)
@@ -728,6 +729,7 @@ class Mock {
           gap: d * 92.1, lapStatus: Math.max(-1, Math.min(1, laps)) as -1 | 0 | 1, onPitRoad: this.carStatus(i) !== "track",
           status: this.carStatus(i),
           isPlayer: i === PLAYER,
+          compound: stints[i]?.stints[stints[i].stints.length - 1]?.compound ?? 0,
         };
       })
       .sort((a, b) => b.gap - a.gap);
@@ -795,7 +797,7 @@ class Mock {
       },
       tires,
       pit: this.pit,
-      stints: this.stints(),
+      stints,
       // As if a few stops have been timed in each class.
       pitLoss: CLASSES.map((c, k) => ({ classId: c.id, lossS: 26.4 + k * 1.3, stallS: 19 + k, stops: 4 + k })),
       lapLog: {

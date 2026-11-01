@@ -406,6 +406,7 @@ impl Engine {
                     on_pit_road: f.car_on_pit_road[i],
                     status: CarStatus::of(f, i),
                     is_player: i == p,
+                    compound: f.car_tire_compound.get(i).copied().unwrap_or(-1),
                 }
             })
             .collect();
