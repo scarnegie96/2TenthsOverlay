@@ -111,11 +111,13 @@ pub struct WidgetCfg {
     pub scale: f32,
     pub opacity: f32,
     pub options: Map<String, Value>,
+    /// The display it is on (`displays::Display::key`); None = the primary.
+    pub display: Option<String>,
 }
 
 impl WidgetCfg {
     pub fn default_for(m: &Meta) -> Self {
-        Self { enabled: m.enabled, x: m.x, y: m.y, anchor: None, scale: 1.0, opacity: 1.0, options: Map::new() }
+        Self { enabled: m.enabled, x: m.x, y: m.y, anchor: None, scale: 1.0, opacity: 1.0, options: Map::new(), display: None }
     }
 }
 
@@ -129,6 +131,8 @@ pub struct General {
     pub colors: HashMap<ThemeId, HashMap<String, String>>,
     /// `general.controls`, as saved (for the Pit stop's key hints).
     pub controls: Value,
+    /// `general.activeProfile`: the saved layout that edits are saved into.
+    pub active_profile: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -170,6 +174,7 @@ fn normalize_widget(raw: &Value, m: &Meta) -> WidgetCfg {
         scale: o.get("scale").and_then(num).map(|s| (s as f32).clamp(SCALE_MIN, SCALE_MAX)).unwrap_or(base.scale),
         opacity: o.get("opacity").and_then(num).map(|s| (s as f32).clamp(OPACITY_MIN, OPACITY_MAX)).unwrap_or(base.opacity),
         options: Map::new(),
+        display: o.get("display").and_then(Value::as_str).filter(|s| !s.is_empty()).map(String::from),
     };
     let ax = o.get("ax").and_then(Value::as_str).and_then(AnchorX::parse);
     let ay = o.get("ay").and_then(Value::as_str).and_then(AnchorY::parse);
@@ -227,6 +232,7 @@ pub fn normalize(raw: &Value) -> Config {
         theme: g.get("theme").and_then(Value::as_str).and_then(ThemeId::parse).unwrap_or_default(),
         colors,
         controls: g.get("controls").cloned().unwrap_or(Value::Null),
+        active_profile: g.get("activeProfile").and_then(Value::as_str).map(String::from),
     };
     Config { general, widgets }
 }
@@ -314,6 +320,9 @@ pub struct Store {
     last_poll: Option<std::time::Instant>,
     /// What went wrong last, for the edit bar.
     pub error: Option<String>,
+    /// Counts `save_widget` calls (not reloads), so edits can be copied into
+    /// the active layout.
+    pub edits: u64,
 }
 
 fn mtime(path: &Path) -> Option<SystemTime> {
@@ -331,7 +340,7 @@ fn read_value(path: &Path) -> Result<Option<Value>, String> {
 
 impl Store {
     pub fn open(path: Option<PathBuf>) -> Self {
-        let mut s = Self { path, config: Config::default(), mtime: None, last_poll: None, error: None };
+        let mut s = Self { path, config: Config::default(), mtime: None, last_poll: None, error: None, edits: 0 };
         s.reload();
         s
     }
@@ -382,11 +391,53 @@ impl Store {
         }
         let meta = schema::meta(id).expect("known widget");
         *self.config.widget_mut(id) = normalize_widget(&raw, meta);
+        self.edits += 1;
 
         let Some(path) = self.path.clone() else { return };
         match write_widget(&path, id, patch) {
             Ok(()) => {
                 self.mtime = mtime(&path);
+                self.error = None;
+            }
+            Err(e) => {
+                eprintln!("[tenths-egui] couldn't save {}: {e}", path.display());
+                self.error = Some(format!("Couldn't save: {e}"));
+            }
+        }
+    }
+
+    /// Every widget's settings, as `widgets` in config.json and in a layout file.
+    pub fn widgets_json(&self) -> Value {
+        Value::Object(WIDGETS.iter().map(|m| (m.id.to_string(), self.widget_value(m.id))).collect())
+    }
+
+    /// Puts a layout's widgets on screen and (with `Some`) makes it the active
+    /// one, in memory and in the file (`switchProfile`).
+    pub fn set_layout(&mut self, widgets: &Value, active: Option<&str>) {
+        let fresh = normalize(&serde_json::json!({ "widgets": widgets }));
+        self.config.widgets = fresh.widgets;
+        self.config.general.active_profile = active.map(String::from);
+        let json = self.widgets_json();
+        let Some(path) = self.path.clone() else { return };
+        let result = write_root(&path, |root| {
+            root.insert("widgets".into(), json);
+            set_active(root, active);
+        });
+        self.finish_write(&path, result);
+    }
+
+    /// Sets (or clears) `general.activeProfile`.
+    pub fn set_active_profile(&mut self, active: Option<&str>) {
+        self.config.general.active_profile = active.map(String::from);
+        let Some(path) = self.path.clone() else { return };
+        let result = write_root(&path, |root| set_active(root, active));
+        self.finish_write(&path, result);
+    }
+
+    fn finish_write(&mut self, path: &Path, result: Result<(), String>) {
+        match result {
+            Ok(()) => {
+                self.mtime = mtime(path);
                 self.error = None;
             }
             Err(e) => {
@@ -403,6 +454,9 @@ impl Store {
         o.insert("enabled".into(), w.enabled.into());
         o.insert("x".into(), w.x.into());
         o.insert("y".into(), w.y.into());
+        if let Some(d) = &w.display {
+            o.insert("display".into(), d.clone().into());
+        }
         if let Some((ax, ay)) = w.anchor {
             o.insert("ax".into(), ax.key().into());
             o.insert("ay".into(), ay.key().into());
@@ -412,6 +466,37 @@ impl Store {
         o.insert("options".into(), Value::Object(w.options.clone()));
         Value::Object(o)
     }
+}
+
+fn set_active(root: &mut Map<String, Value>, active: Option<&str>) {
+    let general = root.entry("general").or_insert_with(|| Value::Object(Map::new()));
+    if !general.is_object() {
+        *general = Value::Object(Map::new());
+    }
+    general.as_object_mut().unwrap().insert("activeProfile".into(), active.map(Value::from).unwrap_or(Value::Null));
+}
+
+/// Reads the file fresh, lets `change` edit its top level, and writes it back
+/// the safe way. Refuses to touch a file that's there but can't be read.
+pub fn write_root(path: &Path, change: impl FnOnce(&mut Map<String, Value>)) -> Result<(), String> {
+    let mut root = match read_value(path)? {
+        Some(v @ Value::Object(_)) => v,
+        Some(_) => return Err("config.json isn't a JSON object".into()),
+        None => serde_json::json!({ "version": 1 }),
+    };
+    change(root.as_object_mut().expect("object"));
+    write_atomic(path, &root)
+}
+
+fn write_atomic(path: &Path, root: &Value) -> Result<(), String> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let text = serde_json::to_string_pretty(root).map_err(|e| e.to_string())?;
+    // Not the Tauri app's own temp name, so the two never write the same temp file.
+    let tmp = path.with_extension("json.egui-tmp");
+    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
 /// Reads the file fresh, changes the one widget, and writes it back through

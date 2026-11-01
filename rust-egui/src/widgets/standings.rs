@@ -8,8 +8,8 @@ use egui::{Align, Align2, Painter, Pos2, Rect, Stroke, Vec2};
 use telemetry::model::{CarStatus, FieldPayload, StandingRow};
 
 use super::relative::session_aside;
-use super::{Ctx, Widget};
-use crate::kit::{self, seg, Badge, Col};
+use super::{Click, ClickAction, Ctx, Widget};
+use crate::kit::{self, seg, Badge, Col, Thumb};
 use crate::logic::format::{gap as fmt_gap, irating, lap_time};
 use crate::logic::{irating as ir, rejoin};
 use crate::theme::{alpha, hex_or, Theme};
@@ -151,6 +151,9 @@ impl Widget for Standings {
         let loss = field.and_then(|f| f.pit_loss.iter().find(|l| Some(l.class_id) == player_class));
         let my_row = all.iter().find(|r| r.is_player);
         let finished = field.is_some_and(|f| f.clock.player_finished);
+        // Once you've taken the flag: thumbs up or down for the other drivers.
+        // TENTHS_EGUI_VOTING=1 shows the thumbs without finishing a race, to check them.
+        let voting = race && (finished || std::env::var_os("TENTHS_EGUI_VOTING").is_some()) && o.b("rateDrivers");
         let show_rejoin = o.b("showRejoin") && race && !finished && loss.is_some() && my_row.is_some_and(|r| r.status == CarStatus::Track);
         let mut groups = group_by_class(all);
         if o.b("myClassOnly") {
@@ -160,7 +163,7 @@ impl Widget for Standings {
         let class_sof = |id: i32| field.and_then(|f| f.clock.classes.iter().find(|c| c.class_id == id)).and_then(|c| c.strength_of_field);
         let head_sof = if show_sof && !show_heads && groups.len() == 1 { class_sof(groups[0].class_id) } else { None };
 
-        let panel = kit::Panel::begin(p, th, 520.0, None, &[]);
+        let panel = kit::Panel::begin(p, th, if voting { 576.0 } else { 520.0 }, None, &[]);
         if all.is_empty() {
             let h = kit::empty(p, th, panel.x(), panel.body_top, "Standings appear when a session is running.");
             let bottom = panel.body_top + h;
@@ -181,6 +184,7 @@ impl Widget for Standings {
         let c_gap = push(true, Col::Px(54.0)).unwrap();
         let c_last = push(show_last, Col::Px(62.0));
         let c_best = push(show_best, Col::Px(62.0));
+        let c_rate = push(voting, Col::Px(52.0));
         let x = kit::grid(panel.x(), 6.0, 10.0, 7.0, &cols);
         let full = panel.x();
 
@@ -206,6 +210,7 @@ impl Widget for Standings {
         label(Some(c_gap), if interval_mode { "Int" } else { "Gap" });
         label(c_last, "Last");
         label(c_best, "Best");
+        label(c_rate, "Rate");
         let mut title = vec![seg(session.map(|s| s.track_name.as_str()).filter(|s| !s.is_empty()).unwrap_or("Standings"), if th.f1() { th.heavy(14.0) } else { th.bold(14.0) }, th.ink)];
         let aside_font = if th.f1() { th.semi(14.0) } else { th.medium(14.0) };
         if let Some(a) = session_aside(field.map(|f| &f.clock)) {
@@ -275,7 +280,7 @@ impl Widget for Standings {
                     Item::Row(r) => {
                         let rect = Rect::from_min_size(Pos2::new(full.min, y), Vec2::new(full.span(), rh));
                         y += rh;
-                        row(p, th, cx, &x, rect, r, RowCols { c_change, c_ir, c_gap, c_last, c_best, interval_mode, race, show_marks }, changes.get(&r.driver.car_idx).copied());
+                        row(p, th, cx, &x, rect, r, RowCols { c_change, c_ir, c_gap, c_last, c_best, c_rate, interval_mode, race, show_marks }, changes.get(&r.driver.car_idx).copied());
                     }
                 }
             }
@@ -292,6 +297,7 @@ struct RowCols {
     c_gap: usize,
     c_last: Option<usize>,
     c_best: Option<usize>,
+    c_rate: Option<usize>,
     interval_mode: bool,
     race: bool,
     show_marks: bool,
@@ -385,6 +391,37 @@ fn row(p: &Painter, th: &Theme, cx: &Ctx, x: &[egui::Rangef], rect: Rect, r: &St
     if let Some(col) = c.c_best {
         let (font, color) = kit::best_lap_style(th, r.laps.class_fastest);
         kit::cell(p, x[col], cy, Align::Center, &lap_time(r.laps.best_lap), font, color);
+    }
+    if let (Some(col), false, true) = (c.c_rate, r.is_player, r.driver.user_id > 0) {
+        rate_buttons(p, th, cx, x[col].center(), cy, r);
+    }
+}
+
+/// Thumbs up and down for a driver (`RateButtons`): white until picked, then
+/// green or red; picking the same one again clears it. They take clicks even
+/// while the overlay is click-through.
+fn rate_buttons(p: &Painter, th: &Theme, cx: &Ctx, cx_mid: f32, cy: f32, r: &StandingRow) {
+    let current = cx.ratings.get(r.driver.user_id);
+    let (w, h, gap) = (22.0, 20.0, 4.0);
+    for (rating, left) in [(Thumb::Up, cx_mid - gap / 2.0 - w), (Thumb::Down, cx_mid + gap / 2.0)] {
+        let rect = Rect::from_min_size(Pos2::new(left, cy - h / 2.0), Vec2::new(w, h));
+        let on = current == Some(rating);
+        let hover = cx.pointer.is_some_and(|m| rect.contains(m));
+        if hover {
+            kit::fill(p, rect, 4.0, alpha(th.ink, 0.12));
+        }
+        // White (the light theme: grey) until picked.
+        let idle = if th.light() { th.ink2 } else { egui::Color32::WHITE };
+        let color = match (on, rating) {
+            (true, Thumb::Up) => th.gain,
+            (true, Thumb::Down) => th.loss,
+            _ => idle.gamma_multiply(0.85),
+        };
+        kit::thumb(p, rect.center(), 14.0, rating == Thumb::Down, color);
+        cx.clicks.borrow_mut().push(Click {
+            rect,
+            action: ClickAction::Rate { user_id: r.driver.user_id, name: r.driver.name.clone(), rating: if on { None } else { Some(rating) } },
+        });
     }
 }
 

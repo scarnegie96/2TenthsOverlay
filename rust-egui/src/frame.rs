@@ -4,10 +4,17 @@
 //! screen), drag the corner or use − and + to resize, Hide; each change is
 //! written back into `config.json` for that widget only.
 //!
+//! With several displays there is one overlay window per display and `run`
+//! is called once for each: it draws the widgets placed on that display
+//! (`widget.display`, else the primary). A widget dragged past the window's
+//! edge onto another display moves there when dropped, and each widget's label
+//! has a button that sends it to the next display.
+//!
 //! A widget that panics shows a small note in edit mode and nothing
 //! otherwise, and is tried again when its settings change or after a while
 //! (`WidgetBoundary.tsx`).
 
+use std::cell::RefCell;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use egui::emath::TSTransform;
@@ -17,11 +24,12 @@ use serde_json::json;
 use crate::anchor::{self, Guide};
 use crate::config::{Opts, Store, SCALE_MAX, SCALE_MIN};
 use crate::data::Live;
+use crate::displays::{self, Display};
 use crate::kit;
 use crate::ratings::Ratings;
 use crate::schema::{Meta, WIDGETS};
 use crate::theme::{alpha, Theme};
-use crate::widgets::{self, Ctx, Widget};
+use crate::widgets::{self, ClickAction, Ctx, Widget};
 
 const SCALE_STEP: f32 = 0.05;
 /// Seconds before a widget that failed is tried again.
@@ -38,18 +46,25 @@ struct Slot {
     natural: Vec2,
     /// Where it is on screen this frame (None when not drawn).
     rect: Option<Rect>,
+    /// The display (key) whose window `rect` is in.
+    shown_on: Option<String>,
     /// The panic message and when it happened.
     error: Option<(String, f64, String)>,
 }
 
 enum Drag {
-    Move { idx: usize, press: Pos2, start: Pos2, live: Pos2, moved: bool },
+    Move { idx: usize, press: Pos2, start: Pos2, live: Pos2, moved: bool, pointer: Pos2 },
     Scale { idx: usize, press: Pos2, scale: f32, w: f32, live: f32 },
 }
 
 pub struct Layout {
     slots: Vec<Slot>,
     drag: Option<Drag>,
+    /// The display (key) the drag started on.
+    drag_on: String,
+    /// While a widget is dragged past its window's edge: the number of the
+    /// display under the pointer, or 0 when it's over none.
+    leaving: Option<u32>,
     guides: Vec<Guide>,
 }
 
@@ -58,6 +73,7 @@ enum Hit {
     Smaller(usize),
     Bigger(usize),
     Hide(usize),
+    NextDisplay(usize),
     Handle(usize),
     Body(usize),
 }
@@ -74,6 +90,11 @@ pub struct Frame<'a> {
     pub now: f64,
     /// The area to place widgets in (the window, in points).
     pub screen: Rect,
+    /// Every display, and the one this window covers.
+    pub displays: &'a [Display],
+    pub me: &'a Display,
+    /// Gets the clickable parts of the widgets drawn here (screen rects).
+    pub clicks: &'a mut Vec<(Rect, ClickAction)>,
 }
 
 impl Default for Layout {
@@ -86,16 +107,31 @@ impl Layout {
     pub fn new() -> Self {
         let slots = WIDGETS
             .iter()
-            .map(|meta| Slot { meta, widget: widgets::make(meta.id), natural: Vec2::ZERO, rect: None, error: None })
+            .map(|meta| Slot { meta, widget: widgets::make(meta.id), natural: Vec2::ZERO, rect: None, shown_on: None, error: None })
             .collect();
-        Self { slots, drag: None, guides: Vec::new() }
+        Self { slots, drag: None, drag_on: String::new(), leaving: None, guides: Vec::new() }
     }
 
-    pub fn run(&mut self, f: Frame) {
-        let Frame { ctx, store, th, live, ratings, units, editing, show, now, screen } = f;
+    /// Lets every widget see the latest data, once a frame, whether it is shown or not.
+    pub fn observe(&mut self, live: &Live, now: f64) {
         for s in &mut self.slots {
             s.widget.observe(live, now);
         }
+    }
+
+    /// Where the widget is in the window of display `key` (None if it isn't there).
+    fn rect_on(&self, i: usize, key: &str) -> Option<Rect> {
+        let s = &self.slots[i];
+        if s.shown_on.as_deref() == Some(key) {
+            s.rect
+        } else {
+            None
+        }
+    }
+
+    pub fn run(&mut self, f: Frame) {
+        let Frame { ctx, store, th, live, ratings, units, editing, show, now, screen, displays, me, clicks: clicks_out } = f;
+        let hover = ctx.input(|i| i.pointer.hover_pos());
         if !editing {
             self.drag = None;
             self.guides.clear();
@@ -103,11 +139,22 @@ impl Layout {
         let screen_size = screen.size();
 
         for (idx, slot) in self.slots.iter_mut().enumerate() {
-            slot.rect = None;
+            let prev_rect = slot.rect;
             let cfg = store.config.widget(slot.meta.id).clone();
+            // Another display's widget: nothing here (and forget where it was if it just left).
+            if displays::widget_display(cfg.display.as_deref(), displays).is_some_and(|k| k != me.key) {
+                if slot.shown_on.as_deref() == Some(&me.key) {
+                    slot.rect = None;
+                    slot.shown_on = None;
+                }
+                continue;
+            }
+            slot.rect = None;
+            slot.shown_on = Some(me.key.clone());
             if !show || !cfg.enabled {
                 continue;
             }
+            let clicks = RefCell::new(Vec::new());
             let layer = LayerId::new(Order::Middle, Id::unique(("tenths-widget", slot.meta.id)));
             let mut painter = Painter::new(ctx.clone(), layer, Rect::EVERYTHING);
             painter.set_opacity(if editing { cfg.opacity.max(0.85) } else { cfg.opacity });
@@ -137,6 +184,8 @@ impl Layout {
                     editing,
                     now,
                     ctx,
+                    clicks: &clicks,
+                    pointer: hover.zip(prev_rect).map(|(h, r)| ((h - r.min) / cfg.scale).to_pos2()),
                 };
                 let widget = &mut slot.widget;
                 let first = ctx.graphics_mut(|g| g.entry(layer).next_idx().0);
@@ -185,90 +234,136 @@ impl Layout {
             let pos = pos + screen.min.to_vec2();
             ctx.transform_layer_shapes(layer, TSTransform::new(pos.to_vec2(), scale));
             slot.rect = Some(Rect::from_min_size(pos, size * scale));
+            if !editing {
+                for c in clicks.into_inner() {
+                    clicks_out.push((Rect::from_min_size(pos + c.rect.min.to_vec2() * scale, c.rect.size() * scale), c.action));
+                }
+            }
         }
 
         if editing {
-            self.interact(ctx, store, screen);
-            self.chrome(ctx, th, store, screen);
+            self.interact(ctx, store, screen, displays, me);
+            self.chrome(ctx, th, store, screen, displays, me);
         }
     }
 
     /// Edit-mode mouse handling.
-    fn interact(&mut self, ctx: &egui::Context, store: &mut Store, screen: Rect) {
-        let (pressed, down, released, pos) =
+    fn interact(&mut self, ctx: &egui::Context, store: &mut Store, screen: Rect, displays: &[Display], me: &Display) {
+        // A drag belongs to the window it started in; the others leave it alone.
+        if self.drag.is_some() && self.drag_on != me.key {
+            ctx.request_repaint_of(egui::ViewportId::ROOT);
+            return;
+        }
+        let (pressed, mut down, released, mut pos) =
             ctx.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.interact_pos()));
+        // While dragging between displays, ask the system where the mouse is: the
+        // window may stop getting its events once the mouse leaves it (Windows).
+        if self.drag.is_some() && displays.len() > 1 {
+            if let Some(ptr) = displays::pointer() {
+                pos = Some(displays::to_client(me, ptr.x, ptr.y) + screen.min.to_vec2());
+                down = ptr.down;
+            }
+        }
         let screen_size = screen.size();
+        let next = displays::next_display(&me.key, displays);
         if pressed && self.drag.is_none() && !ctx.is_pointer_over_egui() {
             if let Some(p) = pos {
-                match self.hit(ctx, store, p) {
-                    Some(Hit::Smaller(i)) => self.nudge_scale(store, i, -0.1, screen),
-                    Some(Hit::Bigger(i)) => self.nudge_scale(store, i, 0.1, screen),
+                match self.hit(ctx, store, p, &me.key, next.map(|d| d.number)) {
+                    Some(Hit::Smaller(i)) => self.nudge_scale(store, i, -0.1, screen, &me.key),
+                    Some(Hit::Bigger(i)) => self.nudge_scale(store, i, 0.1, screen, &me.key),
                     Some(Hit::Hide(i)) => store.save_widget(self.slots[i].meta.id, &[("enabled", json!(false))]),
+                    Some(Hit::NextDisplay(i)) => {
+                        // Anchored on this screen first, so it lands in the matching place on the other.
+                        if let (Some(r), Some(next)) = (self.rect_on(i, &me.key), next) {
+                            let slot = &self.slots[i];
+                            let scale = store.config.widget(slot.meta.id).scale;
+                            save(store, slot.meta.id, r.min - screen.min.to_vec2(), r.size(), scale, screen_size, Some(&next.key));
+                        }
+                    }
                     Some(Hit::Handle(i)) => {
-                        let r = self.slots[i].rect.unwrap();
+                        let r = self.rect_on(i, &me.key).unwrap();
                         let scale = store.config.widget(self.slots[i].meta.id).scale;
+                        self.drag_on = me.key.clone();
                         self.drag = Some(Drag::Scale { idx: i, press: p, scale, w: r.width(), live: scale });
                     }
                     Some(Hit::Body(i)) => {
-                        let r = self.slots[i].rect.unwrap();
+                        let r = self.rect_on(i, &me.key).unwrap();
                         let start = r.min - screen.min.to_vec2();
-                        self.drag = Some(Drag::Move { idx: i, press: p, start, live: start, moved: false });
+                        self.drag_on = me.key.clone();
+                        self.drag = Some(Drag::Move { idx: i, press: p, start, live: start, moved: false, pointer: p });
                     }
                     None => {}
                 }
             }
         }
         if let (Some(p), true) = (pos, down) {
-            let others: Vec<Rect> = self
-                .slots
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| !matches!(&self.drag, Some(Drag::Move { idx, .. }) if idx == i))
-                .filter_map(|(_, s)| s.rect.map(|r| r.translate(-screen.min.to_vec2())))
+            let others: Vec<Rect> = (0..self.slots.len())
+                .filter(|i| !matches!(&self.drag, Some(Drag::Move { idx, .. }) if idx == i))
+                .filter_map(|i| self.rect_on(i, &me.key).map(|r| r.translate(-screen.min.to_vec2())))
                 .collect();
+            let mut leaving = None;
             match &mut self.drag {
-                Some(Drag::Move { idx, press, start, live, moved }) => {
+                Some(Drag::Move { idx, press, start, live, moved, pointer }) => {
                     let delta = p - *press;
                     if delta.length() > 0.0 {
                         *moved = true;
                     }
+                    *pointer = p;
                     let size = self.slots[*idx].rect.map(|r| r.size()).unwrap_or_default();
                     let (snapped, guides) = anchor::snap(Rect::from_min_size(*start + delta, size), &others, screen_size);
                     *live = snapped;
                     self.guides = guides;
+                    if !screen.contains(p) && displays.len() > 1 {
+                        let grab = *press - *start - screen.min.to_vec2();
+                        leaving = Some(displays::drop_onto(me, p - screen.min.to_vec2(), grab, displays).map_or(0, |d| d.display.number));
+                    }
                 }
                 Some(Drag::Scale { press, scale, w, live, .. }) => {
                     *live = clamp_scale(*scale * ((*w + p.x - press.x) / *w));
                 }
                 None => {}
             }
+            self.leaving = leaving;
         }
         if released || (!down && self.drag.is_some()) {
             match self.drag.take() {
-                Some(Drag::Move { idx, live, moved: true, .. }) => {
+                Some(Drag::Move { idx, live, moved: true, press, start, pointer, .. }) => {
                     let slot = &self.slots[idx];
                     let scale = store.config.widget(slot.meta.id).scale;
-                    save(store, slot.meta.id, live, slot.natural * scale, scale, screen_size);
+                    let size = slot.natural * scale;
+                    // Let go past the edge, over another display: it goes there, at the same scale.
+                    let end = pos.unwrap_or(pointer);
+                    let across = if screen.contains(end) || displays.len() < 2 {
+                        None
+                    } else {
+                        displays::drop_onto(me, end - screen.min.to_vec2(), press - start - screen.min.to_vec2(), displays)
+                    };
+                    match across {
+                        Some(d) => save(store, slot.meta.id, Pos2::new(d.left, d.top), size, scale, d.display.css_size(), Some(&d.display.key)),
+                        None => save(store, slot.meta.id, live, size, scale, screen_size, None),
+                    }
                 }
                 Some(Drag::Scale { idx, live, .. }) => {
                     let slot = &self.slots[idx];
-                    if let Some(r) = slot.rect {
-                        save(store, slot.meta.id, r.min - screen.min.to_vec2(), slot.natural * live, live, screen_size);
+                    if let Some(r) = self.rect_on(idx, &me.key) {
+                        save(store, slot.meta.id, r.min - screen.min.to_vec2(), slot.natural * live, live, screen_size, None);
                     }
                 }
                 _ => {}
             }
             self.guides.clear();
+            self.leaving = None;
         }
         if self.drag.is_some() {
             ctx.request_repaint();
+            ctx.request_repaint_of(egui::ViewportId::ROOT);
         }
     }
 
     /// Resizes from the edge the widget is pinned to, so it grows into the screen.
-    fn nudge_scale(&mut self, store: &mut Store, i: usize, by: f32, screen: Rect) {
+    fn nudge_scale(&mut self, store: &mut Store, i: usize, by: f32, screen: Rect, key: &str) {
         let slot = &self.slots[i];
-        let Some(r) = slot.rect else { return };
+        let Some(r) = self.rect_on(i, key) else { return };
         let cfg = store.config.widget(slot.meta.id);
         let next = clamp_scale(cfg.scale + by);
         if (next - cfg.scale).abs() < 1e-4 {
@@ -288,19 +383,22 @@ impl Layout {
             AnchorY::B => r.bottom() - n.y,
             AnchorY::M => r.top() + (r.height() - n.y) / 2.0,
         };
-        save(store, slot.meta.id, Pos2::new(left, top), n, next, screen.size());
+        save(store, slot.meta.id, Pos2::new(left, top), n, next, screen.size(), None);
     }
 
-    fn label_rect(&self, ctx: &egui::Context, th: &Theme, store: &Store, i: usize) -> Option<(Rect, [Rect; 3])> {
+    /// The label above a widget: its name and tools (−, %, +, → next display, Hide).
+    fn label_rect(&self, ctx: &egui::Context, th: &Theme, store: &Store, i: usize, key: &str, next: Option<u32>) -> Option<(Rect, [Rect; 3], Option<Rect>)> {
         let slot = &self.slots[i];
-        let r = slot.rect?;
+        let r = self.rect_on(i, key)?;
         let painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::unique("tenths-edit-chrome")));
         let name_w = kit::width(&painter, slot.meta.name, th.bold(13.0));
         let scale = store.config.widget(slot.meta.id).scale;
         let pct = format!("{}%", (scale * 100.0).round());
         let pct_w = kit::width(&painter, &pct, th.medium(14.0)).max(38.0);
         let hide_w = kit::width(&painter, "Hide", th.bold(12.0)) + 12.0;
-        let tools_w = 2.0 + 24.0 + 2.0 + pct_w + 2.0 + 24.0 + 2.0 + 4.0 + hide_w + 2.0;
+        let disp = next.map(|n| format!("→ {n}"));
+        let disp_w = disp.as_ref().map(|d| kit::width(&painter, d, th.bold(12.0)) + 12.0 + 2.0).unwrap_or(0.0);
+        let tools_w = 2.0 + 24.0 + 2.0 + pct_w + 2.0 + 24.0 + 2.0 + disp_w + 4.0 + hide_w + 2.0;
         let h = 28.0;
         let below = r.top() < 34.0;
         let top = if below { r.bottom() + 6.0 } else { r.top() - 6.0 - h };
@@ -308,19 +406,23 @@ impl Layout {
         let tools_left = r.left() + name_w + 8.0;
         let minus = Rect::from_min_size(Pos2::new(tools_left + 2.0, top + 3.0), Vec2::new(24.0, 22.0));
         let plus = Rect::from_min_size(Pos2::new(minus.right() + 2.0 + pct_w + 2.0, top + 3.0), Vec2::new(24.0, 22.0));
-        let hide = Rect::from_min_size(Pos2::new(plus.right() + 2.0 + 4.0, top + 3.0), Vec2::new(hide_w, 22.0));
-        Some((label, [minus, plus, hide]))
+        let display = disp.is_some().then(|| Rect::from_min_size(Pos2::new(plus.right() + 2.0 + 2.0, top + 3.0), Vec2::new(disp_w - 2.0, 22.0)));
+        let hide = Rect::from_min_size(Pos2::new(display.map_or(plus.right(), |d| d.right()) + 2.0 + 4.0, top + 3.0), Vec2::new(hide_w, 22.0));
+        Some((label, [minus, plus, hide], display))
     }
 
     fn handle_rect(r: Rect) -> Rect {
         Rect::from_min_size(Pos2::new(r.right() + 9.0 - 14.0, r.bottom() + 9.0 - 14.0), Vec2::splat(14.0))
     }
 
-    fn hit(&self, ctx: &egui::Context, store: &Store, p: Pos2) -> Option<Hit> {
+    fn hit(&self, ctx: &egui::Context, store: &Store, p: Pos2, key: &str, next: Option<u32>) -> Option<Hit> {
         let th = Theme::from_general(&store.config.general);
         for i in (0..self.slots.len()).rev() {
-            let Some(r) = self.slots[i].rect else { continue };
-            if let Some((_, [minus, plus, hide])) = self.label_rect(ctx, &th, store, i) {
+            let Some(r) = self.rect_on(i, key) else { continue };
+            if let Some((_, [minus, plus, hide], display)) = self.label_rect(ctx, &th, store, i, key, next) {
+                if display.is_some_and(|d| d.contains(p)) {
+                    return Some(Hit::NextDisplay(i));
+                }
                 if minus.contains(p) {
                     return Some(Hit::Smaller(i));
                 }
@@ -335,11 +437,12 @@ impl Layout {
                 return Some(Hit::Handle(i));
             }
         }
-        (0..self.slots.len()).rev().find(|&i| self.slots[i].rect.is_some_and(|r| r.contains(p))).map(Hit::Body)
+        (0..self.slots.len()).rev().find(|&i| self.rect_on(i, key).is_some_and(|r| r.contains(p))).map(Hit::Body)
     }
 
     /// Outlines, labels with tools, resize handles and snapping guides.
-    fn chrome(&self, ctx: &egui::Context, th: &Theme, store: &Store, screen: Rect) {
+    fn chrome(&self, ctx: &egui::Context, th: &Theme, store: &Store, screen: Rect, displays: &[Display], me: &Display) {
+        let next = displays::next_display(&me.key, displays).map(|d| d.number);
         let p = ctx.layer_painter(LayerId::new(Order::Foreground, Id::unique("tenths-edit-chrome")));
         let hover = ctx.input(|i| i.pointer.hover_pos());
         for g in &self.guides {
@@ -353,16 +456,30 @@ impl Layout {
             }
         }
         for (i, slot) in self.slots.iter().enumerate() {
-            let Some(r) = slot.rect else { continue };
+            let Some(r) = self.rect_on(i, &me.key) else { continue };
             kit::dashed_rect(&p, r.expand(3.5), alpha(th.attention, 0.75), 1.0, 4.0, 3.0);
-            let Some((label, [minus, plus, hide])) = self.label_rect(ctx, th, store, i) else { continue };
+            let Some((label, [minus, plus, hide], display)) = self.label_rect(ctx, th, store, i, &me.key, next) else { continue };
             let y = label.center().y;
             // The name, with a shadow so it reads over anything.
             kit::text(&p, Pos2::new(label.left() + 1.0, y + 1.0), Align2::LEFT_CENTER, slot.meta.name, th.bold(13.0), Color32::from_black_alpha(220));
             kit::text(&p, Pos2::new(label.left(), y), Align2::LEFT_CENTER, slot.meta.name, th.bold(13.0), th.attention);
+            if matches!(&self.drag, Some(Drag::Move { idx, .. }) if *idx == i) {
+                if let Some(n) = self.leaving {
+                    let text = if n > 0 { format!("Release to move to display {n}") } else { "Move onto another display".to_string() };
+                    let w = kit::width(&p, &text, th.bold(13.0)) + 20.0;
+                    let box_ = Rect::from_center_size(r.center(), Vec2::new(w, 26.0));
+                    kit::fill(&p, box_, 6.0, th.attention);
+                    kit::text(&p, box_.center(), Align2::CENTER_CENTER, &text, th.bold(13.0), th.panel_solid);
+                }
+            }
             let tools = Rect::from_min_max(Pos2::new(minus.left() - 2.0, label.top() + 1.0), Pos2::new(hide.right() + 2.0, label.bottom() - 1.0));
             kit::fill(&p, tools, 6.0, th.panel_solid);
             kit::outline(&p, tools, 6.0, 1.0, th.line_strong);
+            if let Some(d) = display {
+                p.vline(d.left() - 2.0, d.y_range(), Stroke::new(1.0, th.line_strong));
+                let c = if hover.is_some_and(|h| d.contains(h)) { th.attention } else { th.ink2 };
+                kit::text(&p, d.center(), Align2::CENTER_CENTER, &format!("→ {}", next.unwrap_or(0)), th.bold(12.0), c);
+            }
             let scale = store.config.widget(slot.meta.id).scale;
             for (b, s, enabled) in [(minus, "−", scale > SCALE_MIN + 1e-3), (plus, "+", scale < SCALE_MAX - 1e-3)] {
                 if enabled && hover.is_some_and(|h| b.contains(h)) {
@@ -389,12 +506,14 @@ impl Slot {
 }
 
 /// Saves an absolute position (and scale) as an anchored one.
-fn save(store: &mut Store, id: &str, left_top: Pos2, size: Vec2, scale: f32, screen: Vec2) {
+/// With `display`, on that display (a drop onto it, or the next-display button).
+fn save(store: &mut Store, id: &str, left_top: Pos2, size: Vec2, scale: f32, screen: Vec2, display: Option<&str>) {
     let p = anchor::clamp_on_screen(left_top.x, left_top.y, size, screen);
     let (ax, ay, x, y) = anchor::to_anchored(p.x, p.y, size, screen);
     let scale = (scale as f64 * 100.0).round() / 100.0;
-    store.save_widget(
-        id,
-        &[("x", json!(x as f64)), ("y", json!(y as f64)), ("ax", json!(ax.key())), ("ay", json!(ay.key())), ("scale", json!(scale))],
-    );
+    let mut patch = vec![("x", json!(x as f64)), ("y", json!(y as f64)), ("ax", json!(ax.key())), ("ay", json!(ay.key())), ("scale", json!(scale))];
+    if let Some(d) = display {
+        patch.push(("display", json!(d)));
+    }
+    store.save_widget(id, &patch);
 }

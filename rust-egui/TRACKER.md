@@ -70,7 +70,7 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 | iRating badge (`showIRating`) with change pill in official races (`showIRatingChange`, `iratingChanges`, port with `check-irating.ts` tests) | ✅ |
 | Last (`showLast`) and best (`showBest`) laps with colours | ✅ |
 | Status badges, out cars dimmed | ✅ |
-| Rate buttons after the flag (`rateDrivers`): clickable thumbs while click-through. ⏭️ allowed if click-through regions aren't built yet; rating marks (`showRatings`) required | ⏭️ click-through regions aren't built (deferred below); rating marks are shown |
+| Rate buttons after the flag (`rateDrivers`): clickable thumbs while click-through. ⏭️ allowed if click-through regions aren't built yet; rating marks (`showRatings`) required | ✅ thumbs drawn in a Rate column (`voting`); click-through over them is the app shell's (G2); rating marks shown |
 | Empty state | ✅ |
 
 ## 3. Session — `src/widgets/Session.tsx`

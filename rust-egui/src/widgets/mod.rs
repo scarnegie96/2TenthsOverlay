@@ -1,10 +1,13 @@
 //! The widgets, each drawn at its own origin by a `Widget`, and the registry
 //! that makes one per id in `schema::WIDGETS`.
 
-use egui::{Painter, Vec2};
+use std::cell::RefCell;
+
+use egui::{Painter, Pos2, Rect, Vec2};
 
 use crate::config::{Config, General, Opts, Units};
 use crate::data::Live;
+use crate::kit::Thumb;
 use crate::ratings::Ratings;
 use crate::theme::Theme;
 
@@ -42,6 +45,25 @@ pub struct Ctx<'a> {
     /// Seconds since the app started, for flashing and fading.
     pub now: f64,
     pub ctx: &'a egui::Context,
+    /// Parts that take clicks (thumbs): a widget adds them as it draws, in its
+    /// own space; the overlay keeps the window click-through except over them.
+    pub clicks: &'a RefCell<Vec<Click>>,
+    /// The mouse in this widget's own space (as of the last frame), when it's over the overlay.
+    pub pointer: Option<Pos2>,
+}
+
+/// A part of a widget that takes clicks even outside edit mode.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Click {
+    /// In the widget's own space (unscaled, from its origin).
+    pub rect: Rect,
+    pub action: ClickAction,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClickAction {
+    /// Set (or clear) your rating of a driver.
+    Rate { user_id: i64, name: String, rating: Option<Thumb> },
 }
 
 pub trait Widget {
