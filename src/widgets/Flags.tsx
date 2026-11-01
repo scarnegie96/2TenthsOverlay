@@ -30,7 +30,7 @@ interface Board {
   color: string;
 }
 
-function boardFor(flags: number, showGreen: boolean, scText: string): Board | null {
+function boardFor(flags: number, showGreen: boolean, scText: string, race: boolean): Board | null {
   const has = (m: number) => (flags & m) !== 0;
   if (has(F.disqualify)) return { pattern: { kind: "text", text: "DSQ", color: LED.white, border: LED.red }, flash: false, textKey: "textDisqualified", color: LED.red };
   if (has(F.black)) return { pattern: { kind: "text", text: "BLK", color: LED.white, border: LED.white }, flash: false, textKey: "textBlack", color: LED.white };
@@ -42,7 +42,8 @@ function boardFor(flags: number, showGreen: boolean, scText: string): Board | nu
     return { pattern: { kind: "text", text: scText, color: LED.white, border: LED.yellow }, flash: has(F.cautionWaving), textKey: "textCaution", color: LED.yellow };
   if (has(F.yellow | F.yellowWaving)) return { pattern: { kind: "fill", color: LED.yellow }, flash: has(F.yellowWaving), textKey: "textYellow", color: LED.yellow };
   if (has(F.debris)) return { pattern: { kind: "debris" }, flash: false, textKey: "textDebris", color: LED.yellow };
-  if (has(F.oneLapToGreen)) return { pattern: { kind: "text", text: "1", color: LED.white, border: LED.green }, flash: false, textKey: "textOneToGreen", color: LED.green };
+  // iRacing also sets this in practice and test sessions, where there's no start to wait for.
+  if (race && has(F.oneLapToGreen)) return { pattern: { kind: "text", text: "1", color: LED.white, border: LED.green }, flash: false, textKey: "textOneToGreen", color: LED.green };
   if (has(F.blue)) return { pattern: { kind: "fill", color: LED.blue }, flash: true, textKey: "textBlue", color: LED.blue };
   if (has(F.white)) return { pattern: { kind: "fill", color: LED.white }, flash: false, textKey: "textWhite", color: LED.white };
   if (showGreen) return { pattern: { kind: "fill", color: LED.green }, flash: false, textKey: "textGreen", color: LED.green };
@@ -59,6 +60,7 @@ const CAPTION_DEFAULTS: Record<string, string> = {
 /** A trackside LED flag panel, with a line of text under it. */
 export function Flags({ config, editing }: { config: WidgetConfig; editing: boolean }) {
   const raw = useLive((s) => s.field?.clock.flags);
+  const race = useLive((s) => /race/i.test(s.field?.clock.sessionType ?? ""));
   const flags = (raw ?? 0) >>> 0;
   const greenSeconds = opt(config, "greenSeconds", 5);
   const showCaption = opt(config, "showCaption", true);
@@ -75,7 +77,8 @@ export function Flags({ config, editing }: { config: WidgetConfig; editing: bool
     prev.current = flags;
   }
 
-  const board = boardFor(flags, performance.now() < greenUntil.current, scText);
+  // Green is for starts and restarts, so races only (practice and test sessions flick it on when you leave the pits).
+  const board = boardFor(flags, race && performance.now() < greenUntil.current, scText, race);
   const visible = Boolean(board) || editing || always;
   const caption = board ? String(config.options[board.textKey] ?? CAPTION_DEFAULTS[board.textKey] ?? "") : editing ? "No flag" : "";
 

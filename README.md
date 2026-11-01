@@ -405,8 +405,10 @@ someone's alongside.
 
 A trackside LED flag board. Yellow (flashing when waved), safety car ("SC" in a
 yellow border), blue (flashing), debris, white, chequered, red, black, meatball,
-black-and-white warning and disqualified each have their own pattern. Green
-shows for a few seconds after a start or restart. Under the lights, a bar in
+black-and-white warning and disqualified each have their own pattern. In
+races, a "1" shows on the lap before the green, and green shows for a few
+seconds after a start or restart; in practice, qualifying and test sessions
+the board stays dark until there's a real flag. Under the lights, a bar in
 the flag's color says what it means.
 
 *Options*: the text for each flag (for example "Accident ahead" for yellow), up
