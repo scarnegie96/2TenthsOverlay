@@ -4,7 +4,7 @@ import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace" | "stints" | "twitch";
+  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace" | "stints" | "battle" | "twitch";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -409,6 +409,17 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "textWarning", label: "Black and white", type: "text", default: "Warning", maxLength: 28 },
       { key: "textDisqualified", label: "Disqualified", type: "text", default: "Disqualified", maxLength: 28 },
       { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Shows the dark board when there's no flag" },
+    ],
+  },
+  {
+    id: "battle",
+    name: "Battle",
+    description: "The cars just ahead of and behind you in your class: the gap to each, how much it changes per lap, and the gap over the last laps.",
+    x: 1060, y: 330, enabled: false,
+    options: [
+      { key: "trendLaps", label: "Change per lap measured over", type: "number", default: 3, min: 1, max: 10, suffix: "laps" },
+      { key: "showSparkline", label: "Show the gap over recent laps", type: "toggle", default: true },
+      { key: "sparkLaps", label: "Gap graph covers", type: "number", default: 8, min: 2, max: 30, suffix: "laps" },
     ],
   },
   {

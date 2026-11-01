@@ -2922,3 +2922,98 @@
   color: #fff;
   font: 16px system-ui, sans-serif;
 }
+
+/* ---------- Battle ---------------------------------------------------------------- */
+
+.battle {
+  width: 330px;
+}
+.bt-car {
+  display: grid;
+  gap: 2px;
+  min-height: 62px;
+  padding: 7px 10px 8px;
+  border-left: 3px solid transparent;
+}
+.bt-car + .bt-car {
+  border-top: 1px solid var(--line);
+}
+.bt-car.is-near {
+  border-left-color: var(--attention);
+}
+.bt-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.bt-pos {
+  font-weight: 700;
+  color: var(--ink);
+}
+.bt-who .class-bar {
+  flex: none;
+}
+.bt-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ink);
+}
+.bt-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bt-gap b {
+  display: inline-block;
+  min-width: 76px;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.bt-rate {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.bt-rate.is-good {
+  color: var(--gain);
+}
+.bt-rate.is-bad {
+  color: var(--loss);
+}
+.bt-spark {
+  flex: none;
+  overflow: visible;
+}
+.bt-spark-base {
+  stroke: var(--line);
+}
+.bt-spark-line {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+.bt-spark-dot {
+  fill: var(--ink-2);
+}
+.bt-spark.is-good .bt-spark-line {
+  stroke: var(--gain);
+}
+.bt-spark.is-good .bt-spark-dot {
+  fill: var(--gain);
+}
+.bt-spark.is-bad .bt-spark-line {
+  stroke: var(--loss);
+}
+.bt-spark.is-bad .bt-spark-dot {
+  fill: var(--loss);
+}

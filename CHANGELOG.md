@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## Unreleased
+
+- Battle widget: the gap to the cars ahead of and behind you in your class, its change per lap, and the gap over the last laps.
+
 ## 0.4.9
 
 - Auto fuel to finish in the Pit stop widget: keeps iRacing's fuel amount at what you need to finish (Ctrl+Shift+A turns it on and off).

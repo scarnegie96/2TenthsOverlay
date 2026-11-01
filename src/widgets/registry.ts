@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { WidgetConfig, WidgetId } from "../lib/config";
+import { Battle } from "./Battle";
 import { Coach } from "./Coach";
 import { Delta } from "./Delta";
 import { Dynamics } from "./Dynamics";
@@ -43,5 +44,6 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   weather: Weather,
   racepace: RacePace,
   stints: Stints,
+  battle: Battle,
   twitch: TwitchChat,
 };

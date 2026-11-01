@@ -25,7 +25,7 @@ layout turns on fewer, and you can place each one wherever you like.
 
 ## Features
 
-- **18 widgets**: timing tables, a race pace chart, everyone's stints, a lap
+- **19 widgets**: timing tables, a battle view of the cars around you, a race pace chart, everyone's stints, a lap
   delta graph, a lap log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
   weather, a radar, an LED flag board and (experimental) Twitch chat. Each one has its own options.
 - **Streaming (experimental)**: every widget as a transparent web page for an OBS
@@ -410,6 +410,19 @@ the flag's color says what it means.
 to three letters for the safety car board, how long green shows, and whether
 the empty board stays visible.
 
+### Battle
+
+![Battle widget](docs/widgets/battle.png)
+
+The cars just ahead of and behind you in your class, ahead on top. For each:
+the gap now, how much it has changed per lap over the last few laps (green when
+it's going your way: the car ahead coming back to you, or the car behind
+dropping away; red the other way), and a line of the gap over the last laps.
+An amber edge marks a car within two seconds. In races only. Off by default.
+
+*Options*: how many laps the change per lap is measured over, and whether to
+show the gap line and how many laps it covers.
+
 ### Twitch chat (experimental)
 
 ![Twitch chat widget](docs/widgets/twitch.png)
@@ -792,9 +805,10 @@ cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left
 
 Before committing, run `npm run build` (type-checks the front end), `npm run lint`
 and `cargo clippy --workspace --all-targets`. Layout validation, the
-iRating estimate, the incident limits, auto fuel and the Twitch chat parser have
-their own checks: see the top of `scripts/check-config.ts`, `scripts/check-irating.ts`,
-`scripts/check-incidents.ts`, `scripts/check-pit.ts` and `scripts/check-twitch.ts`.
+iRating estimate, the incident limits, auto fuel, the battle gaps and the Twitch
+chat parser have their own checks: see the top of `scripts/check-config.ts`,
+`scripts/check-irating.ts`, `scripts/check-incidents.ts`, `scripts/check-pit.ts`,
+`scripts/check-battle.ts` and `scripts/check-twitch.ts`.
 
 ## Project layout
 

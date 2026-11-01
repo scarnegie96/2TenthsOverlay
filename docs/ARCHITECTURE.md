@@ -220,6 +220,12 @@ or the auto key resume it. iRacing's own AutoFuel can't be set from the SDK
   chart scales to cars on the lead lap; lapped and retired cars are pinned to
   the bottom edge. The gap change per lap compares each car's gap now with
   its stored gap one leader-lap ago.
+- **Battle** (`src/lib/battle.ts`, `widgets/Battle.tsx`): the class
+  neighbours from the Standings; the gap now from their gaps to the class
+  leader; the change per lap and the gap line from the Race pace history
+  (every car's gap to its leader every 2 s), each reading averaged over a
+  third of a lap because timing jumps as cars pass timing lines. Only
+  measured values, no predictions.
 - **Weather**: `AirTemp`, `TrackTempCrew`, `TrackWetness` (1 dry .. 7 extremely
   wet), `Precipitation`, `RelativeHumidity` and `FogLevel` (each accepted as a
   fraction or a percentage), `Skies`, `WeatherDeclaredWet`, and `WindVel` /
