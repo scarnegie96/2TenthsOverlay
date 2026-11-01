@@ -22,4 +22,10 @@ for (const [pit, need, want] of cases) {
   const got = JSON.stringify(autoFuelCommand(pit, need));
   if (got !== want) throw new Error(`fuel ${pit.fuel} ${pit.fuelAmount}, need ${need}: got ${got}, want ${want}`);
 }
-console.log(`pit checks passed (${cases.length})`);
+// More than a tankful needed (another stop to come): set a tankful, then leave it.
+const tank = [
+  [JSON.stringify(autoFuelCommand(menu(false, 0), 140, 110.4)), '{"kind":"fuel","litres":110}'],
+  [JSON.stringify(autoFuelCommand(menu(true, 110), 140, 110.4)), "null"],
+];
+for (const [got, want] of tank) if (got !== want) throw new Error(`tankful: got ${got}, want ${want}`);
+console.log(`pit checks passed (${cases.length + tank.length})`);

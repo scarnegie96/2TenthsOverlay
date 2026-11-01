@@ -85,11 +85,14 @@ const resumeAutoFuel = () => {
  * when it's a litre or more from what iRacing has; untick fuel when nothing
  * more is needed. Null to leave it alone.
  */
-export function autoFuelCommand(pit: PitPayload, need: number | null): PitCommand | null {
+export function autoFuelCommand(pit: PitPayload, need: number | null, tankMax = 0): PitCommand | null {
   if (need == null) return null;
   if (need <= 0) return pit.fuel ? { kind: "clearFuel" } : null;
-  if (pit.fuel && Math.abs(pit.fuelAmount - need) < AUTO_FUEL_TOLERANCE) return null;
-  return { kind: "fuel", litres: need };
+  // iRacing won't set more than a tankful, so asking for more (a race that
+  // needs another stop after this one) would never match and re-send forever.
+  const litres = tankMax > 0 ? Math.min(need, Math.floor(tankMax)) : need;
+  if (pit.fuel && Math.abs(pit.fuelAmount - litres) < AUTO_FUEL_TOLERANCE) return null;
+  return { kind: "fuel", litres };
 }
 
 /** What was last sent, for the widget to show briefly. */
@@ -225,7 +228,7 @@ export function usePitControl(owner = true) {
       const now = performance.now();
       if (now - autoLastSent < AUTO_FUEL_EVERY_MS) return;
       const need = fuelPlan("finish", s.field?.fuel, opt(s.config.widgets.fuel, "marginLaps", 0.5));
-      const cmd = autoFuelCommand(pit, need);
+      const cmd = autoFuelCommand(pit, need, s.field?.fuel.max ?? 0);
       if (!cmd) return;
       autoLastSent = now;
       void api.pitCommand(cmd);

@@ -420,6 +420,8 @@ pub struct StandingRow {
     pub position: i32,
     pub class_position: i32,
     pub lap: i32,
+    /// How far round the current lap the car is (0..1), -1 when it isn't on track.
+    pub lap_pct: f32,
     /// Seconds behind the class leader (race) or best-lap difference (practice / qualifying).
     pub gap: Option<f32>,
     pub laps_down: i32,

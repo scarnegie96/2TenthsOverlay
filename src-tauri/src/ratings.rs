@@ -54,6 +54,22 @@ fn read(dir: &Path) -> File {
     fs::read_to_string(path(dir)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
 }
 
+/// Before writing over a file that's there but can't be read (hand-edited,
+/// half-written), keep it aside, so the ratings in it aren't lost.
+fn keep_unreadable(dir: &Path) {
+    let p = path(dir);
+    let Ok(text) = fs::read_to_string(&p) else { return };
+    if serde_json::from_str::<File>(&text).is_ok() {
+        return;
+    }
+    let at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let kept = dir.join(format!("driver-ratings.unreadable-{at}.json"));
+    match fs::rename(&p, &kept) {
+        Ok(()) => eprintln!("[tenths] driver-ratings.json couldn't be read; kept it as {}", kept.display()),
+        Err(e) => eprintln!("[tenths] driver-ratings.json couldn't be read or moved aside: {e}"),
+    }
+}
+
 fn write(dir: &Path, file: &File) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let p = path(dir);
@@ -76,6 +92,7 @@ impl Ratings {
             return Err("That driver has no iRacing id.".into());
         }
         let _guard = self.lock.lock().unwrap();
+        keep_unreadable(dir);
         let mut file = read(dir);
         file.version = 1;
         let key = user_id.to_string();
@@ -113,6 +130,25 @@ mod tests {
         // Read back from disk.
         assert_eq!(r.all(&dir)["123"].name, "Max Driver");
         assert!(r.set(&dir, 0, "Nobody", Some(Rating::Up)).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unreadable_file_is_kept_not_overwritten() {
+        let dir = std::env::temp_dir().join(format!("tenths-ratings-bad-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(path(&dir), "{ not json").unwrap();
+        let r = Ratings::default();
+        let all = r.set(&dir, 123, "Max Driver", Some(Rating::Up)).unwrap();
+        assert_eq!(all.len(), 1);
+        let kept: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().starts_with("driver-ratings.unreadable-"))
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(fs::read_to_string(kept[0].path()).unwrap(), "{ not json");
         let _ = fs::remove_dir_all(&dir);
     }
 }

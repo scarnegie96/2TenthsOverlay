@@ -801,6 +801,7 @@ class Mock {
       return {
         ...this.driver(i), ...this.laps(i, classBest), position: pos.get(i)!, classPosition: classPos.get(i)!,
         lap: Math.floor(this.progress[i]),
+        lapPct: this.progress[i] - Math.floor(this.progress[i]),
         // Time behind the leader (how long to reach where it is now), like iRacing's.
         gap: lead === i ? null : (this.timeAt(this.progress[lead]) - this.timeAt(this.progress[i])) * this.pace[i],
         lapsDown: Math.floor(this.progress[lead] - this.progress[i]),

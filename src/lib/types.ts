@@ -258,6 +258,8 @@ export interface StandingRow extends DriverCell, LapInfo {
   position: number;
   classPosition: number;
   lap: number;
+  /** How far round the current lap (0..1), -1 when not on track. */
+  lapPct: number;
   gap: number | null;
   lapsDown: number;
   interval: number | null;

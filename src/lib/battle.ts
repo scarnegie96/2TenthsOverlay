@@ -4,6 +4,8 @@
 // its class leader over time, so the gap between two cars at any moment is
 // the difference of theirs.
 
+import type { StandingRow } from "./types";
+
 /** A car's gap to its class leader over time, as flat pairs: t0, g0, t1, g1… */
 export type Trace = number[];
 
@@ -103,4 +105,14 @@ export function history(me: Trace, other: Trace, now: number, lapTime: number, l
     if (v != null) out.push(Math.abs(v));
   }
   return out;
+}
+
+/**
+ * Whole laps between two cars on the road, from where each is round the lap.
+ * (Not the difference of their laps down to the leader: those are each
+ * rounded down, so cars a fraction of a lap apart can differ by one.)
+ */
+export function lapsBetween(a: StandingRow, b: StandingRow): number {
+  if (a.lapPct < 0 || b.lapPct < 0) return Math.abs(a.lapsDown - b.lapsDown);
+  return Math.floor(Math.abs(a.lap + a.lapPct - (b.lap + b.lapPct)));
 }

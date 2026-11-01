@@ -94,6 +94,9 @@ impl StreamHub {
         }
         if let Some(r) = server.take() {
             r.stop.store(true, Ordering::Relaxed);
+            // Pages still open (OBS sources) are let go too: their event
+            // streams end when they find nobody's sending any more.
+            self.clients.lock().unwrap().clear();
             // Wake the accept loop so it sees the flag.
             let _ = TcpStream::connect(("127.0.0.1", r.port));
         }
@@ -201,6 +204,8 @@ fn handle(app: &AppHandle, stream: TcpStream, port: u16) -> std::io::Result<()> 
 
 fn events(app: &AppHandle, mut stream: TcpStream) -> std::io::Result<()> {
     stream.set_read_timeout(None)?;
+    // A page that stops reading (a frozen browser source) shouldn't hold this thread forever.
+    stream.set_write_timeout(Some(Duration::from_secs(10)))?;
     write!(
         stream,
         "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n: tenths\n\n"

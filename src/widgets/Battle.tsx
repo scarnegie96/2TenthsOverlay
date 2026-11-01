@@ -1,5 +1,5 @@
 import type React from "react";
-import { STEADY, history, trend, type Trend } from "../lib/battle";
+import { STEADY, history, lapsBetween, trend, type Trend } from "../lib/battle";
 import { opt } from "../lib/config";
 import { raceHistory } from "../lib/raceHistory";
 import { useLive } from "../lib/store";
@@ -66,7 +66,7 @@ function Opponent({ side, car, me, lap, trendLaps, sparkLaps, showSpark }: {
 
   // The gap now, from the timing (fresher than the history).
   const g = (r: StandingRow) => (r.classPosition === 1 ? 0 : r.gap);
-  const lapsApart = Math.abs(car.lapsDown - me.lapsDown);
+  const lapsApart = lapsBetween(car, me);
   const gapNow = g(car) != null && g(me) != null ? Math.abs(g(car)! - g(me)!) : null;
 
   // How the gap changes per lap, and its history, from the race history.

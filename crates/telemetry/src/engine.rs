@@ -492,6 +492,7 @@ impl Engine {
                     position: f.car_position[i],
                     class_position: f.car_class_position[i],
                     lap: f.car_lap_completed[i].max(0),
+                    lap_pct: f.car_lap_dist_pct[i],
                     gap: None,
                     laps_down: 0,
                     interval: None,

@@ -137,9 +137,11 @@ export function connectChat(channel: string, on: ChatHandlers): () => void {
   let closed = false;
   let retry = 0;
   let timer: number | undefined;
+  // Couldn't connect: stays "error" (so the widget says so) until a retry gets through.
+  let failed = false;
 
   const open = () => {
-    on.status(retry ? "reconnecting" : "connecting");
+    if (!failed) on.status(retry ? "reconnecting" : "connecting");
     ws = new WebSocket(URL);
     ws.onopen = () => {
       ws!.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
@@ -159,6 +161,7 @@ export function connectChat(channel: string, on: ChatHandlers): () => void {
           case "JOIN":
           case "ROOMSTATE":
             retry = 0;
+            failed = false;
             on.status("connected");
             break;
           case "PRIVMSG": {
@@ -178,13 +181,16 @@ export function connectChat(channel: string, on: ChatHandlers): () => void {
         }
       }
     };
-    ws.onerror = () => on.status("error");
+    ws.onerror = () => {
+      failed = true;
+      on.status("error");
+    };
     ws.onclose = () => {
       ws = null;
       if (closed) return;
       // Back off: 1 s, 2 s, 4 s… up to 30 s.
       const wait = Math.min(30_000, 1000 * 2 ** retry++);
-      on.status("reconnecting");
+      if (!failed) on.status("reconnecting");
       timer = window.setTimeout(open, wait);
     };
   };

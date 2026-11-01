@@ -4,7 +4,8 @@
 //   echo '{"type":"commonjs"}' > node_modules/.cache/check/package.json
 //   node node_modules/.cache/check/scripts/check-battle.js
 
-import { gapAt, history, intervalAt, trend } from "../src/lib/battle";
+import { gapAt, history, intervalAt, lapsBetween, trend } from "../src/lib/battle";
+import type { StandingRow } from "../src/lib/types";
 
 let count = 0;
 function check(ok: boolean, what: string) {
@@ -36,4 +37,13 @@ check(near(trend(me, noisy, 1000, 100, 3)!.closingPerLap, 0.3, 0.05), "steady th
 // Each point is averaged over the third of a lap before it, so ~0.05 s behind the instant value.
 const h = history(me, ahead, 1000, 100, 8, 8);
 check(h.length === 9 && near(h[0], 4.45, 1e-3) && near(h[8], 2.05, 1e-3), `history ${h}`);
+
+// Laps apart comes from where the two cars are, not from their laps down to the leader.
+{
+  const row = (lap: number, lapPct: number, lapsDown: number) => ({ lap, lapPct, lapsDown }) as unknown as StandingRow;
+  // Leader 1.2 laps ahead of me and 0.9 ahead of the car in front: one lap down vs none, but 0.3 laps apart.
+  check(lapsBetween(row(10, 0.6, 0), row(10, 0.3, 1)) === 0, "cars a fraction of a lap apart aren't a lap apart");
+  check(lapsBetween(row(11, 0.5, 0), row(10, 0.3, 1)) === 1, "a car a lap and a bit ahead is a lap apart");
+  check(lapsBetween(row(10, -1, 0), row(9, 0.2, 2)) === 2, "off track falls back to laps down");
+}
 console.log(`battle checks passed (${count})`);
