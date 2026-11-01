@@ -50,9 +50,19 @@ layout turns on fewer, and you can place each one wherever you like.
   delta graph, ghost inputs and live coaching cues.
 - **Lap history**: every lap is logged with whether it was clean, and your
   personal best for each car and track is saved between sessions.
-- **Strength of field** worked out with iRacing's own formula, per class.
+- **Strength of field** worked out with iRacing's own formula, per class, and
+  each driver's **estimated iRating change** in the Standings during official
+  races.
+- **Race awareness**: the tyre compound every car is on, places gained and lost,
+  pit and retirement symbols, where you'd rejoin after a stop, and your
+  incidents against the next limit (including limits that move on after a
+  penalty).
+- **Rate drivers**: after the chequered flag, give other drivers a thumbs up or
+  down; a small thumb shows by their name in later races.
+- **Updates itself**: Tenths checks for a new release and, when you say so,
+  downloads it, checks its signature and installs it (Settings → About).
 - **Click-through**: the overlay never takes the mouse from iRacing, except
-  while you're editing the layout.
+  while you're editing the layout or over the rating thumbs after a race.
 - **A demo race** with 21 cars in three classes, so you can set everything up
   without iRacing running.
 
@@ -393,13 +403,15 @@ them; there's no Save button.
 
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
-with its current key), and Quit Tenths. Closing the settings window only hides
+with its current key), Check for updates (Update to … when there's one), and
+Quit Tenths. Closing the settings window only hides
 it; Tenths keeps running until you quit it from the tray.
 
 Along the top of the settings window are the connection status (Waiting for
 iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
-**Edit layout**. Down the side are the General, Layouts, Appearance and
-Controls pages, then a page for each widget with a dot showing whether it's on.
+**Edit layout**. Down the side are the General, Layouts, Appearance, Controls
+and About pages (About has the version and updates, with a dot when there's
+a new one), then a page for each widget with a dot showing whether it's on.
 
 ### General
 
