@@ -4,6 +4,7 @@ import { widgetMeta, type WidgetConfig, type WidgetId } from "../lib/config";
 import { cssSize, dropOnto, nextDisplay } from "../lib/displays";
 import type { Display } from "../lib/types";
 import { COMPONENTS } from "../widgets/registry";
+import { WidgetBoundary } from "../widgets/WidgetBoundary";
 import { clampOnScreen, resolvePosition, toAnchored, type Size } from "./anchor";
 import { snap, type Guide, type Rect } from "./snapping";
 
@@ -264,7 +265,9 @@ export function WidgetFrame({ id, config, editing, screen, display, displays, ot
       onPointerCancel={cancel}
       onLostPointerCapture={cancel}
     >
-      <Widget config={config} editing={editing} />
+      <WidgetBoundary name={id} editing={editing} resetKey={config}>
+        <Widget config={config} editing={editing} />
+      </WidgetBoundary>
       {editing && (
         <>
           <div

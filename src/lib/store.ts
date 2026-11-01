@@ -182,3 +182,12 @@ export async function cycleProfile(target: { step?: number | null; index?: numbe
   }
   if (profiles[i].id !== config.general.activeProfile) await switchProfile(profiles[i].id);
 }
+
+const NO_COMPOUNDS: string[] = [];
+/**
+ * The session's tyre compound names. Always the same empty list when there's
+ * no session: a new `[]` each time would make React re-render forever.
+ */
+export function useTireCompounds(): string[] {
+  return useLive((s) => s.session?.tireCompounds ?? NO_COMPOUNDS);
+}

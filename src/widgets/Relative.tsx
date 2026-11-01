@@ -1,7 +1,7 @@
 import type React from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { clock, gap, irating, license } from "../lib/format";
-import { useLive } from "../lib/store";
+import { useLive, useTireCompounds } from "../lib/store";
 import type { RelativeRow, SessionClock } from "../lib/types";
 import { ClassStripe, IRatingBadge, LastLap, RatingMark, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
@@ -30,7 +30,7 @@ export function Relative({ config }: { config: WidgetConfig }) {
   const showPit = opt(config, "showPit", true);
   const showInterval = opt(config, "showInterval", true);
   const showMarks = opt(config, "showRatings", true);
-  const compounds = useLive((s) => s.session?.tireCompounds ?? []);
+  const compounds = useTireCompounds();
   const showCompound = opt<string>(config, "showCompound", "auto");
   // Only worth the space when there's a choice of tyres.
   const showTyre = showCompound === "always" || (showCompound === "auto" && compounds.length > 1);

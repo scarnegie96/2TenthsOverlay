@@ -4,6 +4,7 @@ import { primaryKey, widgetDisplay } from "../lib/displays";
 import { useLive } from "../lib/store";
 import { WidgetFrame } from "../overlay/WidgetFrame";
 import { COMPONENTS } from "../widgets/registry";
+import { WidgetBoundary } from "../widgets/WidgetBoundary";
 
 const params = new URLSearchParams(location.search);
 
@@ -23,7 +24,9 @@ function OneWidget({ id }: { id: WidgetId }) {
   const scale = Number(params.get("scale")) || 1;
   return (
     <div className="stream-one" style={{ transform: `scale(${scale})` }}>
-      <Widget config={{ ...w, enabled: true, scale: 1, opacity: 1 }} editing={false} />
+      <WidgetBoundary name={id} editing={false} resetKey={w}>
+        <Widget config={{ ...w, enabled: true, scale: 1, opacity: 1 }} editing={false} />
+      </WidgetBoundary>
     </div>
   );
 }

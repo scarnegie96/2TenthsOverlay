@@ -3063,3 +3063,10 @@
 .bt-fact .tyre-badge {
   margin-right: 1px;
 }
+
+.widget-error {
+  max-width: 320px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--loss);
+}

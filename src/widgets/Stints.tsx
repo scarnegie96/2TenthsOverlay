@@ -1,6 +1,6 @@
 import type React from "react";
 import { opt, type WidgetConfig } from "../lib/config";
-import { useLive } from "../lib/store";
+import { useLive, useTireCompounds } from "../lib/store";
 import type { CarStints, Stint, StandingRow } from "../lib/types";
 import { ClassStripe, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
@@ -33,7 +33,7 @@ function lapStep(max: number) {
  */
 export function Stints({ config }: { config: WidgetConfig }) {
   const field = useLive((s) => s.field);
-  const compounds = useLive((s) => s.session?.tireCompounds ?? []);
+  const compounds = useTireCompounds();
   const classes = opt<string>(config, "classes", "all");
   const rows = opt(config, "rows", 10);
   const otherRows = opt(config, "otherClassRows", 5);

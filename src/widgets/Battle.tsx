@@ -3,7 +3,7 @@ import { STEADY, history, lapsBetween, trend, type Trend } from "../lib/battle";
 import { opt } from "../lib/config";
 import { lapTime, signed } from "../lib/format";
 import { raceHistory } from "../lib/raceHistory";
-import { useLive } from "../lib/store";
+import { useLive, useTireCompounds } from "../lib/store";
 import type { CarStints, StandingRow } from "../lib/types";
 import { ClassStripe, IRatingBadge } from "./cells";
 import { Empty, Panel } from "./Panel";
@@ -37,7 +37,7 @@ interface Shared {
  */
 export function Battle({ config }: WidgetProps) {
   const field = useLive((s) => s.field);
-  const compounds = useLive((s) => s.session?.tireCompounds ?? []);
+  const compounds = useTireCompounds();
 
   const race = /race/i.test(field?.clock.sessionType ?? "");
   const rows = field?.standings ?? [];

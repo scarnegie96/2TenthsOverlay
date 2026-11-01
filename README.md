@@ -833,6 +833,7 @@ URL parameters help too:
 | `?finished`    | You've taken the flag: the Standings shows the thumbs for rating drivers |
 | `?pane=races&report=…` | The Races page shows a real report from the Rust demo (`src/lib/fixtures/demo-report.json`) |
 | `?chat`        | The Twitch chat widget plays a made-up chat instead of connecting |
+| `?offline`     | No session or data, like the app waiting for iRacing (for checking empty widgets) |
 | `?update`      | Settings → About: **Check now** finds a pretend newer version, and installing it shows the progress |
 | `?corrupt`     | Settings shows the notice for a settings file that couldn't be read |
 

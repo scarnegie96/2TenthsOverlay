@@ -4,6 +4,11 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.4.11
+
+- Fixed: editing the layout while iRacing wasn't running showed nothing on the main display (the Relative, Stints and Battle widgets looped with no session and took every widget down with them). Fixed since 0.4.4.
+- A widget that fails now shows a short note in edit mode instead of hiding every widget.
+
 ## 0.4.10
 
 - Race reports: every race saved with everyone's laps, gaps, positions, stints and pit stops, and your fuel and laps; Settings → Races shows them with interactive charts. Saving them can be switched off there.

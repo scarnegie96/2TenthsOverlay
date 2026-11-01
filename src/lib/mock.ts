@@ -10,6 +10,8 @@ import type {
   StatusPayload, TickPayload, TiresPayload, UpdateInfo,
 } from "./types";
 
+const OFFLINE = typeof location !== "undefined" && new URLSearchParams(location.search).has("offline");
+
 type Handler = (payload: unknown) => void;
 
 const CONFIG_KEY = "tenths.config";
@@ -240,8 +242,8 @@ class Mock {
       }
       case "get_snapshot":
         return {
-          status: this.status(), session: this.session(), reference: this.reference, editMode: this.editMode,
-          overlayVisible: true, demo: true,
+          status: this.status(), session: OFFLINE ? null : this.session(), reference: this.reference, editMode: this.editMode,
+          overlayVisible: true, demo: !OFFLINE,
         } satisfies Snapshot;
       case "inspect_lap_file":
         if (String(args.path).endsWith(".blap")) {
@@ -411,6 +413,7 @@ class Mock {
   }
 
   private status(): StatusPayload {
+    if (OFFLINE) return { source: "iracing", connected: false, message: "Waiting for iRacing" };
     return { source: "demo", connected: true, message: "Browser preview" };
   }
 
@@ -426,6 +429,11 @@ class Mock {
   private start() {
     if (this.started) return;
     this.started = true;
+    // ?offline: like the app waiting for iRacing (no session or data), for checking empty states.
+    if (OFFLINE) {
+      setTimeout(() => this.dispatch("status", this.status()), 0);
+      return;
+    }
     setTimeout(() => {
       this.dispatch("status", this.status());
       this.dispatch("session", this.session());
