@@ -30,11 +30,19 @@ const SHOWCASE_LAYOUT: Record<string, [number, number]> = {
   coach: [568, 612], flags: [990, 612], fuel: [1170, 612],
   laplog: [568, 836], radar: [892, 836], instruments: [760, 1213],
   stints: [1468, 24], tires: [1468, 716], pitstop: [1772, 716], weather: [2132, 24],
+  battle: [2132, 476], twitch: [2132, 700],
+};
+/** Options the showcase needs: a channel for Twitch chat (the overview adds ?chat, so it's made up, not live). */
+const SHOWCASE_OPTIONS: Record<string, Record<string, string | number | boolean>> = {
+  twitch: { channel: "tenths_racing", fadeAfter: 0, rows: 8 },
 };
 
 function showcaseWidgets() {
   return Object.fromEntries(
-    Object.entries(SHOWCASE_LAYOUT).map(([id, [x, y]]) => [id, { enabled: true, x, y, ax: "l", ay: "t", scale: 1, opacity: 1 }]),
+    Object.entries(SHOWCASE_LAYOUT).map(([id, [x, y]]) => [
+      id,
+      { enabled: true, x, y, ax: "l", ay: "t", scale: 1, opacity: 1, options: SHOWCASE_OPTIONS[id] ?? {} },
+    ]),
   );
 }
 const SAMPLE_LAYOUTS: Record<string, Profile> = Object.fromEntries(

@@ -35,6 +35,19 @@ const RESAVE_EVERY: Duration = Duration::from_secs(10);
 #[derive(Debug, Clone)]
 pub struct ReportStore {
     pub dir: PathBuf,
+    /// Saving is optional (Settings → Races): while this is false nothing is written.
+    pub enabled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl ReportStore {
+    /// Always saving, for tools and tests.
+    pub fn new(dir: impl Into<PathBuf>) -> Self {
+        Self { dir: dir.into(), enabled: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)) }
+    }
+
+    pub fn enabled(&self) -> bool {
+        self.enabled.load(std::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

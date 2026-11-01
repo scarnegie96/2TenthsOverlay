@@ -6,8 +6,9 @@ subscriptions, no third-party services, and every line of it is yours to change.
 
 ![Every Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
 
-Every widget at once, in the demo race on a 2560×1440 screen. The default
-layout turns on fewer, and you can place each one wherever you like.
+All 19 widgets at once, in the demo race on a 2560×1440 screen (the Twitch chat
+is a made-up one). The default layout turns on fewer, and you can place each one
+wherever you like.
 
 <details>
 <summary>The same layout in the light theme</summary>
@@ -441,9 +442,13 @@ them), and emotes.
 
 ## Race reports
 
-![Settings: Races](docs/settings/races.png)
+![Settings: Races](docs/settings/races-list.png)
 
-Every race you drive is saved as a report when you take the chequered flag
+Race reports are optional: **Save race reports** at the top of **Settings →
+Races** turns them on or off (on to begin with). When it's off nothing is
+written; reports already saved stay until you delete them.
+
+With it on, every race you drive is saved as a report when you take the chequered flag
 (and updated as the rest of the field finishes), or when the session ends if
 you don't finish but did at least a lap. **Settings → Races** lists them, newest
 first; open one for the whole race:
@@ -467,6 +472,8 @@ gap is the difference between two crossing times; laps Tenths didn't see (the
 first after it started, or after a car retired) are left out, not estimated.
 Your inputs aren't kept. Reports are JSON files in `reports\` (below), so
 they're yours to keep, share or delete.
+
+![A race report](docs/settings/races.png)
 
 ![Race report: gap to the class leader](docs/settings/races-gap.png)
 

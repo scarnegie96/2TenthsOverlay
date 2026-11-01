@@ -15,7 +15,9 @@ const KEEP = 100;
  */
 export function TwitchChat({ config }: WidgetProps) {
   const raw = opt(config, "channel", "");
-  const channel = channelName(raw);
+  // Browser preview: ?chat plays a made-up chat, on a made-up channel if none is set.
+  const preview = !isTauri && new URLSearchParams(location.search).has("chat");
+  const channel = channelName(raw) ?? (preview ? "tenths_racing" : null);
   const rows = opt(config, "rows", 10);
   const fadeAfter = opt(config, "fadeAfter", 60);
   const showEmotes = opt(config, "showEmotes", true);

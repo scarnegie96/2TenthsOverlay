@@ -89,6 +89,10 @@ impl Engine {
     /// end of the session if you raced at least a lap (`last` true).
     fn save_report(&mut self, last: bool) {
         let (Some(store), Some(s)) = (&self.report_store, &self.session) else { return };
+        // Switched off in Settings: nothing is written (and it'll save if switched back on).
+        if !store.enabled() {
+            return;
+        }
         let Some(num) = self.last_session_num else { return };
         let player = s.player().map(|p| p.car_idx).unwrap_or(-1);
         let finished = self.finish.finished();

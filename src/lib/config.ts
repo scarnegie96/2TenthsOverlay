@@ -46,6 +46,8 @@ export interface GeneralConfig {
   controls: Record<ActionId, ControlBinding>;
   /** Look for a new version of Tenths after starting and every few hours. */
   checkUpdates: boolean;
+  /** Save a report of every race (Settings → Races). */
+  saveReports: boolean;
   /** Experimental: the widgets as web pages for OBS (src-tauri/src/stream.rs). */
   streaming: { enabled: boolean; port: number };
 }
@@ -450,7 +452,7 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls(), checkUpdates: true, streaming: { enabled: false, port: STREAM_PORT } },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls(), checkUpdates: true, saveReports: true, streaming: { enabled: false, port: STREAM_PORT } },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }
@@ -529,6 +531,7 @@ export function normalizeConfig(raw: unknown): AppConfig {
     activeProfile: typeof g.activeProfile === "string" ? g.activeProfile : base.general.activeProfile,
     controls: { ...base.general.controls },
     checkUpdates: typeof g.checkUpdates === "boolean" ? g.checkUpdates : base.general.checkUpdates,
+    saveReports: typeof g.saveReports === "boolean" ? g.saveReports : base.general.saveReports,
     streaming: {
       enabled: isObject(g.streaming) && g.streaming.enabled === true,
       port:

@@ -167,7 +167,14 @@ fn save_config(app: AppHandle, state: State<AppState>, config: Value) -> Result<
     let hub = app.state::<stream::StreamHub>();
     hub.publish("config-changed", &config);
     hub.apply(&app, &config);
+    apply_save_reports(&state, &config);
     Ok(())
+}
+
+/// Race reports are optional (`general.saveReports`, on unless switched off).
+fn apply_save_reports(state: &AppState, config: &Value) {
+    let on = config["general"]["saveReports"].as_bool().unwrap_or(true);
+    state.control.save_reports.store(on, Ordering::Relaxed);
 }
 
 /// The saved config as it is on disk (None if missing or unreadable), for the OBS pages.
@@ -645,10 +652,10 @@ pub fn run() {
             displays::watch(handle.clone());
             build_tray(&handle)?;
             updates::watch(handle.clone());
-            // The OBS pages, if they were left on.
-            if let Some(config) = read_config(&handle) {
-                handle.state::<stream::StreamHub>().apply(&handle, &config);
-            }
+            // The OBS pages, if they were left on, and whether to save race reports.
+            let config = read_config(&handle).unwrap_or(Value::Null);
+            handle.state::<stream::StreamHub>().apply(&handle, &config);
+            apply_save_reports(&handle.state::<AppState>(), &config);
             let buttons = handle.clone();
             controllers::spawn(move |press| controls::on_button(&buttons, press));
             if let Some(reference) = load_saved_reference(&handle) {

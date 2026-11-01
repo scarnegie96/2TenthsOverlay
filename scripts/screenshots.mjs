@@ -46,6 +46,9 @@ const WIDGETS = {
   // A longer race, so the lines have a few laps of history.
   racepace: { params: "warmup=560" },
   stints: { params: "warmup=560" },
+  battle: { params: "warmup=560" },
+  // A made-up chat (no network), with the channel set by the preview.
+  twitch: { params: "chat" },
 };
 
 const profile = mkdtempSync(join(tmpdir(), "tenths-shots-"));
@@ -79,12 +82,12 @@ try {
     shot(url, join(OUT, "widgets", `${id}.png`), `${size[1]},${size[2]}`, wait);
   }
   // The settings window, a page at a time.
-  for (const pane of ["general", "layouts", "appearance", "controls", "pitstop"]) {
+  for (const pane of ["general", "races", "layouts", "appearance", "controls", "streaming", "pitstop"]) {
     shot(`${BASE}/settings.html?pane=${pane}&sample`, join(OUT, "settings", `${pane}.png`), "1100,760", wait, 1);
   }
   // The overviews: every widget on (?all lays them out for a 2560x1440 screen),
   // with a reference lap loaded so the Coach and the reference inputs show.
-  const all = "clean&all&reference&pits&flag=16384&warmup=490";
+  const all = "clean&all&reference&pits&chat&flag=16384&warmup=490";
   shot(`${BASE}/overlay.html?${all}`, join(OUT, "screenshot.png"), "2560,1440", wait, 1);
   shot(`${BASE}/overlay.html?${all}&theme=light`, join(OUT, "screenshot-light.png"), "2560,1440", wait, 1);
   shot(`${BASE}/overlay.html?${all}&theme=f1`, join(OUT, "screenshot-boxbox.png"), "2560,1440", wait, 1);

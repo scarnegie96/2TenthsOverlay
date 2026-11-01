@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, isTauri } from "../lib/bridge";
+import { updateConfig, useLive } from "../lib/store";
 import { lapTime } from "../lib/format";
 import { gapsByLap, lapTimes, positionsByLap, stats, type RaceReport, type ReportCar, type ReportSummary } from "../lib/report";
 import { compoundKind } from "../widgets/Stints";
@@ -13,6 +14,7 @@ export function RacesPane() {
   const [open, setOpen] = useState<string | null>(() => (!isTauri && new URLSearchParams(location.search).get("report")) || null);
   const [error, setError] = useState<string | null>(null);
 
+  const save = useLive((s) => s.config.general.saveReports);
   const load = () => void api.listReports().then(setList).catch((e) => setError(String(e)));
   useEffect(load, []);
 
@@ -21,9 +23,27 @@ export function RacesPane() {
     <>
       <h1>Races</h1>
       <p className="lede">
-        A report of every race you drive is saved when you take the flag (or when the session ends if you don't): everyone's
-        laps, gaps and positions, tyre stints and pit stops, and your own fuel and laps. Your inputs aren't kept.
+        With race reports on, every race you drive is saved when you take the flag (or when the session ends if you don't):
+        everyone's laps, gaps and positions, tyre stints and pit stops, and your own fuel and laps. Your inputs aren't kept.
       </p>
+      <section className="section">
+        <div className="fields">
+          <div className="field">
+            <div className="field-text">
+              <span className="field-label">Save race reports</span>
+              <span className="field-help">
+                Off: nothing is recorded to disk. Reports already saved stay until you delete them.
+              </span>
+            </div>
+            <div className="field-control">
+              <button role="switch" aria-checked={save} className={`toggle ${save ? "is-on" : ""}`}
+                onClick={() => updateConfig((c) => ({ ...c, general: { ...c.general, saveReports: !save } }))}>
+                <span />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
       {error && <p className="notice"><span>{error}</span></p>}
       {list == null ? null : list.length === 0 ? (
         <p className="note">No races yet. Finish a race and it shows up here.</p>

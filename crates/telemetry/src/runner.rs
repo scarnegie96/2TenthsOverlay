@@ -38,6 +38,8 @@ pub struct RunnerControl {
     pub laps_dir: Option<PathBuf>,
     /// Where race reports are saved (report.rs); None to not save them.
     pub reports_dir: Option<PathBuf>,
+    /// Whether to save race reports (Settings → Races). Can change at any time.
+    pub save_reports: Arc<AtomicBool>,
     /// Pit commands waiting to go to the sim (or the demo).
     pub pit: Arc<Mutex<Vec<PitCommand>>>,
 }
@@ -161,7 +163,7 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
                 }
                 engine.set_lap_store(control.laps_dir.clone().filter(|_| source.is_some()).map(|dir| LapStore { dir }));
                 engine.set_report_store(
-                    control.reports_dir.clone().filter(|_| source.is_some()).map(|dir| crate::report::ReportStore { dir }),
+                    control.reports_dir.clone().filter(|_| source.is_some()).map(|dir| crate::report::ReportStore { dir, enabled: control.save_reports.clone() }),
                 );
                 if source.is_none() {
                     report(SourceKind::None, false, "Waiting for iRacing");

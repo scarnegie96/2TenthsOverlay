@@ -10,7 +10,7 @@ fn main() {
     let laps: f64 = args.next().and_then(|a| a.parse().ok()).unwrap_or(12.0);
 
     let mut engine = Engine::new();
-    engine.set_report_store(Some(ReportStore { dir: dir.clone().into() }));
+    engine.set_report_store(Some(ReportStore::new(dir.clone())));
     let mut demo = DemoSource::new();
     engine.set_session(telemetry::session::parse(&demo.take_session_yaml().unwrap()).unwrap());
 

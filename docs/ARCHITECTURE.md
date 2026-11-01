@@ -230,7 +230,9 @@ or the auto key resume it. iRacing's own AutoFuel can't be set from the SDK
   finish, again at most every 10 s while others finish, and once more when the
   session changes or Tenths disconnects if you raced at least a lap. Files are
   written on a background thread to `reports/<UTC stamp>_<track>_<car>.json`;
-  the demo doesn't save. The front end derives lap times (crossing to
+  the demo doesn't save. Saving is optional: `general.saveReports` (on unless
+  switched off) sets `RunnerControl::save_reports`, which `ReportStore` checks
+  before writing, at start and on every config save. The front end derives lap times (crossing to
   crossing), order across the line and gaps (crossing time differences) and
   never fills gaps. `examples/report_demo.rs` produces a real report from the
   demo, which the preview uses.
