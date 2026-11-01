@@ -139,10 +139,10 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Warning lights row (oil press/temp, water temp, fuel press, low fuel, stalled, limiter, rev limit, repair, optional repair) with icons | ⬜ |
-| Engine gauges (`showGauges`) with units and warning colours | ⬜ |
-| Brake bias dial (`showBias`, adjustable cars only, "Bias not adjustable") | ⬜ |
-| Bulb test while editing (`testLights`) | ⬜ |
+| Warning lights row (oil press/temp, water temp, fuel press, low fuel, stalled, limiter, rev limit, repair, optional repair) with icons | ✅ |
+| Engine gauges (`showGauges`) with units and warning colours | ✅ |
+| Brake bias dial (`showBias`, adjustable cars only, "Bias not adjustable") | ✅ |
+| Bulb test while editing (`testLights`) | ✅ |
 
 ## 10. Fuel — `src/widgets/Fuel.tsx`
 
