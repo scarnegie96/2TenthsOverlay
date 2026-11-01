@@ -98,13 +98,13 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Comparison `compareTo` (best/optimal/sessionBest/sessionOptimal/last/reference) from `tick.deltas` | ⬜ |
-| Delta trace round the lap (`deltaHistory` port: 320 bins), previous lap dashed (`showPrevious`) | ⬜ |
-| Sectors `track` (session sectors) / `mini` (`miniSectors`), per-sector gain/loss boxes | ⬜ |
-| Big live delta, sector number, this-sector and last-sector readouts | ⬜ |
-| Lap times strip (`showLapTimes`): best, optimal, last | ⬜ |
-| `simple` mode: just the live gap | ⬜ |
-| Empty states ("No best lap to compare against yet.") | ⬜ |
+| Comparison `compareTo` (best/optimal/sessionBest/sessionOptimal/last/reference) from `tick.deltas` | ✅ |
+| Delta trace round the lap (`deltaHistory` port: 320 bins), previous lap dashed (`showPrevious`) | ✅ |
+| Sectors `track` (session sectors) / `mini` (`miniSectors`), per-sector gain/loss boxes | ✅ |
+| Big live delta, sector number, this-sector and last-sector readouts | ✅ |
+| Lap times strip (`showLapTimes`): best, optimal, last | ✅ |
+| `simple` mode: just the live gap | ✅ |
+| Empty states ("No best lap to compare against yet.") | ✅ |
 
 ## 6. Lap log — `src/widgets/LapLog.tsx`
 
