@@ -27,3 +27,11 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_
 lto = true
 codegen-units = 1
 strip = true
+
+# Quick optimised builds for trying changes (release does full LTO and takes minutes).
+#   cargo build --profile fast   ->  target/fast/tenths-egui
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
