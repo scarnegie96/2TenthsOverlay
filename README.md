@@ -95,6 +95,11 @@ In races, the **+/−** column shows how many places each car has gained (green
 track before the green flag; if you join a race already under way, the
 qualifying order stands in.
 
+In official races, **±iR** is each driver's estimated iRating gain or loss if
+the race finished as it stands, worked out within each class. iRacing doesn't
+publish its formula, so this uses the community calculator other overlays use
+(the "iRacing SOF iRating Calculator"); it's usually within a few points.
+
 Next to the name, an outlined **P** means the car is in the pit lane and a
 solid **P** that it's stopped in its pit box. A car that has left the sim gets
 **OUT** in a race (retired, quit or towed to the garage) and **GAR** in
@@ -693,8 +698,9 @@ cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left
 ```
 
 Before committing, run `npm run build` (type-checks the front end), `npm run lint`
-and `cargo clippy --workspace --all-targets`. Layout validation has its own
-checks: see the top of `scripts/check-config.ts`.
+and `cargo clippy --workspace --all-targets`. Layout validation and the
+iRating estimate have their own checks: see the top of `scripts/check-config.ts`
+and `scripts/check-irating.ts`.
 
 ## Project layout
 

@@ -118,6 +118,7 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showChange", label: "Show places gained or lost", type: "toggle", default: true, help: "In races: each car's class position now against where it started" },
       { key: "showRejoin", label: "Show where you'd rejoin after a stop", type: "toggle", default: true, help: "In races, once a few pit stops have been timed this session: a line in your class where you'd come out if you pitted now" },
       { key: "showIRating", label: "Show iRating", type: "toggle", default: true },
+      { key: "showIRatingChange", label: "Show iRating change", type: "toggle", default: true, help: "In official races: each driver's estimated gain or loss if the race finished now, using the community iRating calculator" },
       { key: "showLast", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showBest", label: "Show best lap", type: "toggle", default: true },
       { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "Per class in multi-class races" },

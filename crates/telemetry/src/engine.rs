@@ -120,6 +120,7 @@ impl Engine {
             shift_rpm: s.shift_rpm,
             redline_rpm: s.redline_rpm,
             multiclass: s.is_multiclass(),
+            official: s.official,
             tire_compounds: s.tire_compounds.clone(),
             sectors: s.sectors.clone(),
         }

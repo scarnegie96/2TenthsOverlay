@@ -21,6 +21,8 @@ export interface SessionPayload {
   shiftRpm: number;
   redlineRpm: number;
   multiclass: boolean;
+  /** An official session, where iRating changes. */
+  official: boolean;
   tireCompounds: string[];
   /** Where each timing sector starts, as a fraction of the lap. */
   sectors: number[];

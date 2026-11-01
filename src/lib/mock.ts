@@ -370,7 +370,7 @@ class Mock {
     return {
       trackName: "Demo Ring", trackConfig: "Grand Prix", trackLengthKm: TRACK_M / 1000, sessionType: "Race",
       playerCarIdx: PLAYER, playerClassId: CLASSES[1].id, carName: "GT3 Evo", fuelMaxLtr: 120, estLapTime: 92.1,
-      shiftRpm: 8100, redlineRpm: 8600, multiclass: true, tireCompounds: ["Hard", "Wet"],
+      shiftRpm: 8100, redlineRpm: 8600, multiclass: true, official: true, tireCompounds: ["Hard", "Wet"],
       sectors: [0, 0.12, 0.25, 0.4, 0.58, 0.72, 0.86],
     };
   }

@@ -2,6 +2,7 @@ import type React from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { gap as fmtGap, irating } from "../lib/format";
 import { useLive } from "../lib/store";
+import { iratingChanges } from "../lib/irating";
 import { rejoinAfterStop, type Rejoin } from "../lib/rejoin";
 import type { StandingRow } from "../lib/types";
 import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
@@ -54,6 +55,8 @@ export function Standings({ config }: { config: WidgetConfig }) {
   const showIR = opt(config, "showIRating", true);
   const showSoF = opt(config, "showSoF", true);
   const race = /race/i.test(field?.clock.sessionType ?? "");
+  // Estimated iRating change: official races only, where iRating moves.
+  const showIRChange = opt(config, "showIRatingChange", true) && race && !!session?.official;
   // Positions gained or lost: only in races, and only once we know a grid.
   const showChange = opt(config, "showChange", true) && (field?.standings ?? []).some((r) => r.startPosition != null);
 
@@ -74,6 +77,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
     "24px 8px 34px minmax(0, 1fr)",
     showChange && "34px",
     showIR && "40px",
+    showIRChange && "36px",
     "54px",
     showLast && "62px",
     showBest && "62px",
@@ -96,12 +100,14 @@ export function Standings({ config }: { config: WidgetConfig }) {
             </span>
             {showChange && <span title="Places gained or lost since the start">+/−</span>}
             {showIR && <span>iR</span>}
+            {showIRChange && <span title="Estimated iRating change if the race finished now">±iR</span>}
             <span>{gapMode === "interval" ? "Int" : "Gap"}</span>
             {showLast && <span>Last</span>}
             {showBest && <span>Best</span>}
           </div>
           {groups.map((g) => {
             const max = g.classId === playerClass ? myRows : otherRows;
+            const irChange = showIRChange ? classIRatingChanges(g.rows) : null;
             const sof = showSoF ? classSoF(g.classId) : null;
             return (
               <div key={g.classId} className="class-group" style={{ "--row-class": g.color } as React.CSSProperties}>
@@ -133,6 +139,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
                       </span>
                       {showChange && <PlacesChange start={r.startPosition} now={r.classPosition} />}
                       {showIR && <IRatingBadge value={r.irating} />}
+                      {irChange && <IRatingChange value={irChange.get(r.carIdx)} />}
                       <span className="gap">{gapCell(r, gapMode)}</span>
                       {showLast && <LastLap time={r.lastLap} flag={r.lastFlag} />}
                       {showBest && <BestLap time={r.bestLap} fastest={r.classFastest} />}
@@ -204,6 +211,30 @@ function PlacesChange({ start, now }: { start: number | null; now: number }) {
     <span className={`change ${d > 0 ? "is-up" : "is-down"}`} title={title}>
       {d > 0 ? "▲" : "▼"}
       {Math.abs(d)}
+    </span>
+  );
+}
+
+/**
+ * Each car's estimated iRating change if the race finished as it stands.
+ * Cars that never got a position are counted as non-starters.
+ */
+function classIRatingChanges(rows: StandingRow[]): Map<number, number> {
+  const started = rows.filter((r) => r.position > 0).sort((a, b) => a.classPosition - b.classPosition);
+  const rest = rows.filter((r) => r.position <= 0);
+  return iratingChanges([
+    ...started.map((r, k) => ({ carIdx: r.carIdx, irating: r.irating, rank: k + 1, started: true })),
+    ...rest.map((r, k) => ({ carIdx: r.carIdx, irating: r.irating, rank: started.length + k + 1, started: false })),
+  ]);
+}
+
+/** +38 in green, −21 in red. */
+function IRatingChange({ value }: { value: number | undefined }) {
+  if (value == null) return <span className="ir-change" />;
+  const v = Math.round(value);
+  return (
+    <span className={`ir-change ${v > 0 ? "is-up" : v < 0 ? "is-down" : "is-same"}`} title="Estimated iRating change if the race finished now">
+      {v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0"}
     </span>
   );
 }

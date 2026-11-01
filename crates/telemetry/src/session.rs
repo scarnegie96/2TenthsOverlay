@@ -65,6 +65,8 @@ pub struct SessionInfo {
     /// WeekendOptions.FastRepairsLimit; None when unlimited.
     pub fast_repairs_limit: Option<i32>,
     pub team_racing: bool,
+    /// WeekendInfo.Official: an official session, where iRating changes.
+    pub official: bool,
     /// Qualifying order (QualifyResultsInfo.Results): car indices, fastest first.
     pub qualifying: Vec<i32>,
 }
@@ -199,6 +201,7 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
         incident_limit: int(&weekend["WeekendOptions"]["IncidentLimit"]),
         fast_repairs_limit: int(&weekend["WeekendOptions"]["FastRepairsLimit"]),
         team_racing: int(&weekend["TeamRacing"]).unwrap_or(0) != 0,
+        official: int(&weekend["Official"]).unwrap_or(0) != 0,
         qualifying: {
             let mut q: Vec<(i64, i32)> = root["QualifyResultsInfo"]["Results"]
                 .as_sequence()

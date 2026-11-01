@@ -713,6 +713,22 @@
 .change.is-same {
   color: var(--ink-3);
 }
+/* Estimated iRating change */
+.ir-change {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ir-change.is-up {
+  color: var(--gain);
+}
+.ir-change.is-down {
+  color: var(--loss);
+}
+.ir-change.is-same {
+  color: var(--ink-3);
+}
 
 /* ---------- Inputs (driver HUD strip) ---------------------------------------- */
 

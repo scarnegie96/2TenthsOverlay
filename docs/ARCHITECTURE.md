@@ -189,6 +189,17 @@ fuel amount of 0 keeps the amount already set.
   that to your gap to the class leader and counts which cars' gaps are
   smaller: those come out ahead of you. Nothing shows outside races, before
   there's an average, or while you're in the pit lane.
+- **iRating change** (`src/lib/irating.ts`): the community estimate (the
+  "iRacing SOF iRating Calculator" spreadsheet, ported from the `irating`
+  crate and checked against its test in `scripts/check-irating.ts`). With
+  BR1 = 1600 / ln 2, the chance a beats b is
+  `(1 - e^(-a/BR1)) e^(-b/BR1) / ((1 - e^(-b/BR1)) e^(-a/BR1) + (1 - e^(-a/BR1)) e^(-b/BR1))`;
+  expected score is the sum over the field minus 0.5; a starter's change is
+  `(N - rank - expected - fudge) * 200 / starters` with
+  `fudge = ((N - nonStarters/2) / 2 - rank) / 100`; non-starters share the
+  negative of the starters' total by expected score. Worked out per class from
+  the Standings rows (cars without a position are non-starters), and only shown
+  in races when `WeekendInfo.Official` is set (`session.official`).
 - **Race pace** (`src/lib/raceHistory.ts`): built in the front end from the
   Standings rows (gap to class leader, which is the `CarIdxF2Time` difference
   in races). Fed from every 10 Hz field update outside React, like

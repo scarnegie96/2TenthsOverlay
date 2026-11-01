@@ -461,6 +461,7 @@ WeekendInfo:
  TrackConfigName: Grand Prix
  TrackLength: 5.10 km
  TeamRacing: 0
+ Official: 1
  WeekendOptions:
   IncidentLimit: 17
   FastRepairsLimit: 1

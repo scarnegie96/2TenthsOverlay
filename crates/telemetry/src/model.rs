@@ -222,6 +222,8 @@ pub struct SessionPayload {
     pub shift_rpm: f32,
     pub redline_rpm: f32,
     pub multiclass: bool,
+    /// An official session, where iRating changes.
+    pub official: bool,
     /// Tire compound names indexed by compound number, e.g. ["Hard", "Wet"].
     pub tire_compounds: Vec<String>,
     /// Where each timing sector starts, as a fraction of the lap (first is 0).
