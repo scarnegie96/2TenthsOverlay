@@ -49,7 +49,7 @@ mod win {
     fn hotkey(k: &KeyBinding) -> Option<HotKey> {
         let code = Code::from_str(&k.code).ok()?;
         let mut mods = Modifiers::empty();
-        for (on, m) in [(k.ctrl, Modifiers::CONTROL), (k.shift, Modifiers::SHIFT), (k.alt, Modifiers::ALT), (k.meta, Modifiers::SUPER)] {
+        for (on, m) in [(k.ctrl, Modifiers::CONTROL), (k.shift, Modifiers::SHIFT), (k.alt, Modifiers::ALT), (k.meta, Modifiers::META)] {
             if on {
                 mods |= m;
             }
