@@ -148,8 +148,8 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Level with bar, per lap, laps in tank, laps to go, lap average label | ⬜ |
-| Add-to-finish line with `marginLaps`; "Complete a green lap…" state; units | ⬜ |
+| Level with bar, per lap, laps in tank, laps to go, lap average label | ✅ |
+| Add-to-finish line with `marginLaps`; "Complete a green lap…" state; units | ✅ |
 
 ## 11. Radar — `src/widgets/Radar.tsx`
 
