@@ -14,26 +14,32 @@ use telemetry::runner::{self, RunnerControl, Sink};
 pub struct Latest {
     pub status: Option<Arc<StatusPayload>>,
     pub session: Option<Arc<SessionPayload>>,
+    pub reference: Option<Arc<ReferencePayload>>,
     pub tick: Option<Arc<TickPayload>>,
     pub field: Option<Arc<FieldPayload>>,
-    /// Throttle and brake over the last few seconds, for the Inputs trace.
-    /// Filled here, at the telemetry rate, so it doesn't depend on how often
-    /// the UI happens to draw.
+    /// Pedals and the reference's over the last seconds, for the Inputs
+    /// trace. Filled here, at the telemetry rate, so it doesn't depend on how
+    /// often the UI happens to draw.
     pub trace: VecDeque<TracePoint>,
     /// Frames received, for the stats line.
     pub ticks: u64,
+    /// Field payloads received, so the UI's histories take each one once.
+    pub fields: u64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct TracePoint {
     pub t: f64,
     pub throttle: f32,
     pub brake: f32,
     pub clutch: f32,
+    /// The reference lap's pedals at the same point, when one is loaded.
+    pub ref_throttle: Option<f32>,
+    pub ref_brake: Option<f32>,
 }
 
-/// Seconds of trace kept (the widget shows up to this much).
-pub const TRACE_SECONDS: f64 = 10.0;
+/// Seconds of trace kept (the Inputs widget shows up to this much).
+pub const TRACE_SECONDS: f64 = 20.0;
 
 pub type Shared = Arc<Mutex<Latest>>;
 
@@ -48,7 +54,9 @@ impl Sink for UiSink {
         self.ctx.request_repaint();
     }
 
-    fn reference(&self, _reference: &ReferencePayload) {}
+    fn reference(&self, reference: &ReferencePayload) {
+        self.shared.lock().unwrap().reference = Some(Arc::new(reference.clone()));
+    }
 
     fn session(&self, session: &SessionPayload) {
         let mut l = self.shared.lock().unwrap();
@@ -69,6 +77,8 @@ impl Sink for UiSink {
                     throttle: tick.throttle,
                     brake: tick.brake,
                     clutch: tick.clutch,
+                    ref_throttle: tick.coach.as_ref().and_then(|c| c.ref_throttle),
+                    ref_brake: tick.coach.as_ref().and_then(|c| c.ref_brake),
                 });
             }
             while l.trace.front().is_some_and(|p| tick.session_time - p.t > TRACE_SECONDS) {
@@ -82,15 +92,82 @@ impl Sink for UiSink {
     }
 
     fn field(&self, field: &FieldPayload) {
-        self.shared.lock().unwrap().field = Some(Arc::new(field.clone()));
+        let mut l = self.shared.lock().unwrap();
+        l.field = Some(Arc::new(field.clone()));
+        l.fields += 1;
     }
 }
 
 /// Starts the telemetry thread (iRacing, or the demo race with `demo`).
-pub fn start(ctx: egui::Context, demo: bool) -> (Shared, RunnerControl) {
+/// `offline` starts nothing: no data at all, for checking empty states.
+pub fn start(ctx: egui::Context, demo: bool, offline: bool) -> (Shared, RunnerControl) {
     let shared: Shared = Arc::default();
     let control = RunnerControl::default();
+    if offline {
+        shared.lock().unwrap().status = Some(Arc::new(StatusPayload {
+            source: telemetry::model::SourceKind::None,
+            connected: false,
+            message: "Offline".into(),
+        }));
+        return (shared, control);
+    }
     control.demo.store(demo, std::sync::atomic::Ordering::Relaxed);
+    if demo {
+        // The web preview has a reference lap loaded; so does this: a demo lap
+        // recorded as an .ibt and imported, for the Coach, Delta and ghost inputs.
+        if let Some(lap) = demo_reference() {
+            control.set_reference(Some(lap));
+        }
+    }
     runner::spawn(UiSink { shared: shared.clone(), ctx }, control.clone());
     (shared, control)
+}
+
+fn demo_reference() -> Option<telemetry::reference::ReferenceLap> {
+    let mut demo = telemetry::demo::DemoSource::new();
+    let bytes = telemetry::demo::record_ibt(&mut demo, 3.2);
+    let file = telemetry::ibt::IbtFile::from_bytes(bytes).ok()?;
+    let lap = file.summary().laps.first()?.lap;
+    file.reference(lap, "Demo reference.ibt").ok()
+}
+
+/// What the widgets draw from this frame: a cheap copy of `Latest`.
+#[derive(Default, Clone)]
+pub struct Live {
+    pub status: Option<Arc<StatusPayload>>,
+    pub session: Option<Arc<SessionPayload>>,
+    pub reference: Option<Arc<ReferencePayload>>,
+    pub tick: Option<Arc<TickPayload>>,
+    pub field: Option<Arc<FieldPayload>>,
+    pub trace: Vec<TracePoint>,
+    pub ticks: u64,
+    pub fields: u64,
+}
+
+impl Live {
+    pub fn take(shared: &Shared) -> Self {
+        let l = shared.lock().unwrap();
+        Self {
+            status: l.status.clone(),
+            session: l.session.clone(),
+            reference: l.reference.clone(),
+            tick: l.tick.clone(),
+            field: l.field.clone(),
+            trace: l.trace.iter().copied().collect(),
+            ticks: l.ticks,
+            fields: l.fields,
+        }
+    }
+
+    pub fn connected(&self) -> bool {
+        self.status.as_ref().is_some_and(|s| s.connected)
+    }
+
+    pub fn race(&self) -> bool {
+        self.field.as_ref().is_some_and(|f| f.clock.session_type.to_lowercase().contains("race"))
+    }
+
+    pub fn compounds(&self) -> &[String] {
+        self.session.as_ref().map(|s| s.tire_compounds.as_slice()).unwrap_or(&[])
+    }
 }

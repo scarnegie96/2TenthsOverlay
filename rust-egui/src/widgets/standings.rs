@@ -1,130 +1,424 @@
-//! Standings: the field by class. Your class shows the rows around you, other
-//! classes their leaders. Gap to the class leader, last and best laps.
+//! Standings (`src/widgets/Standings.tsx`): the field by class, your class
+//! around you, with places gained, iRating and its estimated change, gaps,
+//! laps, and where you'd rejoin after a stop.
 
-use egui::{Align2, Pos2, Rect, Vec2};
-use telemetry::model::{CarStatus, FieldPayload, LapFlag, StandingRow};
+use std::collections::HashMap;
 
-use super::relative::clipped;
-use crate::theme::{self, *};
+use egui::{Align, Align2, Painter, Pos2, Rect, Stroke, Vec2};
+use telemetry::model::{CarStatus, FieldPayload, StandingRow};
 
-const ROW_H: f32 = 22.0;
-const CLASS_H: f32 = 20.0;
-/// Rows of your class (around you) and of each other class (leaders).
-const MY_CLASS_ROWS: usize = 10;
-const OTHER_CLASS_ROWS: usize = 3;
-pub const WIDTH: f32 = 470.0;
+use super::relative::session_aside;
+use super::{Ctx, Widget};
+use crate::kit::{self, seg, Badge, Col};
+use crate::logic::format::{gap as fmt_gap, irating, lap_time};
+use crate::logic::{irating as ir, rejoin};
+use crate::theme::{alpha, hex_or, Theme};
 
-/// What's shown: (class header, rows) in class order.
-fn layout(field: &FieldPayload) -> Vec<(String, Vec<&StandingRow>)> {
-    let me = field.standings.iter().find(|r| r.is_player);
-    let mut out = Vec::new();
-    for class in &field.clock.classes {
-        let mut rows: Vec<&StandingRow> =
-            field.standings.iter().filter(|r| r.driver.class_id == class.class_id && r.position > 0).collect();
-        rows.sort_by_key(|r| r.class_position);
-        let mine = me.is_some_and(|m| m.driver.class_id == class.class_id);
-        let keep = if mine { MY_CLASS_ROWS } else { OTHER_CLASS_ROWS };
-        let start = match (mine, me) {
-            (true, Some(m)) => {
-                let at = rows.iter().position(|r| r.driver.car_idx == m.driver.car_idx).unwrap_or(0);
-                at.saturating_sub(keep / 2).min(rows.len().saturating_sub(keep))
-            }
-            _ => 0,
-        };
-        let shown: Vec<&StandingRow> = rows.into_iter().skip(start).take(keep).collect();
-        if !shown.is_empty() {
-            let sof = class.strength_of_field.map(|s| format!("   SoF {:.1}k", s as f32 / 1000.0)).unwrap_or_default();
-            out.push((format!("{}   {} cars{}", class.name, class.cars, sof), shown));
+pub struct Standings;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Slot<'a> {
+    Row(&'a StandingRow),
+    Break,
+}
+
+/// The top of a class plus a window around the player when they're further back.
+pub fn pick_rows<'a>(rows: &[&'a StandingRow], max: usize) -> Vec<Slot<'a>> {
+    if rows.len() <= max {
+        return rows.iter().map(|r| Slot::Row(r)).collect();
+    }
+    let me = rows.iter().position(|r| r.is_player);
+    match me {
+        Some(me) if me >= max => {
+            let around = 5.min(max / 2);
+            let top = max - around;
+            let start = (rows.len() - around).min(me - around / 2);
+            let mut out: Vec<Slot> = rows[..top].iter().map(|r| Slot::Row(r)).collect();
+            out.push(Slot::Break);
+            out.extend(rows[start..(start + around).min(rows.len())].iter().map(|r| Slot::Row(r)));
+            out
         }
+        _ => rows[..max].iter().map(|r| Slot::Row(r)).collect(),
+    }
+}
+
+pub struct Group<'a> {
+    pub class_id: i32,
+    pub name: &'a str,
+    pub color: &'a str,
+    pub rows: Vec<&'a StandingRow>,
+}
+
+/// Classes in running order (the class of the overall leader first).
+pub fn group_by_class(rows: &[StandingRow]) -> Vec<Group<'_>> {
+    let mut groups: Vec<Group> = Vec::new();
+    for r in rows {
+        match groups.iter_mut().find(|g| g.class_id == r.driver.class_id) {
+            Some(g) => g.rows.push(r),
+            None => groups.push(Group { class_id: r.driver.class_id, name: &r.driver.class_name, color: &r.driver.class_color, rows: vec![r] }),
+        }
+    }
+    groups
+}
+
+/// Each car's estimated iRating change if the race finished now; cars that
+/// never got a position count as non-starters.
+fn class_irating_changes(rows: &[&StandingRow]) -> HashMap<i32, f64> {
+    let mut started: Vec<&&StandingRow> = rows.iter().filter(|r| r.position > 0).collect();
+    started.sort_by_key(|r| r.class_position);
+    let rest: Vec<&&StandingRow> = rows.iter().filter(|r| r.position <= 0).collect();
+    let n = started.len();
+    let entries: Vec<ir::Entry> = started
+        .iter()
+        .enumerate()
+        .map(|(k, r)| ir::Entry { car_idx: r.driver.car_idx, irating: r.driver.irating, rank: k as i32 + 1, started: true })
+        .chain(rest.iter().enumerate().map(|(k, r)| ir::Entry {
+            car_idx: r.driver.car_idx,
+            irating: r.driver.irating,
+            rank: (n + k) as i32 + 1,
+            started: false,
+        }))
+        .collect();
+    ir::changes(&entries)
+}
+
+fn gap_cell(r: &StandingRow, interval: bool) -> (String, bool) {
+    if r.laps_down > 0 {
+        return (format!("+{}L", r.laps_down), false);
+    }
+    match if interval { r.interval } else { r.gap } {
+        Some(v) => (fmt_gap(Some(v), 1), false),
+        None if r.class_position == 1 => ("Leader".into(), true),
+        None => (String::new(), false),
+    }
+}
+
+/// "1:02.3" from 62.3 s; "9.4" under a minute.
+fn fmt_secs(s: f32) -> String {
+    if s >= 60.0 {
+        format!("{}:{:0>4}", (s / 60.0).floor(), format!("{:.1}", s % 60.0))
+    } else {
+        format!("{s:.1}")
+    }
+}
+
+enum Item<'a> {
+    Row(&'a StandingRow),
+    Break,
+    Rejoin,
+}
+
+/// Puts the rejoin marker after the car you'd come out behind, or in place
+/// of the break when that car is in the rows left out.
+fn with_rejoin<'a>(slots: &[Slot<'a>], rejoin: Option<&rejoin::Rejoin>) -> Vec<Item<'a>> {
+    let mut out: Vec<Item> = slots
+        .iter()
+        .map(|s| match s {
+            Slot::Row(r) => Item::Row(r),
+            Slot::Break => Item::Break,
+        })
+        .collect();
+    let Some(rj) = rejoin else { return out };
+    let after = rj.behind.and_then(|b| slots.iter().position(|s| matches!(s, Slot::Row(r) if r.driver.car_idx == b.row.driver.car_idx)));
+    if let Some(a) = after {
+        out.insert(a + 1, Item::Rejoin);
+        return out;
+    }
+    let brk = slots.iter().position(|s| matches!(s, Slot::Break));
+    match (rj.behind, brk) {
+        (Some(_), Some(b)) => out[b] = Item::Rejoin,
+        (None, _) => out.insert(0, Item::Rejoin),
+        _ => out.push(Item::Rejoin),
     }
     out
 }
 
-pub fn size(field: Option<&FieldPayload>) -> Vec2 {
-    let body = match field {
-        Some(f) => layout(f).iter().map(|(_, rows)| CLASS_H + rows.len() as f32 * ROW_H).sum::<f32>(),
-        None => 40.0,
-    };
-    Vec2::new(WIDTH, TITLE_H + body.max(40.0) + 4.0)
+impl Widget for Standings {
+    fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2 {
+        let th = cx.th;
+        let o = cx.o;
+        let field: Option<&FieldPayload> = cx.live.field.as_deref();
+        let session = cx.live.session.as_deref();
+        let my_rows = o.int("rows", 1);
+        let other_rows = o.int("otherClassRows", 1);
+        let interval_mode = o.s("gapMode") == "interval";
+        let (show_last, show_best, show_ir, show_sof, show_marks) = (o.b("showLast"), o.b("showBest"), o.b("showIRating"), o.b("showSoF"), o.b("showRatings"));
+        let race = cx.live.race();
+        let show_ir_change = show_ir && o.b("showIRatingChange") && race && session.is_some_and(|s| s.official);
+        let all: &[StandingRow] = field.map(|f| f.standings.as_slice()).unwrap_or(&[]);
+        let show_change = o.b("showChange") && all.iter().any(|r| r.start_position.is_some());
+        let player_class = all.iter().find(|r| r.is_player).map(|r| r.driver.class_id).or(session.map(|s| s.player_class_id));
+        let loss = field.and_then(|f| f.pit_loss.iter().find(|l| Some(l.class_id) == player_class));
+        let my_row = all.iter().find(|r| r.is_player);
+        let finished = field.is_some_and(|f| f.clock.player_finished);
+        let show_rejoin = o.b("showRejoin") && race && !finished && loss.is_some() && my_row.is_some_and(|r| r.status == CarStatus::Track);
+        let mut groups = group_by_class(all);
+        if o.b("myClassOnly") {
+            groups.retain(|g| Some(g.class_id) == player_class);
+        }
+        let show_heads = groups.len() > 1;
+        let class_sof = |id: i32| field.and_then(|f| f.clock.classes.iter().find(|c| c.class_id == id)).and_then(|c| c.strength_of_field);
+        let head_sof = if show_sof && !show_heads && groups.len() == 1 { class_sof(groups[0].class_id) } else { None };
+
+        let panel = kit::Panel::begin(p, th, 520.0, None, &[]);
+        if all.is_empty() {
+            let h = kit::empty(p, th, panel.x(), panel.body_top, "Standings appear when a session is running.");
+            let bottom = panel.body_top + h;
+            return panel.finish(p, th, bottom);
+        }
+
+        let mut cols = vec![Col::Px(24.0), Col::Px(8.0), Col::Px(34.0), Col::Fr];
+        let mut push = |on: bool, c: Col| {
+            if on {
+                cols.push(c);
+                Some(cols.len() - 1)
+            } else {
+                None
+            }
+        };
+        let c_change = push(show_change, Col::Px(34.0));
+        let c_ir = push(show_ir, Col::Px(if show_ir_change { 74.0 } else { 40.0 }));
+        let c_gap = push(true, Col::Px(54.0)).unwrap();
+        let c_last = push(show_last, Col::Px(62.0));
+        let c_best = push(show_best, Col::Px(62.0));
+        let x = kit::grid(panel.x(), 6.0, 10.0, 7.0, &cols);
+        let full = panel.x();
+
+        // One header row: track and lap on the left, column labels on the right.
+        let mut y = panel.body_top;
+        let head = Rect::from_min_size(Pos2::new(full.min, y), Vec2::new(full.span(), 30.0));
+        let spacing = if th.f1() { 0.5 } else { 0.0 };
+        if th.f1() {
+            kit::fill(p, head, 0.0, alpha(th.panel_raised, 0.7));
+            kit::fill(p, Rect::from_min_max(Pos2::new(head.left(), head.bottom() - 2.0), head.max), 0.0, th.f1_red);
+        } else {
+            p.hline(head.x_range(), head.bottom() - 0.5, Stroke::new(1.0, th.line));
+        }
+        let hy = head.center().y - 0.5;
+        let label_font = if th.f1() { th.semi(11.0) } else { th.medium(12.0) };
+        let label = |c: Option<usize>, s: &str| {
+            if let Some(c) = c {
+                kit::text_sp(p, Pos2::new(x[c].center(), hy), Align2::CENTER_CENTER, &th.caps(s), label_font.clone(), th.ink3, spacing);
+            }
+        };
+        label(c_change, "+/−");
+        label(c_ir, "iR");
+        label(Some(c_gap), if interval_mode { "Int" } else { "Gap" });
+        label(c_last, "Last");
+        label(c_best, "Best");
+        let mut title = vec![seg(session.map(|s| s.track_name.as_str()).filter(|s| !s.is_empty()).unwrap_or("Standings"), if th.f1() { th.heavy(14.0) } else { th.bold(14.0) }, th.ink)];
+        let aside_font = if th.f1() { th.semi(14.0) } else { th.medium(14.0) };
+        if let Some(a) = session_aside(field.map(|f| &f.clock)) {
+            title.push(seg(format!("   {a}"), aside_font.clone(), th.ink2));
+        }
+        if let Some(s) = head_sof.filter(|s| *s > 0) {
+            title.push(seg(format!("   SoF {}", irating(s)), aside_font, th.ink2));
+        }
+        for s in &mut title {
+            s.text = th.caps(&s.text);
+        }
+        let title_room = Rect::from_min_max(Pos2::new(x[0].min + 4.0, head.top()), Pos2::new(x[3].max, head.bottom()));
+        let clip = p.with_clip_rect(title_room);
+        kit::segs(&clip, title_room.left(), hy, false, &title, spacing);
+        y = head.bottom();
+
+        let rh = th.row_h;
+        for (gi, g) in groups.iter().enumerate() {
+            let class = hex_or(g.color, th.ink);
+            if gi > 0 && !th.f1() {
+                y += 4.0;
+            }
+            let mine = Some(g.class_id) == player_class;
+            if show_heads {
+                y = class_head(p, th, full, y, g, class, if show_sof { class_sof(g.class_id) } else { None });
+            }
+            let changes = if show_ir_change { class_irating_changes(&g.rows) } else { HashMap::new() };
+            let slots = pick_rows(&g.rows, if mine { my_rows } else { other_rows });
+            let rj = if show_rejoin && mine { loss.and_then(|l| rejoin::after_stop(&g.rows, l.loss_s)) } else { None };
+            for item in with_rejoin(&slots, rj.as_ref()) {
+                match item {
+                    Item::Break => {
+                        let ly = y + 5.0;
+                        if th.f1() {
+                            kit::fill(p, Rect::from_min_max(Pos2::new(full.min, ly - 1.0), Pos2::new(full.max, ly + 1.0)), 0.0, th.f1_red);
+                        } else {
+                            kit::dashed_h(p, egui::Rangef::new(full.min + 10.0, full.max - 10.0), ly, th.line_strong, 1.0, 3.0, 3.0);
+                        }
+                        y += 9.0;
+                    }
+                    Item::Rejoin => {
+                        let Some(rj) = rj.as_ref() else { continue };
+                        let (pos, loss) = (rj.position, rj.loss);
+                        let r = Rect::from_min_size(Pos2::new(full.min + 6.0, y + 1.0), Vec2::new(full.span() - 12.0, 24.0));
+                        kit::fill(p, r, 4.0, alpha(th.attention, 0.10));
+                        kit::dashed_rect(p, r, th.attention, 1.0, 3.0, 3.0);
+                        let cy = r.center().y;
+                        let tag = kit::text_sp(p, Pos2::new(r.left() + 8.0, cy), Align2::LEFT_CENTER, "REJOIN AFTER PIT", th.heavy(11.0), th.attention, 0.55);
+                        let pr = kit::text(p, Pos2::new(tag.right() + 10.0, cy), Align2::LEFT_CENTER, &format!("P{pos}"), th.heavy(13.0), th.ink);
+                        let loss_r = kit::text(p, Pos2::new(r.right() - 8.0, cy), Align2::RIGHT_CENTER, &format!("stop ≈{loss:.0}s"), th.medium(13.0), th.ink3);
+                        let mut parts = Vec::new();
+                        if let Some(b) = rj.behind {
+                            parts.push(seg(fmt_secs(b.by), th.bold(13.0), th.ink));
+                            parts.push(seg(format!(" behind #{}", b.row.driver.number), th.medium(13.0), th.ink2));
+                        }
+                        if rj.behind.is_some() && rj.ahead.is_some() {
+                            parts.push(seg("  ·  ", th.medium(13.0), th.ink3));
+                        }
+                        if let Some(a) = rj.ahead {
+                            parts.push(seg(fmt_secs(a.by), th.bold(13.0), th.ink));
+                            parts.push(seg(format!(" ahead of #{}", a.row.driver.number), th.medium(13.0), th.ink2));
+                        }
+                        let room = Rect::from_min_max(Pos2::new(pr.right() + 10.0, r.top()), Pos2::new(loss_r.left() - 10.0, r.bottom()));
+                        kit::segs(&p.with_clip_rect(room), room.left(), cy, false, &parts, 0.0);
+                        y += 26.0;
+                    }
+                    Item::Row(r) => {
+                        let rect = Rect::from_min_size(Pos2::new(full.min, y), Vec2::new(full.span(), rh));
+                        y += rh;
+                        row(p, th, cx, &x, rect, r, RowCols { c_change, c_ir, c_gap, c_last, c_best, interval_mode, race, show_marks }, changes.get(&r.driver.car_idx).copied());
+                    }
+                }
+            }
+        }
+        let bottom = y + if th.f1() { 0.0 } else { 3.0 };
+        panel.finish(p, th, bottom)
+    }
 }
 
-pub fn draw(painter: &egui::Painter, rect: Rect, field: Option<&FieldPayload>) {
-    let aside = field
-        .map(|f| match (f.clock.laps_remain, f.clock.total_laps) {
-            (_, Some(total)) if total > 0 => {
-                let lap = f.standings.iter().map(|r| r.lap).max().unwrap_or(0);
-                format!("Lap {} of {}", (lap + 1).min(total), total)
-            }
-            _ => f.clock.time_remain.map(clock).unwrap_or_default(),
-        })
-        .unwrap_or_default();
-    let body = theme::panel(painter, rect, "Standings", &aside);
-    let Some(field) = field.filter(|f| !f.standings.is_empty()) else {
-        theme::empty(painter, body, "Standings appear when a session is running.");
-        return;
-    };
-    let race = field.clock.session_type.to_ascii_lowercase().contains("race");
-    let mut top = body.top() + 2.0;
-    for (header, rows) in layout(field) {
-        let class_color = hex(&rows[0].driver.class_color);
-        let h = Rect::from_min_size(Pos2::new(body.left(), top), Vec2::new(body.width(), CLASS_H));
-        painter.rect_filled(h.shrink2(Vec2::new(4.0, 2.0)), 2.0, class_color.gamma_multiply(0.14));
-        painter.text(h.left_center() + Vec2::new(10.0, 0.0), Align2::LEFT_CENTER, header, bold(12.0), class_color);
-        top += CLASS_H;
-        for r in rows {
-            row(painter, Rect::from_min_size(Pos2::new(body.left(), top), Vec2::new(body.width(), ROW_H)), r, race);
-            top += ROW_H;
+#[derive(Clone, Copy)]
+struct RowCols {
+    c_change: Option<usize>,
+    c_ir: Option<usize>,
+    c_gap: usize,
+    c_last: Option<usize>,
+    c_best: Option<usize>,
+    interval_mode: bool,
+    race: bool,
+    show_marks: bool,
+}
+
+/// The class heading: name, cars and SoF over a wash of the class colour.
+fn class_head(p: &Painter, th: &Theme, full: egui::Rangef, y: f32, g: &Group, class: egui::Color32, sof: Option<i32>) -> f32 {
+    let (h, margin_top, margin_bottom) = if th.f1() { (24.0, 0.0, 0.0) } else { (22.0, 2.0, 1.0) };
+    let r = Rect::from_min_size(Pos2::new(full.min, y + margin_top), Vec2::new(full.span(), h));
+    let cy = r.center().y;
+    let name = if g.name.is_empty() { "Class" } else { g.name };
+    let rest = format!("{} cars{}", g.rows.len(), sof.filter(|s| *s > 0).map(|s| format!("   SoF {}", irating(s))).unwrap_or_default());
+    if th.f1() {
+        kit::fill(p, r, 0.0, alpha(th.panel_raised, 0.7));
+        kit::fill(p, Rect::from_min_size(r.min, Vec2::new(r.width(), 2.0)), 0.0, th.f1_red);
+        kit::fill(p, Rect::from_min_size(Pos2::new(r.left() + 9.0, r.top() + 2.0), Vec2::new(3.0, h - 2.0)), 0.0, class);
+        let n = kit::text_sp(p, Pos2::new(r.left() + 9.0 + 8.0, cy + 1.0), Align2::LEFT_CENTER, &name.to_uppercase(), th.heavy(12.0), th.ink, 0.5);
+        kit::text_sp(p, Pos2::new(n.right() + 12.0, cy + 1.0), Align2::LEFT_CENTER, &rest.to_uppercase(), th.semi(12.0), th.ink3, 0.5);
+    } else {
+        let mut mesh = egui::epaint::Mesh::default();
+        let mid = r.left() + r.width() * 0.7;
+        let c0 = alpha(class, 0.16);
+        let c1 = alpha(class, 0.0);
+        for (xx, c) in [(r.left(), c0), (mid, c1), (r.right(), c1)] {
+            mesh.colored_vertex(Pos2::new(xx, r.top()), c);
+            mesh.colored_vertex(Pos2::new(xx, r.bottom()), c);
+        }
+        for i in 0..2u32 {
+            mesh.add_triangle(i * 2, i * 2 + 1, i * 2 + 2);
+            mesh.add_triangle(i * 2 + 1, i * 2 + 3, i * 2 + 2);
+        }
+        p.add(egui::Shape::mesh(mesh));
+        p.hline(r.x_range(), r.top() + 0.5, Stroke::new(1.0, alpha(class, 0.4)));
+        let n = kit::text(p, Pos2::new(r.left() + 9.0, cy), Align2::LEFT_CENTER, name, th.bold(13.0), class);
+        kit::text(p, Pos2::new(n.right() + 12.0, cy), Align2::LEFT_CENTER, &rest, th.medium(13.0), th.ink3);
+    }
+    y + margin_top + h + margin_bottom
+}
+
+#[allow(clippy::too_many_arguments)]
+fn row(p: &Painter, th: &Theme, cx: &Ctx, x: &[egui::Rangef], rect: Rect, r: &StandingRow, c: RowCols, change: Option<f64>) {
+    let cy = rect.center().y;
+    let class = hex_or(&r.driver.class_color, th.ink);
+    if r.is_player {
+        kit::player_row(p, th, rect, class);
+    }
+    kit::row_rule(p, th, rect);
+    // A car that's out of the race fades back, all but its place and name.
+    let out = r.status == CarStatus::Out;
+    let fade = |col: egui::Color32| if out { col.gamma_multiply(0.5) } else { col };
+    let pos = if r.class_position > 0 { r.class_position } else { r.position };
+    let label = if pos > 0 { pos.to_string() } else { "–".into() };
+    let in_pits = matches!(r.status, CarStatus::PitLane | CarStatus::PitStall);
+    kit::pos_cell(p, th, x[0], cy, &label, pos, in_pits);
+    kit::class_bar(p, th, x[1].center(), cy, fade(class));
+    {
+        let mut faded = p.clone();
+        if out {
+            faded.multiply_opacity(0.5);
+        }
+        kit::num_cell(&faded, th, x[2].max, cy, &r.driver.number, 15.0);
+    }
+    let mark = if c.show_marks && !r.is_player { cx.ratings.get(r.driver.user_id) } else { None };
+    kit::name_cell(p, th, x[3], cy, &r.driver.name, th.ink, r.is_player, mark, Badge::of(r.status, c.race), if out { 0.5 } else { 1.0 });
+    let mut faded = p.clone();
+    if out {
+        faded.multiply_opacity(0.5);
+    }
+    let p = &faded;
+    if let Some(col) = c.c_change {
+        if let (Some(start), true) = (r.start_position, r.class_position > 0) {
+            let d = start - r.class_position;
+            let (s, color) = match d.cmp(&0) {
+                std::cmp::Ordering::Equal => ("–".to_string(), th.ink3),
+                std::cmp::Ordering::Greater => (format!("▲{d}"), th.gain),
+                std::cmp::Ordering::Less => (format!("▼{}", -d), th.loss),
+            };
+            kit::cell(p, x[col], cy, Align::Center, &s, th.bold(14.0), color);
         }
     }
+    if let Some(col) = c.c_ir {
+        kit::ir_badge(p, th, x[col], cy, Align::Center, r.driver.irating, change.map(|v| v as f32));
+    }
+    let (g, leader) = gap_cell(r, c.interval_mode);
+    let (font, color) = if leader { (th.medium(15.0), th.ink3) } else { (th.semi(15.0), th.ink) };
+    kit::cell(p, x[c.c_gap], cy, Align::Center, &g, font, color);
+    if let Some(col) = c.c_last {
+        let (font, color) = kit::last_lap_style(th, r.laps.last_flag);
+        kit::cell(p, x[col], cy, Align::Center, &lap_time(r.laps.last_lap), font, color);
+    }
+    if let Some(col) = c.c_best {
+        let (font, color) = kit::best_lap_style(th, r.laps.class_fastest);
+        kit::cell(p, x[col], cy, Align::Center, &lap_time(r.laps.best_lap), font, color);
+    }
 }
 
-fn row(painter: &egui::Painter, r: Rect, row: &StandingRow, race: bool) {
-    let y = r.center().y;
-    if row.is_player {
-        painter.rect_filled(r.shrink2(Vec2::new(3.0, 1.0)), 3.0, PLAYER_ROW);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::rejoin::tests::row as mk;
+
+    #[test]
+    fn picks_top_and_window_around_player() {
+        let rows: Vec<StandingRow> = (1..=20).map(|i| mk(i, i, Some(i as f32), i == 15)).collect();
+        let refs: Vec<&StandingRow> = rows.iter().collect();
+        let slots = pick_rows(&refs, 10);
+        // 5 at the top, a break, then 5 around P15.
+        assert_eq!(slots.len(), 11);
+        assert!(matches!(slots[5], Slot::Break));
+        let shown: Vec<i32> = slots.iter().filter_map(|s| if let Slot::Row(r) = s { Some(r.class_position) } else { None }).collect();
+        assert_eq!(shown, vec![1, 2, 3, 4, 5, 13, 14, 15, 16, 17]);
+        // Near the top: just the top rows.
+        let rows: Vec<StandingRow> = (1..=20).map(|i| mk(i, i, Some(i as f32), i == 3)).collect();
+        let refs: Vec<&StandingRow> = rows.iter().collect();
+        assert_eq!(pick_rows(&refs, 10).len(), 10);
     }
-    let dim = matches!(row.status, CarStatus::Out);
-    let ink = if dim { INK.gamma_multiply(0.45) } else { INK };
 
-    let mut x = r.left() + 8.0;
-    painter.text(Pos2::new(x + 20.0, y), Align2::RIGHT_CENTER, row.class_position.to_string(), bold(14.0), ink);
-    x += 26.0;
-    theme::class_stripe(painter, Pos2::new(x + 3.0, y), 14.0, hex(&row.driver.class_color));
-    x += 10.0;
-    painter.text(Pos2::new(x, y), Align2::LEFT_CENTER, format!("#{}", row.driver.number), medium(12.0), INK3);
-    x += 34.0;
-
-    // Columns from the right: best, last, gap, iRating; the name gets the rest.
-    let best_x = r.right() - 10.0;
-    let last_x = best_x - 66.0;
-    let gap_x = last_x - 66.0;
-    let ir_x = gap_x - 50.0;
-    let best_color = if row.laps.class_fastest { PURPLE } else { INK2 };
-    painter.text(Pos2::new(best_x, y), Align2::RIGHT_CENTER, theme::lap_time(row.laps.best_lap), medium(13.0), best_color);
-    let last_color = match row.laps.last_flag {
-        LapFlag::Fastest => PURPLE,
-        LapFlag::Personal => GAIN,
-        LapFlag::None => INK2,
-    };
-    painter.text(Pos2::new(last_x, y), Align2::RIGHT_CENTER, theme::lap_time(row.laps.last_lap), medium(13.0), last_color);
-    let gap = if row.class_position == 1 {
-        "Leader".to_string()
-    } else if race && row.laps_down > 0 {
-        format!("+{}L", row.laps_down)
-    } else {
-        row.gap.map(|g| format!("{g:.1}")).unwrap_or_else(|| "–".into())
-    };
-    painter.text(Pos2::new(gap_x, y), Align2::RIGHT_CENTER, gap, semibold(13.0), ink);
-    theme::irating_badge(painter, Pos2::new(ir_x, y), row.driver.irating);
-    let pit = matches!(row.status, CarStatus::PitLane | CarStatus::PitStall);
-    let name_right = ir_x - 46.0;
-    if pit {
-        painter.text(Pos2::new(name_right, y), Align2::RIGHT_CENTER, "PIT", bold(11.0), ACCENT);
+    #[test]
+    fn gaps() {
+        let mut r = mk(1, 1, None, false);
+        assert_eq!(gap_cell(&r, false), ("Leader".into(), true));
+        r.class_position = 2;
+        r.gap = Some(6.25);
+        assert_eq!(gap_cell(&r, false).0, "6.2");
+        r.laps_down = 11;
+        assert_eq!(gap_cell(&r, false).0, "+11L");
+        assert_eq!(fmt_secs(62.34), "1:02.3");
+        assert_eq!(fmt_secs(9.44), "9.4");
     }
-    clipped(painter, Pos2::new(x, y), &row.driver.name, semibold(14.0), ink, name_right - x - if pit { 28.0 } else { 4.0 });
-}
-
-fn clock(secs: f64) -> String {
-    let s = secs.max(0.0) as i64;
-    if s >= 3600 { format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60) } else { format!("{}:{:02}", s / 60, s % 60) }
 }

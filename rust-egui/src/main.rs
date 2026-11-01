@@ -1,32 +1,50 @@
-//! Tenths, drawn natively with egui: a prototype with three widgets
-//! (Standings, Relative, Inputs) on the same telemetry core as the Tauri app.
+//! Tenths, drawn natively with egui, on the same telemetry core as the Tauri
+//! app, reading the Tauri app's own `config.json` for which widgets are on,
+//! where they are, their options, theme and units.
 //!
 //! One transparent, always-on-top window over the primary display. Clicks go
 //! through to iRacing except while editing the layout.
 //!
-//!   tenths-egui                 iRacing (Windows), falls back to waiting
-//!   tenths-egui --demo          the demo race
-//!   tenths-egui --edit          start in edit mode (drag the panels)
-//!   tenths-egui --imperial      mph
-//!   tenths-egui --bench 600     print memory and frame stats every 10 s, quit after 600 s
-//!   tenths-egui --shot out.png  save a screenshot after 5 s (--shot-after N) and quit
+//!   tenths-egui                   iRacing (Windows), falls back to waiting
+//!   tenths-egui --demo            the demo race
+//!   tenths-egui --offline         no data at all (empty states)
+//!   tenths-egui --edit            start in edit mode (drag the panels)
+//!   tenths-egui --config <path>   another config.json than the Tauri app's
+//!   tenths-egui --theme f1        dark, light or f1, over the config's
+//!   tenths-egui --imperial        imperial units, over the config's
+//!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
+//!   tenths-egui --shot out.png    save a screenshot after 5 s (--shot-after N) and quit
 //!
 //! Ctrl+Shift+E (Windows, anywhere) or F2 (in edit mode) toggles editing.
 //! Ctrl+Shift+Q quits.
 
+// While the port is under way some helpers wait for the panels that use them.
+#![allow(dead_code)]
+
+mod anchor;
+mod config;
 mod data;
+mod frame;
+mod kit;
+mod logic;
+mod ratings;
+mod schema;
 mod sys;
 mod theme;
 mod widgets;
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use egui::{Align2, Color32, Id, Pos2, Rect, Stroke, Vec2};
+use egui::{Align2, Color32, Id, LayerId, Order, Pos2, Rect, Stroke, Vec2};
 
 struct Args {
     demo: bool,
+    offline: bool,
     edit: bool,
     imperial: bool,
+    theme: Option<config::ThemeId>,
+    config: Option<PathBuf>,
     bench: Option<f64>,
     shot: Option<String>,
     shot_after: f64,
@@ -35,10 +53,14 @@ struct Args {
 fn args() -> Args {
     let all: Vec<String> = std::env::args().skip(1).collect();
     let value = |name: &str| all.iter().position(|a| a == name).and_then(|i| all.get(i + 1)).cloned();
+    let has = |name: &str| all.iter().any(|a| a == name);
     Args {
-        demo: all.iter().any(|a| a == "--demo") || cfg!(not(windows)),
-        edit: all.iter().any(|a| a == "--edit"),
-        imperial: all.iter().any(|a| a == "--imperial"),
+        demo: has("--demo") || cfg!(not(windows)),
+        offline: has("--offline"),
+        edit: has("--edit"),
+        imperial: has("--imperial"),
+        theme: value("--theme").and_then(|t| config::ThemeId::parse(&t)),
+        config: value("--config").map(PathBuf::from),
         bench: value("--bench").and_then(|v| v.parse().ok()),
         shot: value("--shot"),
         shot_after: value("--shot-after").and_then(|v| v.parse().ok()).unwrap_or(5.0),
@@ -64,8 +86,12 @@ fn main() -> eframe::Result {
 
 struct App {
     shared: data::Shared,
+    store: config::Store,
+    ratings: ratings::Ratings,
+    layout: frame::Layout,
     editing: bool,
     imperial: bool,
+    theme: Option<config::ThemeId>,
     sized: bool,
     started: Instant,
     bench: Option<f64>,
@@ -73,6 +99,7 @@ struct App {
     shot_after: f64,
     shot_asked: bool,
     shot_done: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    picker: bool,
     stats: Stats,
     #[cfg(windows)]
     hotkeys: Option<hotkeys::Hotkeys>,
@@ -96,11 +123,19 @@ struct Stats {
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
         theme::install_fonts(&cc.egui_ctx);
-        let (shared, _control) = data::start(cc.egui_ctx.clone(), args.demo);
+        let path = args.config.clone().or_else(config::default_path);
+        let store = config::Store::open(path);
+        // The Tauri app's "demo" setting counts too.
+        let demo = args.demo || store.config.general.demo;
+        let (shared, _control) = data::start(cc.egui_ctx.clone(), demo, args.offline);
         Self {
             shared,
+            store,
+            ratings: ratings::Ratings::open(config::data_dir()),
+            layout: frame::Layout::new(),
             editing: args.edit,
             imperial: args.imperial,
+            theme: args.theme,
             sized: false,
             started: Instant::now(),
             bench: args.bench,
@@ -108,6 +143,7 @@ impl App {
             shot_after: args.shot_after,
             shot_asked: false,
             shot_done: Default::default(),
+            picker: false,
             stats: Stats::default(),
             #[cfg(windows)]
             hotkeys: hotkeys::Hotkeys::register(),
@@ -116,10 +152,22 @@ impl App {
 
     fn set_editing(&mut self, ctx: &egui::Context, on: bool) {
         self.editing = on;
+        self.picker = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(!on));
         if on {
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
+    }
+
+    fn general(&self) -> config::General {
+        let mut g = self.store.config.general.clone();
+        if let Some(t) = self.theme {
+            g.theme = t;
+        }
+        if self.imperial {
+            g.units = config::Units::Imperial;
+        }
+        g
     }
 }
 
@@ -152,32 +200,36 @@ impl eframe::App for App {
             self.set_editing(ctx, false);
         }
 
-        // Take what's needed and let go of the lock before drawing.
-        let (tick, field, session, status, trace, ticks) = {
-            let l = self.shared.lock().unwrap();
-            (l.tick.clone(), l.field.clone(), l.session.clone(), l.status.clone(), l.trace.iter().copied().collect::<Vec<_>>(), l.ticks)
-        };
-        let connected = status.as_ref().is_some_and(|s| s.connected);
-        let show = self.editing || connected;
-        let _ = session;
+        // Settings saved by the Tauri app, and new driver ratings.
+        self.store.poll();
+        self.ratings.poll();
+        let general = self.general();
+        let th = theme::Theme::from_general(&general);
 
-        if show {
-            let field = field.as_deref();
-            panel(ctx, "standings", Pos2::new(40.0, 40.0), widgets::standings::size(field), self.editing, |p, r| {
-                widgets::standings::draw(p, r, field)
-            });
-            panel(ctx, "relative", Pos2::new(40.0, 560.0), widgets::relative::SIZE, self.editing, |p, r| {
-                widgets::relative::draw(p, r, field)
-            });
-            let imperial = self.imperial;
-            panel(ctx, "inputs", Pos2::new(560.0, 860.0), widgets::inputs::SIZE, self.editing, |p, r| {
-                widgets::inputs::draw(p, r, tick.as_deref(), &trace, imperial)
-            });
-        }
-
-        self.stats(ctx, ticks, frame_start, status.as_deref());
+        let live = data::Live::take(&self.shared);
+        let on_track = live.tick.as_ref().is_some_and(|t| t.is_on_track);
+        let show = self.editing || (live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
+        let screen = ctx.content_rect();
         if self.editing {
-            self.edit_bar(ctx, status.as_deref());
+            edit_backdrop(ctx, screen);
+        }
+        let now = self.started.elapsed().as_secs_f64();
+        self.layout.run(frame::Frame {
+            ctx,
+            store: &mut self.store,
+            th: &th,
+            live: &live,
+            ratings: &self.ratings,
+            units: general.units,
+            editing: self.editing,
+            show,
+            now,
+            screen,
+        });
+
+        self.stats(ctx, live.ticks, frame_start, live.status.as_deref());
+        if self.editing {
+            self.edit_bar(ctx, &th, live.status.as_deref());
         }
 
         // Screenshot mode (for the README and checks without a screen).
@@ -207,28 +259,25 @@ impl eframe::App for App {
         if self.bench.is_some_and(|secs| self.started.elapsed().as_secs_f64() >= secs) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        // Keep looking for hotkeys even when no telemetry arrives.
+        // Keep looking for hotkeys and config changes even when no telemetry arrives.
         ctx.request_repaint_after(Duration::from_millis(100));
     }
 }
 
-/// One widget: an egui Area at a remembered position (draggable while
-/// editing), drawn by `draw` into a rect of `size`.
-fn panel(ctx: &egui::Context, id: &str, default: Pos2, size: Vec2, editing: bool, draw: impl FnOnce(&egui::Painter, Rect)) {
-    egui::Area::new(Id::unique(id))
-        .default_pos(default)
-        .movable(editing)
-        .constrain(true)
-        .order(egui::Order::Middle)
-        .show(ctx, |ui| {
-            let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
-            draw(ui.painter(), rect);
-            if editing {
-                let color = if response.hovered() { theme::ACCENT } else { theme::ACCENT.gamma_multiply(0.6) };
-                ui.painter().rect_stroke(rect.expand(3.0), theme::RADIUS + 2.0, Stroke::new(1.5, color), egui::StrokeKind::Outside);
-                ui.painter().text(rect.left_top() - Vec2::new(-2.0, 6.0), Align2::LEFT_BOTTOM, id, theme::bold(12.0), theme::ACCENT);
-            }
-        });
+/// The dimmed, dotted backdrop while editing (`.overlay.is-editing`).
+fn edit_backdrop(ctx: &egui::Context, screen: Rect) {
+    let p = ctx.layer_painter(LayerId::new(Order::Background, Id::unique("tenths-edit-backdrop")));
+    p.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(4, 7, 11, 97));
+    let dot = Color32::from_rgba_unmultiplied(233, 238, 243, 31);
+    let mut y = screen.top();
+    while y < screen.bottom() {
+        let mut x = screen.left();
+        while x < screen.right() {
+            p.rect_filled(Rect::from_min_size(Pos2::new(x, y), Vec2::splat(1.5)), 0.0, dot);
+            x += 24.0;
+        }
+        y += 24.0;
+    }
 }
 
 impl App {
@@ -266,42 +315,74 @@ impl App {
         let _ = ctx;
     }
 
-    fn edit_bar(&mut self, ctx: &egui::Context, status: Option<&telemetry::model::StatusPayload>) {
+    fn edit_bar(&mut self, ctx: &egui::Context, th: &theme::Theme, status: Option<&telemetry::model::StatusPayload>) {
         let s = &self.stats;
         let mut done = false;
         let mut quit = false;
+        let mut toggle: Option<(&'static str, bool)> = None;
+        let screen = ctx.content_rect();
+        let enabled = schema::WIDGETS.iter().filter(|m| self.store.config.widget(m.id).enabled).count();
+        let button = |text: &str, fill: Color32, fg: Color32| {
+            egui::Button::new(egui::RichText::new(text).font(th.bold(15.0)).color(fg)).fill(fill).corner_radius(5.0).min_size(Vec2::new(0.0, 28.0))
+        };
         egui::Area::new(Id::unique("edit-bar"))
-            .anchor(Align2::CENTER_TOP, Vec2::new(0.0, 16.0))
+            .pivot(Align2::CENTER_TOP)
+            .fixed_pos(Pos2::new(screen.center().x, screen.top() + screen.height() * 0.4))
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 egui::Frame::new()
-                    .fill(Color32::from_rgba_premultiplied(18, 21, 28, 240))
-                    .stroke(Stroke::new(1.0, theme::ACCENT))
+                    .fill(th.panel_solid)
+                    .stroke(Stroke::new(1.0, th.line_strong))
                     .corner_radius(8.0)
-                    .inner_margin(egui::Margin::symmetric(14, 8))
+                    .inner_margin(egui::Margin { left: 16, right: 8, top: 8, bottom: 8 })
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Tenths egui prototype").font(theme::bold(15.0)).color(theme::INK));
-                            ui.label(egui::RichText::new("Drag panels to move them.").font(theme::medium(14.0)).color(theme::INK2));
-                            ui.separator();
+                            ui.spacing_mut().item_spacing.x = 16.0;
+                            ui.label(egui::RichText::new("Drag to move. Drag the corner, or use − and +, to resize.").font(th.medium(15.0)).color(th.ink2));
                             ui.label(
                                 egui::RichText::new(format!(
-                                    "{:.0} MB · {:.0} fps · telemetry {:.0} Hz · UI {:.2} ms/frame · {}",
+                                    "{:.0} MB · {:.0} fps · telemetry {:.0} Hz · UI {:.2} ms · {}",
                                     s.memory_mb,
                                     s.fps,
                                     s.tick_hz,
                                     s.cpu_ms,
                                     status.map(|s| s.message.as_str()).unwrap_or("starting")
                                 ))
-                                .font(theme::medium(14.0))
-                                .color(theme::INK2),
+                                .font(th.medium(14.0))
+                                .color(th.ink3),
                             );
-                            ui.separator();
-                            done = ui.button(egui::RichText::new("Done").font(theme::bold(14.0))).clicked();
-                            quit = ui.button(egui::RichText::new("Quit").font(theme::bold(14.0))).clicked();
+                            if let Some(err) = &self.store.error {
+                                ui.label(egui::RichText::new(err).font(th.semi(14.0)).color(th.loss));
+                            }
+                            let label = format!("Widgets {enabled}/{}", schema::WIDGETS.len());
+                            if ui.add(button(&label, th.panel_raised, th.ink)).clicked() {
+                                self.picker = !self.picker;
+                            }
+                            done = ui.add(button("Done", th.ink, th.panel_solid)).clicked();
+                            quit = ui.add(button("Quit", th.panel_raised, th.ink)).clicked();
                         });
+                        if self.picker {
+                            ui.add_space(6.0);
+                            egui::Grid::new("widget-picker").num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
+                                for (i, m) in schema::WIDGETS.iter().enumerate() {
+                                    let on = self.store.config.widget(m.id).enabled;
+                                    let text = format!("{} {}", if on { "☑" } else { "☐" }, m.name);
+                                    let color = if on { th.ink } else { th.ink3 };
+                                    let b = egui::Button::new(egui::RichText::new(text).font(th.semi(15.0)).color(color)).frame(false);
+                                    if ui.add(b).clicked() {
+                                        toggle = Some((m.id, !on));
+                                    }
+                                    if i % 3 == 2 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                        }
                     });
             });
+        if let Some((id, on)) = toggle {
+            self.store.save_widget(id, &[("enabled", serde_json::json!(on))]);
+        }
         if done {
             self.set_editing(ctx, false);
         }

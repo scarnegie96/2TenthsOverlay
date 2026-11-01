@@ -1,87 +1,180 @@
-//! Relative: the cars around you on track, ahead on top, with the gap in
-//! seconds. A fixed number of rows, so the panel never changes height.
+//! Relative (`src/widgets/Relative.tsx`): the cars around you on track,
+//! ahead on top, with a fixed number of slots so the panel never changes height.
 
-use egui::{Align2, Pos2, Rect, Vec2};
-use telemetry::model::{CarStatus, FieldPayload, RelativeRow};
+use egui::{Align, Painter, Pos2, Rect, Vec2};
+use telemetry::model::{RelativeRow, SessionClock};
 
-use crate::theme::{self, *};
+use super::{Ctx, Widget};
+use crate::kit::{self, seg, Badge, Col, Seg};
+use crate::logic::format::{clock, gap, irating};
+use crate::logic::incidents;
+use crate::theme::hex_or;
 
-const AHEAD: usize = 4;
-const BEHIND: usize = 4;
-const ROW_H: f32 = 24.0;
-pub const SIZE: Vec2 = Vec2::new(380.0, TITLE_H + ROW_H * (AHEAD + BEHIND + 1) as f32 + 4.0);
+pub struct Relative;
 
-pub fn draw(painter: &egui::Painter, rect: Rect, field: Option<&FieldPayload>) {
-    let title = field.map(|f| f.clock.session_type.as_str()).filter(|s| !s.is_empty()).unwrap_or("Relative");
-    let aside = field
-        .map(|f| match f.clock.incident_limit {
-            Some(l) => format!("{}x / {}x", f.clock.incidents, l),
-            None => format!("{}x", f.clock.incidents),
-        })
-        .unwrap_or_default();
-    let body = theme::panel(painter, rect, title, &aside);
-    let rows: &[RelativeRow] = field.map(|f| f.relative.as_slice()).unwrap_or(&[]);
-    let Some(me) = rows.iter().position(|r| r.is_player) else {
-        theme::empty(painter, body, "Relative appears once you're in the car.");
-        return;
-    };
+/// Within this many seconds of the car ahead counts as a close fight.
+const CLOSE_S: f32 = 1.0;
 
-    for slot in 0..(AHEAD + BEHIND + 1) {
-        let i = me as isize + slot as isize - AHEAD as isize;
-        let top = body.top() + 2.0 + slot as f32 * ROW_H;
-        let row_rect = Rect::from_min_size(Pos2::new(body.left(), top), Vec2::new(body.width(), ROW_H));
-        if i < 0 || i as usize >= rows.len() {
-            continue;
+/// "Lap 10 of 30", or "12:34 left".
+pub fn session_aside(c: Option<&SessionClock>) -> Option<String> {
+    let c = c?;
+    if let (Some(remain), Some(total)) = (c.laps_remain, c.total_laps.filter(|t| *t > 0)) {
+        let lap = (total - remain + 1).min(total);
+        return Some(format!("Lap {} of {total}", lap.max(1)));
+    }
+    c.time_remain.map(|t| format!("{} left", clock(t)))
+}
+
+impl Widget for Relative {
+    fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2 {
+        let th = cx.th;
+        let o = cx.o;
+        let field = cx.live.field.as_deref();
+        let race = cx.live.race();
+        let ahead = o.int("ahead", 0);
+        let behind = o.int("behind", 0);
+        let (show_ir, show_lic, show_last, show_pit, show_interval, show_marks) =
+            (o.b("showIRating"), o.b("showLicense"), o.b("showLastLap"), o.b("showPit"), o.b("showInterval"), o.b("showRatings"));
+        let compounds = cx.live.compounds();
+        let show_compound = o.s("showCompound");
+        let show_tyre = show_compound == "always" || (show_compound == "auto" && compounds.len() > 1);
+
+        let rows: Vec<&RelativeRow> =
+            field.map(|f| f.relative.iter().filter(|r| show_pit || !r.on_pit_road || r.is_player).collect()).unwrap_or_default();
+        let me = rows.iter().position(|r| r.is_player);
+
+        // Header: session time or laps, SoF, then incidents against the next limit.
+        let mut aside: Vec<Seg> = Vec::new();
+        let font = kit::aside_font(th);
+        let sof = if o.b("showSoF") { field.and_then(|f| f.clock.strength_of_field) } else { None };
+        let text = [session_aside(field.map(|f| &f.clock)), sof.filter(|s| *s > 0).map(|s| format!("SoF {}", irating(s)))]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join("   ");
+        if !text.is_empty() {
+            aside.push(seg(text, font.clone(), th.ink2));
         }
-        row(painter, row_rect, &rows[i as usize]);
+        if let (true, Some(f)) = (o.b("showIncidents"), field) {
+            let count = f.clock.incidents;
+            let t = incidents::target(count, f.clock.incident_limit, o.n("incidentStep").round() as i32);
+            let (color, f2) = match t.next {
+                Some(next) if next - count <= 4 => (th.loss, th.bold(14.0)),
+                Some(next) if t.passed > 0 || count as f32 >= next as f32 * 0.75 => (th.attention, font.clone()),
+                _ => (th.ink2, font.clone()),
+            };
+            let s = match t.next {
+                Some(n) => format!("{count}x / {n}x"),
+                None => format!("{count}x"),
+            };
+            if !aside.is_empty() {
+                aside.push(seg("    ", font.clone(), th.ink2));
+            }
+            aside.push(seg(s, f2, color));
+        }
+
+        let w = if show_interval { 520.0 } else { 480.0 };
+        let title = field.map(|f| f.clock.session_type.as_str()).filter(|s| !s.is_empty()).unwrap_or("Relative");
+        let panel = kit::Panel::begin(p, th, w, Some(title), &aside);
+        let Some(me) = me else {
+            let h = kit::empty(p, th, panel.x(), panel.body_top, "Relative appears once you're in the car.");
+            let bottom = panel.body_top + h;
+            return panel.finish(p, th, bottom);
+        };
+
+        // The licence column fits its widest chip ("auto").
+        let lic_w = rows.iter().map(|r| kit::lic_width(p, th, &r.driver.license)).fold(0.0, f32::max);
+        let mut cols = vec![Col::Px(24.0), Col::Px(8.0), Col::Px(34.0), Col::Fr];
+        let mut at = |on: bool, c: Col| {
+            if on {
+                cols.push(c);
+                Some(cols.len() - 1)
+            } else {
+                None
+            }
+        };
+        let c_tyre = at(show_tyre, Col::Px(22.0));
+        let c_lic = at(show_lic, Col::Px(lic_w));
+        let c_ir = at(show_ir, Col::Px(40.0));
+        let c_last = at(show_last, Col::Px(62.0));
+        let c_gap = at(true, Col::Px(40.0)).unwrap();
+        let c_int = at(show_interval, Col::Px(40.0));
+        let x = kit::grid(panel.x(), 6.0, 10.0, 7.0, &cols);
+
+        let pad = if th.f1() { 0.0 } else { 3.0 };
+        let mut y = panel.body_top + pad;
+        let rh = th.row_h;
+        for k in -(ahead as isize)..=(behind as isize) {
+            let i = me as isize + k;
+            let rect = Rect::from_min_size(Pos2::new(panel.x().min, y), Vec2::new(panel.x().span(), rh));
+            y += rh;
+            if i < 0 || i as usize >= rows.len() {
+                continue;
+            }
+            let i = i as usize;
+            let r = rows[i];
+            // Gap to the car directly in front on track (the row above).
+            let interval = if i > 0 { Some(rows[i - 1].gap - r.gap) } else { None };
+            let cy = rect.center().y;
+            let class = hex_or(&r.driver.class_color, th.ink);
+            if r.is_player {
+                kit::player_row(p, th, rect, class);
+            }
+            kit::row_rule(p, th, rect);
+            let label = if r.class_position > 0 { r.class_position.to_string() } else { "–".into() };
+            kit::pos_cell(p, th, x[0], cy, &label, r.class_position, r.on_pit_road);
+            kit::class_bar(p, th, x[1].center(), cy, class);
+            kit::num_cell(p, th, x[2].max, cy, &r.driver.number, 15.0);
+            let ink = if r.is_player {
+                th.ink
+            } else if r.lap_status > 0 {
+                th.lapping
+            } else if r.lap_status < 0 {
+                th.lapped
+            } else {
+                th.ink
+            };
+            let mark = if show_marks && !r.is_player { cx.ratings.get(r.driver.user_id) } else { None };
+            kit::name_cell(p, th, x[3], cy, &r.driver.name, ink, r.is_player, mark, Badge::of(r.status, race), 1.0);
+            if let Some(c) = c_tyre {
+                if let Some(name) = usize::try_from(r.compound).ok().and_then(|k| compounds.get(k)).filter(|n| !n.is_empty()) {
+                    kit::tyre_badge(p, th, Pos2::new(x[c].center(), cy), 16.0, name);
+                }
+            }
+            if let Some(c) = c_lic {
+                kit::lic_chip(p, th, x[c].min, cy, &r.driver.license, hex_or(&r.driver.license_color, th.ink3));
+            }
+            if let Some(c) = c_ir {
+                kit::ir_badge(p, th, x[c], cy, Align::Max, r.driver.irating, None);
+            }
+            if let Some(c) = c_last {
+                let (font, color) = kit::last_lap_style(th, r.laps.last_flag);
+                kit::cell(p, x[c], cy, Align::Max, &crate::logic::format::lap_time(r.laps.last_lap), font, color);
+            }
+            if !r.is_player {
+                kit::cell(p, x[c_gap], cy, Align::Max, &gap(Some(r.gap), 1), th.semi(15.0), ink);
+            }
+            if let (Some(c), Some(v)) = (c_int, interval) {
+                let color = if v < CLOSE_S { th.attention } else { th.ink3 };
+                kit::cell(p, x[c], cy, Align::Max, &gap(Some(v), 1), th.medium(14.0), color);
+            }
+        }
+        panel.finish(p, th, y + pad)
     }
 }
 
-fn row(painter: &egui::Painter, r: Rect, row: &RelativeRow) {
-    let y = r.center().y;
-    if row.is_player {
-        painter.rect_filled(r.shrink2(Vec2::new(3.0, 1.0)), 3.0, PLAYER_ROW);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aside_text() {
+        let mut c = SessionClock { laps_remain: Some(21), total_laps: Some(30), ..Default::default() };
+        assert_eq!(session_aside(Some(&c)).as_deref(), Some("Lap 10 of 30"));
+        c.laps_remain = Some(40);
+        assert_eq!(session_aside(Some(&c)).as_deref(), Some("Lap 1 of 30"));
+        let c = SessionClock { time_remain: Some(754.0), ..Default::default() };
+        assert_eq!(session_aside(Some(&c)).as_deref(), Some("12:34 left"));
+        assert_eq!(session_aside(None), None);
     }
-    // Lapping you (a lap up) in red, a lap down in blue; your class in plain ink.
-    let ink = match row.lap_status {
-        s if s > 0 => LAP_UP,
-        s if s < 0 => LAP_DOWN,
-        _ => INK,
-    };
-    let dim = matches!(row.status, CarStatus::PitLane | CarStatus::PitStall | CarStatus::Out);
-    let ink = if dim { ink.gamma_multiply(0.5) } else { ink };
-
-    let mut x = r.left() + 8.0;
-    let pos = if row.class_position > 0 { row.class_position.to_string() } else { "–".into() };
-    painter.text(Pos2::new(x + 20.0, y), Align2::RIGHT_CENTER, pos, bold(15.0), ink);
-    x += 26.0;
-    theme::class_stripe(painter, Pos2::new(x + 3.0, y), 15.0, hex(&row.driver.class_color));
-    x += 10.0;
-    painter.text(Pos2::new(x, y), Align2::LEFT_CENTER, format!("#{}", row.driver.number), medium(13.0), INK3);
-    x += 36.0;
-
-    // Right-hand columns first, so the name gets what's left.
-    let right = r.right() - 10.0;
-    let gap = if row.is_player { "0.0".to_string() } else { format!("{:.1}", row.gap.abs()) };
-    painter.text(Pos2::new(right, y), Align2::RIGHT_CENTER, gap, semibold(15.0), ink);
-    theme::irating_badge(painter, Pos2::new(right - 52.0, y), row.driver.irating);
-    let status = match row.status {
-        CarStatus::PitLane | CarStatus::PitStall => "PIT",
-        CarStatus::Out => "OUT",
-        CarStatus::Track => "",
-    };
-    let name_right = right - 52.0 - 46.0;
-    if !status.is_empty() {
-        painter.text(Pos2::new(name_right, y), Align2::RIGHT_CENTER, status, bold(11.0), ACCENT);
-    }
-    let width = name_right - x - if status.is_empty() { 4.0 } else { 30.0 };
-    clipped(painter, Pos2::new(x, y), &row.driver.name, semibold(15.0), ink, width);
-}
-
-/// Draws text left-aligned at `pos`, cut short with "…" if it's wider than `width`.
-pub fn clipped(painter: &egui::Painter, pos: Pos2, text: &str, font: egui::FontId, color: egui::Color32, width: f32) {
-    let mut job = egui::text::LayoutJob::single_section(text.to_owned(), egui::TextFormat::simple(font, color));
-    job.wrap = egui::text::TextWrapping::truncate_at_width(width.max(0.0));
-    let galley = painter.layout_job(job);
-    painter.galley(Pos2::new(pos.x, pos.y - galley.size().y / 2.0), galley, color);
 }

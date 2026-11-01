@@ -32,46 +32,46 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | # | Item | Source | Status |
 |---|---|---|---|
-| F1 | Read the Tauri app's `config.json` (Windows `%APPDATA%\dev.tenths.overlay\config.json`; elsewhere the matching config dir; `--config <path>` override) as `serde_json::Value`, with every widget's `enabled`, position, `scale`, `opacity`, `options`, and `general` (units, theme, colors, showWhen) | `src/lib/config.ts` (`defaultConfig`, `normalizeConfig`), `src-tauri/src/lib.rs` (`config_path`) | ⬜ |
-| F2 | Option lookup with defaults from the `WIDGETS` schema (a Rust table of every widget's defaults) | `config.ts` `WIDGETS` | ⬜ |
-| F3 | Widget positions: anchors (`ax`/`ay`, offsets in logical px), unanchored = absolute on 1920×1080, clamped on screen; scale (zoom the panel) and opacity | `src/overlay/anchor.ts`, `WidgetFrame.tsx` | ⬜ |
-| F4 | Edit mode: drag to move, then write back `x`/`y`/`ax`/`ay` for that widget only (temp file + rename, unknown fields kept); snapping guides to other widgets and screen centre/edges | `WidgetFrame.tsx`, `snapping.ts` | ⬜ |
-| F5 | Watch `config.json` (poll mtime every second) and apply changes made by the Tauri app's settings | — | ⬜ |
-| F6 | Themes: Dark, Light, Box Box (`f1`) with every colour token, and per-theme custom colours from `general.colors`; fonts per theme (Box Box uses Titillium Web) | `src/lib/theme.ts`, `src/styles/base.css`, `overlay.css` theme blocks | ⬜ |
-| F7 | Units (metric/imperial) for speed, fuel, temperature, pressure | `src/lib/format.ts` | ⬜ |
-| F8 | `showWhen`: connected / on track; always in edit mode | `Overlay.tsx` | ⬜ |
-| F9 | `--offline` flag (no data at all) for empty-state checks | `src/lib/mock.ts` `?offline` | ⬜ |
-| F10 | Shared kit: panel chrome per theme, class stripe, car number, iRating badge (+ change pill), licence chip (letter + SR, licence colour), tyre badge (W/S/M/H from compound name), status badges (PIT/OUT), lap-time colouring (purple class fastest, green PB), rating thumb mark, sparkline, `Empty` text | `src/widgets/cells.tsx`, `Panel.tsx`, `Stints.tsx` `compoundKind` | ⬜ |
-| F11 | Driver ratings: read `driver-ratings.json` (app data dir) for the thumb marks | `src-tauri/src/ratings.rs` | ⬜ |
-| F12 | Per-widget panic safety: a panel that fails draws a small error note in edit mode, never takes the others down | `WidgetBoundary.tsx` | ⬜ |
+| F1 | Read the Tauri app's `config.json` (Windows `%APPDATA%\dev.tenths.overlay\config.json`; elsewhere the matching config dir; `--config <path>` override) as `serde_json::Value`, with every widget's `enabled`, position, `scale`, `opacity`, `options`, and `general` (units, theme, colors, showWhen) | `src/lib/config.ts` (`defaultConfig`, `normalizeConfig`), `src-tauri/src/lib.rs` (`config_path`) | ✅ |
+| F2 | Option lookup with defaults from the `WIDGETS` schema (a Rust table of every widget's defaults) | `config.ts` `WIDGETS` | ✅ |
+| F3 | Widget positions: anchors (`ax`/`ay`, offsets in logical px), unanchored = absolute on 1920×1080, clamped on screen; scale (zoom the panel) and opacity | `src/overlay/anchor.ts`, `WidgetFrame.tsx` | ✅ |
+| F4 | Edit mode: drag to move, then write back `x`/`y`/`ax`/`ay` for that widget only (temp file + rename, unknown fields kept); snapping guides to other widgets and screen centre/edges | `WidgetFrame.tsx`, `snapping.ts` | ✅ |
+| F5 | Watch `config.json` (poll mtime every second) and apply changes made by the Tauri app's settings | — | ✅ |
+| F6 | Themes: Dark, Light, Box Box (`f1`) with every colour token, and per-theme custom colours from `general.colors`; fonts per theme (Box Box uses Titillium Web) | `src/lib/theme.ts`, `src/styles/base.css`, `overlay.css` theme blocks | ✅ |
+| F7 | Units (metric/imperial) for speed, fuel, temperature, pressure | `src/lib/format.ts` | ✅ |
+| F8 | `showWhen`: connected / on track; always in edit mode | `Overlay.tsx` | ✅ |
+| F9 | `--offline` flag (no data at all) for empty-state checks | `src/lib/mock.ts` `?offline` | ✅ |
+| F10 | Shared kit: panel chrome per theme, class stripe, car number, iRating badge (+ change pill), licence chip (letter + SR, licence colour), tyre badge (W/S/M/H from compound name), status badges (PIT/OUT), lap-time colouring (purple class fastest, green PB), rating thumb mark, sparkline, `Empty` text | `src/widgets/cells.tsx`, `Panel.tsx`, `Stints.tsx` `compoundKind` | ✅ |
+| F11 | Driver ratings: read `driver-ratings.json` (app data dir) for the thumb marks | `src-tauri/src/ratings.rs` | ✅ |
+| F12 | Per-widget panic safety: a panel that fails draws a small error note in edit mode, never takes the others down | `WidgetBoundary.tsx` | ✅ |
 
 ## 1. Relative — `src/widgets/Relative.tsx`
 
 | Feature / option | Status |
 |---|---|
-| Rows from `field.relative` (gap positive ahead), fixed slot count `ahead` (3) / `behind` (3), player centred, empty slots keep height | ⬜ |
-| Title = session type; aside = session time/laps (`sessionAside`) and `SoF` (`showSoF`) | ⬜ |
-| Incidents in header (`showIncidents`), next limit via `incidentTarget` with `incidentStep` (4); amber / red tones | ⬜ |
-| Columns: position, class stripe, number, name, tyre (`showCompound` auto/always/never), licence (`showLicense`), iRating (`showIRating`), last lap (`showLastLap`, coloured), gap, interval to car ahead (`showInterval`, amber under 1 s) | ⬜ |
-| Lapping / lapped colours (lap_status), other-class dimming in multiclass, close fight highlight (`CLOSE_S`) | ⬜ |
-| Cars in pits: `showPit` filter, PIT/OUT badges, dimmed | ⬜ |
-| Rating marks (`showRatings`) | ⬜ |
-| Empty state: "Relative appears once you're in the car." | ⬜ |
+| Rows from `field.relative` (gap positive ahead), fixed slot count `ahead` (3) / `behind` (3), player centred, empty slots keep height | ✅ |
+| Title = session type; aside = session time/laps (`sessionAside`) and `SoF` (`showSoF`) | ✅ |
+| Incidents in header (`showIncidents`), next limit via `incidentTarget` with `incidentStep` (4); amber / red tones | ✅ |
+| Columns: position, class stripe, number, name, tyre (`showCompound` auto/always/never), licence (`showLicense`), iRating (`showIRating`), last lap (`showLastLap`, coloured), gap, interval to car ahead (`showInterval`, amber under 1 s) | ✅ |
+| Lapping / lapped colours (lap_status), other-class dimming in multiclass, close fight highlight (`CLOSE_S`) | ✅ (the web Relative has no other-class dimming; colours and CLOSE_S interval match it) |
+| Cars in pits: `showPit` filter, PIT/OUT badges, dimmed | ✅ |
+| Rating marks (`showRatings`) | ✅ |
+| Empty state: "Relative appears once you're in the car." | ✅ |
 
 ## 2. Standings — `src/widgets/Standings.tsx`, `src/lib/irating.ts`, `src/lib/rejoin.ts`
 
 | Feature / option | Status |
 |---|---|
-| Classes in order; your class `rows` (10) around you, others `otherClassRows` (3); `myClassOnly` | ⬜ |
-| Class headers with cars and SoF (`showSoF`) | ⬜ |
-| Gap column `gapMode` leader / interval; `+NL` laps down; leader text | ⬜ |
-| Places gained/lost vs grid (`showChange`, arrows, races only) | ⬜ |
-| Rejoin line after a stop (`showRejoin`, from `field.pitLoss`, `rejoinAfterStop`) | ⬜ |
-| iRating badge (`showIRating`) with change pill in official races (`showIRatingChange`, `iratingChanges`, port with `check-irating.ts` tests) | ⬜ |
-| Last (`showLast`) and best (`showBest`) laps with colours | ⬜ |
-| Status badges, out cars dimmed | ⬜ |
-| Rate buttons after the flag (`rateDrivers`): clickable thumbs while click-through. ⏭️ allowed if click-through regions aren't built yet; rating marks (`showRatings`) required | ⬜ |
-| Empty state | ⬜ |
+| Classes in order; your class `rows` (10) around you, others `otherClassRows` (3); `myClassOnly` | ✅ |
+| Class headers with cars and SoF (`showSoF`) | ✅ |
+| Gap column `gapMode` leader / interval; `+NL` laps down; leader text | ✅ |
+| Places gained/lost vs grid (`showChange`, arrows, races only) | ✅ |
+| Rejoin line after a stop (`showRejoin`, from `field.pitLoss`, `rejoinAfterStop`) | ✅ |
+| iRating badge (`showIRating`) with change pill in official races (`showIRatingChange`, `iratingChanges`, port with `check-irating.ts` tests) | ✅ |
+| Last (`showLast`) and best (`showBest`) laps with colours | ✅ |
+| Status badges, out cars dimmed | ✅ |
+| Rate buttons after the flag (`rateDrivers`): clickable thumbs while click-through. ⏭️ allowed if click-through regions aren't built yet; rating marks (`showRatings`) required | ⏭️ click-through regions aren't built (deferred below); rating marks are shown |
+| Empty state | ✅ |
 
 ## 3. Session — `src/widgets/Session.tsx`
 

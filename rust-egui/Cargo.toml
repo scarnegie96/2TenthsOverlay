@@ -10,9 +10,14 @@ publish = false
 
 [dependencies]
 telemetry = { path = "../crates/telemetry" }
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11"] }
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 egui = "0.37"
 image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# Twitch chat: IRC over a secure WebSocket, and emote images.
+tungstenite = { version = "0.24", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [target.'cfg(windows)'.dependencies]
 global-hotkey = "0.9"
