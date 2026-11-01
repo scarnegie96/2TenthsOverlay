@@ -171,11 +171,12 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Rows: fuel (amount, need to finish, AUTO tag), tires (pressures, compound, sets), fast repair (left), tear-off; ticked state | ⬜ |
-| Hotkey hints (`showKeys`) from `general.controls` | ⬜ |
-| Next stop / last sent message | ⬜ |
-| Pit commands (fuel/tires/repair/tear-off/clear, fuel up/down, auto fuel with `fuelMode`, `fuelStep`, `keepFuelSet`, `autoFuel`): ⏭️ allowed (needs the controls/hotkeys service); the display must be complete | ⬜ |
-| Empty state | ⬜ |
+| Rows: fuel (amount, need to finish, AUTO tag), tires (pressures, compound, sets), fast repair (left), tear-off; ticked state | ✅ |
+| Hotkey hints (`showKeys`) from `general.controls` | ✅ |
+| Next stop / servicing / problem message in the header, footer line | ✅ |
+| "Last sent" message after a hotkey, key hint lighting up when pressed | ⏭️ nothing is sent yet (needs the controls service) |
+| Pit commands (fuel/tires/repair/tear-off/clear, fuel up/down, auto fuel with `fuelMode`, `fuelStep`, `keepFuelSet`, `autoFuel`): ⏭️ allowed (needs the controls/hotkeys service); the display must be complete | ⏭️ not sent: needs the controls service. The plan maths (`fuelPlan`, `fuelToFinish`, `steppedFuel`, `autoFuelCommand`) is ported in `logic/pit.rs` with the check-pit cases |
+| Empty state | ✅ |
 
 ## 14. Flags — `src/widgets/Flags.tsx`
 
@@ -191,11 +192,11 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Track and air temperature with units, sky in header | ⬜ |
-| Track wetness bar and word, rain %, humidity % | ⬜ |
-| Trend arrows (`showTrends`, `addSample`/`trend` port) | ⬜ |
-| Wind compass (`showCompass`), `compass` car/north, wind arrow from `windDir`, car icon, cardinal letters upright, "No heading" note | ⬜ |
-| Calm wind, speed with units | ⬜ |
+| Track and air temperature with units, sky in header | ✅ |
+| Track wetness bar and word, rain %, humidity % | ✅ |
+| Trend arrows (`showTrends`, `addSample`/`trend` port) | ✅ |
+| Wind compass (`showCompass`), `compass` car/north, wind arrow from `windDir`, car icon, cardinal letters upright, "No heading" note | ✅ |
+| Calm wind, speed with units | ✅ |
 
 ## 16. Race pace — `src/widgets/RacePace.tsx`, `src/lib/raceHistory.ts`
 
@@ -210,9 +211,9 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Rows per class (`classes`, `rows`, `otherClassRows`) with tyre (`showCompound`), stint laps, stops | ⬜ |
-| Timeline (`showTimeline`) coloured by compound with stop ticks, lengths (`showLengths`), lap axis | ⬜ |
-| Partial stints, out cars, empty state | ⬜ |
+| Rows per class (`classes`, `rows`, `otherClassRows`) with tyre (`showCompound`), stint laps, stops | ✅ |
+| Timeline (`showTimeline`) coloured by compound with stop ticks, lengths (`showLengths`), lap axis | ✅ |
+| Partial stints, out cars, empty state | ✅ |
 
 ## 18. Battle — `src/widgets/Battle.tsx`, `src/lib/battle.ts`
 
