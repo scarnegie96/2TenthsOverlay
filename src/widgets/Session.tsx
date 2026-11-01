@@ -1,6 +1,7 @@
 import type React from "react";
 import { opt, type WidgetConfig } from "../lib/config";
 import { irating, type Units } from "../lib/format";
+import { incidentTarget } from "../lib/incidents";
 import { useLive } from "../lib/store";
 import type { SessionClock } from "../lib/types";
 import { Panel } from "./Panel";
@@ -108,13 +109,16 @@ function Conditions({ c, units }: { c: SessionClock | undefined; units: Units })
 }
 
 function Limits({ c }: { c: SessionClock | undefined }) {
+  // The step after the first limit is set on the Relative.
+  const step = useLive((s) => opt(s.config.widgets.relative, "incidentStep", 4));
   if (!c) return null;
-  const near = c.incidentLimit != null && c.incidents >= c.incidentLimit * 0.75;
+  const { next, passed } = incidentTarget(c.incidents, c.incidentLimit, step);
+  const near = next != null && (passed > 0 || c.incidents >= next * 0.75);
   return (
     <>
       <dt>Incidents</dt>
       <dd className={near ? "si-warn" : undefined}>
-        {c.incidents}x{c.incidentLimit != null ? ` / ${c.incidentLimit}x` : ""}
+        {c.incidents}x{next != null ? ` / ${next}x` : ""}
       </dd>
       {c.fastRepairsLimit != null && (
         <>

@@ -6,6 +6,7 @@ import type { RelativeRow, SessionClock } from "../lib/types";
 import { ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { compoundKind } from "./Stints";
+import { incidentTarget } from "../lib/incidents";
 
 export function sessionAside(c: SessionClock | undefined) {
   if (!c) return null;
@@ -48,6 +49,8 @@ export function Relative({ config }: { config: WidgetConfig }) {
   }
 
   const sof = opt(config, "showSoF", true) ? field?.clock.strengthOfField : null;
+  const showInc = opt(config, "showIncidents", true);
+  const incStep = opt(config, "incidentStep", 4);
   const cols = [
     "24px 8px 34px minmax(0, 1fr)",
     showTyre && "22px",
@@ -64,7 +67,12 @@ export function Relative({ config }: { config: WidgetConfig }) {
     <Panel
       className="relative"
       title={field?.clock.sessionType || "Relative"}
-      aside={[sessionAside(field?.clock), sof ? `SoF ${irating(sof)}` : null].filter(Boolean).join("   ")}
+      aside={
+        <>
+          {[sessionAside(field?.clock), sof ? `SoF ${irating(sof)}` : null].filter(Boolean).join("   ")}
+          {showInc && field && <Incidents count={field.clock.incidents} limit={field.clock.incidentLimit} step={incStep} />}
+        </>
+      }
     >
       {me < 0 ? (
         <Empty>Relative appears once you're in the car.</Empty>
@@ -82,6 +90,27 @@ export function Relative({ config }: { config: WidgetConfig }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Your incidents and the next limit: "4x / 17x", then "18x / 21x" once the
+ * first limit's penalty has been given. Amber from three quarters of the
+ * first limit or once past it, red within 4x of the next one.
+ */
+function Incidents({ count, limit, step }: { count: number; limit: number | null; step: number }) {
+  const { next, passed } = incidentTarget(count, limit, step);
+  const tone = next == null ? "" : next - count <= 4 ? "is-danger" : passed > 0 || count >= next * 0.75 ? "is-warn" : "";
+  const title =
+    next == null
+      ? "Your incidents (no limit this session)"
+      : passed > 0
+        ? `Your incidents. Past the ${limit}x limit; the next penalty is at ${next}x`
+        : `Your incidents, out of a limit of ${next}x`;
+  return (
+    <span className={`rel-inc ${tone}`} title={title}>
+      {count}x{next != null ? ` / ${next}x` : ""}
+    </span>
   );
 }
 

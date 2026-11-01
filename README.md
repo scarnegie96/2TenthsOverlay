@@ -78,9 +78,15 @@ relative. The header shows the lap count and your class's strength of field. Whe
 there's a choice of tyres, a badge shows the compound each car is on (W wet, S
 soft, M medium, H hard).
 
+The header also shows your incidents against the limit, for example **4x /
+17x**: amber from three quarters of the way, red within 4x. In series that
+give a penalty at the limit and carry on, the limit moves on after it (18x /
+21x, then 25x…); how many incidents apart those are is set in the widget's
+options (4 by default, 0 when the limit is the end).
+
 *Options*: how many cars ahead and behind, and whether to show iRating,
-license, last lap, the gap to the car ahead, cars in the pits and SoF, and when
-to show the tyre column.
+license, last lap, the gap to the car ahead, cars in the pits and SoF, when to show
+the tyre column, incidents, and the step between penalties after the limit.
 
 ### Standings
 
@@ -699,9 +705,9 @@ cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left
 ```
 
 Before committing, run `npm run build` (type-checks the front end), `npm run lint`
-and `cargo clippy --workspace --all-targets`. Layout validation and the
-iRating estimate have their own checks: see the top of `scripts/check-config.ts`
-and `scripts/check-irating.ts`.
+and `cargo clippy --workspace --all-targets`. Layout validation, the
+iRating estimate and the incident limits have their own checks: see the top of
+`scripts/check-config.ts`, `scripts/check-irating.ts` and `scripts/check-incidents.ts`.
 
 ## Project layout
 

@@ -97,6 +97,8 @@ export const WIDGETS: WidgetMeta[] = [
         ],
       },
       { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "For your class, in the header" },
+      { key: "showIncidents", label: "Show incidents", type: "toggle", default: true, help: "Yours and the next limit, in the header. Amber from three quarters of the limit, red within 4x of it" },
+      { key: "incidentStep", label: "After the limit, a penalty every", type: "number", default: 4, min: 0, max: 50, help: "Incidents. Many series penalise at the limit (17x) and again every few after it (21x, 25x…); the next one is shown. 0 if the limit is the end" },
     ],
   },
   {

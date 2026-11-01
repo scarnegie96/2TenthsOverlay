@@ -2769,3 +2769,16 @@
   height: 16px;
   font-size: 10px;
 }
+
+/* Incidents in the Relative's header */
+.rel-inc {
+  margin-left: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.rel-inc.is-warn {
+  color: var(--attention);
+}
+.rel-inc.is-danger {
+  color: var(--loss);
+  font-weight: 700;
+}
