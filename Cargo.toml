@@ -1,5 +1,7 @@
 [workspace]
 members = ["src-tauri", "crates/telemetry"]
+# The egui prototype builds on its own (rust-egui/Cargo.toml), so it never touches the app.
+exclude = ["rust-egui"]
 resolver = "2"
 
 [profile.release]

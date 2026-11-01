@@ -1,0 +1,35 @@
+# Builds the egui prototype (rust-egui/) for Windows and keeps the .exe as a
+# workflow artifact to download and try. Never makes a release.
+name: egui prototype
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - "rust-egui/**"
+      - "crates/telemetry/**"
+      - ".github/workflows/egui-prototype.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-egui
+      - name: Build
+        working-directory: rust-egui
+        run: cargo build --release
+      - name: Smoke test (demo race, 20 s, prints memory)
+        working-directory: rust-egui
+        run: ./target/release/tenths-egui.exe --demo --bench 20
+        continue-on-error: true
+        timeout-minutes: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tenths-egui-windows
+          path: rust-egui/target/release/tenths-egui.exe
+          retention-days: 30
