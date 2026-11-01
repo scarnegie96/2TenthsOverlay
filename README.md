@@ -659,21 +659,24 @@ own PC still check and install releases the same way.
 ### Making a release
 
 Releases are built on GitHub (`.github/workflows/release.yml`), so nothing needs
-building locally.
+building locally, and there's no tag to push.
 
-1. Set the same version in `package.json`, `src-tauri/Cargo.toml` and
-   `src-tauri/tauri.conf.json`, and commit it.
-2. Tag the commit with the release notes as the tag's message, and push the tag:
-   ```powershell
-   git tag -a v0.4.2 -m "- What changed`n- Another change"
-   git push origin v0.4.2
-   ```
-3. GitHub Actions builds the installer on Windows, signs it for the updater and
+1. Set the same new version in `package.json`, `src-tauri/Cargo.toml` and
+   `src-tauri/tauri.conf.json`.
+2. Add a section for it at the top of `CHANGELOG.md` (`## 0.4.10` and a few
+   lines): that becomes the release notes Tenths shows when it offers the update.
+3. Push to `main`. When the version in `tauri.conf.json` has no release yet,
+   GitHub Actions builds the installer on Windows, signs it for the updater, and
    publishes the release with `Tenths_<version>_x64-setup.exe`, its `.sig` and
-   `latest.json`. Running copies of Tenths see it at their next check.
+   `latest.json`, creating the `v<version>` tag as it does. Running copies of
+   Tenths see it at their next check.
 
-The build stops early if the tag doesn't match the app version, or if the
-repo's signing setup is missing.
+Pushes to `main` that don't change the version build nothing. Pushing a
+`v<version>` tag by hand still works too (its message is used if
+`CHANGELOG.md` has no section for that version), and **Run workflow** in the
+Actions tab releases the version on `main` if it hasn't been yet. The build
+stops early if a pushed tag doesn't match the app version, or if the repo's
+signing setup is missing.
 
 The installer isn't code-signed for Windows (that's a separate, paid
 certificate), so SmartScreen asks people to click **More info → Run anyway**
