@@ -64,7 +64,7 @@ pub fn make(id: &str) -> Box<dyn Widget> {
         "laplog" => Box::new(laplog::LapLog),
         "coach" => Box::new(coach::Coach),
         "dynamics" => Box::<dynamics::Dynamics>::default(),
-        "instruments" => Box::new(instruments::Instruments),
+        "instruments" => Box::<instruments::Instruments>::default(),
         "fuel" => Box::new(fuel::Fuel),
         "radar" => Box::new(radar::Radar),
         "tires" => Box::new(tires::Tires),
