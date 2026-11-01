@@ -247,12 +247,15 @@ or the auto key resume it. iRacing's own AutoFuel can't be set from the SDK
   fraction or a percentage), `Skies`, `WeatherDeclaredWet`, and `WindVel` /
   `WindDir` measured at the start/finish line. `WindDir` is read as the bearing
   the wind blows *from*, clockwise from north. The car's heading comes from
-  `YawNorth`, which turns anticlockwise like the yaw rate, so the engine sends
-  `heading = -YawNorth` wrapped to 0..2π. The widget's compass card is rotated
+  `YawNorth`, which is already a compass heading (clockwise from north; checked
+  at Spa, where the pit straight runs about 330°), so the engine sends it
+  wrapped to 0..2π. The widget's compass card is rotated
   by `-heading` so the car points up; the wind relative to the car is
   `WindDir - heading` (0 = head on, 90° = from the right), giving
-  headwind = speed·cos and crosswind = speed·sin of it. Both sign conventions
-  should be confirmed in the sim (drive north with a known wind). iRacing has no
+  headwind = speed·cos and crosswind = speed·sin of it. The wind's
+  from/towards convention still needs confirming in the sim (a hosted session
+  with a set wind direction); `examples/compass_check.rs` checks the heading
+  against GPS in any .ibt. iRacing has no
   forecast or radar variables; trend arrows compare each reading with ~3
   minutes ago, sampled every 15 s of session time (`src/lib/weather.ts`).
 

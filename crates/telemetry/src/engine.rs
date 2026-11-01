@@ -1015,11 +1015,12 @@ fn mean(q: &VecDeque<f32>) -> Option<f32> {
     (!q.is_empty()).then(|| q.iter().sum::<f32>() / q.len() as f32)
 }
 
-/// iRacing's `YawNorth` turns the same way as its yaw rate (positive = left,
-/// anticlockwise seen from above). A compass heading runs clockwise from
-/// north, so it's the negative, wrapped to 0..2π.
+/// iRacing's `YawNorth` is already a compass heading: clockwise from north
+/// (it was read as anticlockwise before 0.4.12, which mirrored the compass
+/// left to right: at Spa the pit straight, which runs north-north-west,
+/// showed as north-north-east). Only wrapped to 0..2π here.
 pub fn heading_from_yaw_north(yaw_north: f32) -> f32 {
-    (-yaw_north).rem_euclid(std::f32::consts::TAU)
+    yaw_north.rem_euclid(std::f32::consts::TAU)
 }
 
 #[cfg(test)]
@@ -1313,10 +1314,10 @@ mod tests {
         use std::f32::consts::{FRAC_PI_2, PI};
         let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
         assert!(close(heading_from_yaw_north(0.0), 0.0));
-        // Turned left (anticlockwise) a quarter: facing west.
-        assert!(close(heading_from_yaw_north(FRAC_PI_2), 3.0 * FRAC_PI_2));
-        // Turned right a quarter: facing east.
-        assert!(close(heading_from_yaw_north(-FRAC_PI_2), FRAC_PI_2));
+        // A quarter clockwise: facing east.
+        assert!(close(heading_from_yaw_north(FRAC_PI_2), FRAC_PI_2));
+        // A quarter anticlockwise: facing west.
+        assert!(close(heading_from_yaw_north(-FRAC_PI_2), 3.0 * FRAC_PI_2));
         assert!(close(heading_from_yaw_north(PI), PI));
     }
 }

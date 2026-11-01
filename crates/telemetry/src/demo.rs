@@ -413,9 +413,9 @@ impl DemoSource {
             _ => fl::GREEN,
         };
         // Heading: one clockwise lap of the compass per lap, swinging through
-        // the corners. YawNorth turns anticlockwise, so it's the negative.
+        // the corners. YawNorth is a compass heading (clockwise from north).
         let bearing = pct * std::f32::consts::TAU + 0.25 * (pct * std::f32::consts::TAU * 8.0).sin();
-        f.yaw_north = Some(-bearing);
+        f.yaw_north = Some(bearing);
         // Weather that changes slowly: a light shower comes and goes every 10
         // minutes, the track gets a little damp behind it, and the wind veers.
         let cycle = ((self.t / 600.0).fract() * std::f64::consts::TAU).sin().max(0.0) as f32;

@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.4.12
+
+- Fixed: the Weather widget's compass was mirrored left to right (iRacing's car heading was read the wrong way round), so it showed north-east when you faced north-west, and turned the wrong way in corners. The wind relative to the car was wrong with it.
+
 ## 0.4.11
 
 - Fixed: editing the layout while iRacing wasn't running showed nothing on the main display (the Relative, Stints and Battle widgets looped with no session and took every widget down with them). Fixed since 0.4.4.
