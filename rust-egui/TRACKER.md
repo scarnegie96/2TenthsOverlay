@@ -110,12 +110,12 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Laps from `field.lapLog` newest first, `rows` (8) | ⬜ |
-| Header: session best, personal best (`showPersonalBest`, with age) | ⬜ |
-| Gap column (`showDelta`) to session or personal best (`compareTo`) | ⬜ |
-| Track temp (`showTemp`), fuel used (`showFuel`) | ⬜ |
-| Flags: PB badge, pit, off-track/incident marks | ⬜ |
-| Empty state | ⬜ |
+| Laps from `field.lapLog` newest first, `rows` (8) | ✅ (newest `rows` shown with a fade when there are more; the web's edit-mode scroll isn't ported) |
+| Header: session best, personal best (`showPersonalBest`, with age) | ✅ |
+| Gap column (`showDelta`) to session or personal best (`compareTo`) | ✅ |
+| Track temp (`showTemp`), fuel used (`showFuel`) | ✅ |
+| Flags: PB badge, pit, off-track/incident marks | ✅ |
+| Empty state | ✅ |
 
 ## 7. Coach — `src/widgets/Coach.tsx`, `src/lib/coach.ts`
 
