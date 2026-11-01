@@ -163,9 +163,9 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Four corners: inner/middle/outer temps (coloured), wear %, compound and sets left | ⬜ |
-| Cold pressure (`showPressure`), units | ⬜ |
-| "Readings appear after you stop in your pit box" state; live-in-box note | ⬜ |
+| Four corners: inner/middle/outer temps (coloured), wear %, compound and sets left | ✅ |
+| Cold pressure (`showPressure`), units | ✅ |
+| "Readings appear after you stop in your pit box" state; live-in-box note | ✅ |
 
 ## 13. Pit stop — `src/widgets/PitStop.tsx`, `src/lib/pit.ts`
 
