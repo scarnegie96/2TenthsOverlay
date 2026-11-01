@@ -130,6 +130,7 @@ impl Layout {
                     th,
                     o: Opts::new(&store.config, slot.meta.id),
                     general: &store.config.general,
+                    cfg: &store.config,
                     units,
                     live,
                     ratings,

@@ -3,7 +3,7 @@
 
 use egui::{Painter, Vec2};
 
-use crate::config::{General, Opts, Units};
+use crate::config::{Config, General, Opts, Units};
 use crate::data::Live;
 use crate::ratings::Ratings;
 use crate::theme::Theme;
@@ -33,6 +33,8 @@ pub struct Ctx<'a> {
     pub th: &'a Theme,
     pub o: Opts<'a>,
     pub general: &'a General,
+    /// The whole config, for widgets that read another's options.
+    pub cfg: &'a Config,
     pub units: Units,
     pub live: &'a Live,
     pub ratings: &'a Ratings,

@@ -77,11 +77,11 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Track and config, session type, time/laps | ⬜ |
-| Field, SoF; per-class list (`showClasses`) | ⬜ |
-| Conditions (`showConditions`): time of day, air/track temp, sky, wetness, wind | ⬜ |
-| Limits (`showLimits`): incidents vs limit, fast repairs | ⬜ |
-| Empty state | ⬜ |
+| Track and config, session type, time/laps | ✅ |
+| Field, SoF; per-class list (`showClasses`) | ✅ |
+| Conditions (`showConditions`): time of day, air/track temp, sky, wetness, wind | ✅ |
+| Limits (`showLimits`): incidents vs limit, fast repairs | ✅ |
+| Empty state | ✅ |
 
 ## 4. Inputs — `src/widgets/Inputs.tsx`
 
