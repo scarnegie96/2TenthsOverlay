@@ -95,8 +95,9 @@ In races, the **+/−** column shows how many places each car has gained (green
 track before the green flag; if you join a race already under way, the
 qualifying order stands in.
 
-In official races, **±iR** is each driver's estimated iRating gain or loss if
-the race finished as it stands, worked out within each class. iRacing doesn't
+In official races, each driver's iRating badge also shows their estimated
+gain (green) or loss (red) if the race finished as it stands, worked out within
+each class. iRacing doesn't
 publish its formula, so this uses the community calculator other overlays use
 (the "iRacing SOF iRating Calculator"); it's usually within a few points.
 

@@ -713,21 +713,31 @@
 .change.is-same {
   color: var(--ink-3);
 }
-/* Estimated iRating change */
-.ir-change {
-  text-align: right;
-  font-size: 13px;
-  font-weight: 700;
+/* iRating badge with the estimated change: "2.8k | +37" as one pill. */
+.ir.has-change {
+  display: inline-flex;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.ir-value {
+  min-width: 32px;
+  padding: 0 4px;
+}
+.ir-delta {
+  min-width: 30px;
+  padding: 0 4px;
   font-variant-numeric: tabular-nums;
+  color: var(--panel-solid);
 }
-.ir-change.is-up {
-  color: var(--gain);
+.ir-delta.is-up {
+  background: var(--gain);
 }
-.ir-change.is-down {
-  color: var(--loss);
+.ir-delta.is-down {
+  background: var(--loss);
 }
-.ir-change.is-same {
-  color: var(--ink-3);
+.ir-delta.is-same {
+  background: var(--ink-3);
 }
 
 /* ---------- Inputs (driver HUD strip) ---------------------------------------- */

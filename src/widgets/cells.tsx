@@ -30,9 +30,21 @@ export function StatusBadge({ status, race }: { status: CarStatus; race: boolean
   }
 }
 
-export function IRatingBadge({ value }: { value: number }) {
+/**
+ * iRating as a light badge. With `change` (the estimated gain or loss if the
+ * race finished now), the badge carries it too: "2.8k" then "+37" in green or
+ * "−21" in red, as one pill.
+ */
+export function IRatingBadge({ value, change }: { value: number; change?: number }) {
   if (!value) return <span className="ir" />;
-  return <span className="ir">{irating(value)}</span>;
+  if (change == null) return <span className="ir">{irating(value)}</span>;
+  const v = Math.round(change);
+  return (
+    <span className="ir has-change" title={`Estimated iRating change if the race finished now: ${v > 0 ? "+" : ""}${v}`}>
+      <span className="ir-value">{irating(value)}</span>
+      <span className={`ir-delta ${v > 0 ? "is-up" : v < 0 ? "is-down" : "is-same"}`}>{v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0"}</span>
+    </span>
+  );
 }
 
 /** Last lap colored like a timing screen: purple = class fastest, green = personal best. */
