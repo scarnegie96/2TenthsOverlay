@@ -134,7 +134,7 @@ fn selftest_file() -> Vec<u8> {
             let a = speed * t / radius_m; // angle round the circle, clockwise from north
             let (north, east) = (radius_m * a.cos(), radius_m * a.sin());
             let heading = (a + PI / 2.0).rem_euclid(TAU); // clockwise travel
-            vec![lat0 + north / m_per_deg_lat, lon0 + east / m_per_deg_lon, -heading, speed, 5.5, 4.0]
+            vec![lat0 + north / m_per_deg_lat, lon0 + east / m_per_deg_lon, heading, speed, 5.5, 4.0]
         })
         .collect();
     ibt::write("WeekendInfo:\n TrackName: selftest\n", &cols, &rows)
