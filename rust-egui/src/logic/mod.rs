@@ -9,6 +9,8 @@ pub mod incidents;
 pub mod irating;
 pub mod pit;
 pub mod race_history;
+pub mod race_report;
 pub mod rejoin;
+pub mod settings_bindings;
 pub mod twitch;
 pub mod weather;

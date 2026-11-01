@@ -18,8 +18,17 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # Twitch chat: IRC over a secure WebSocket, and emote images.
 tungstenite = { version = "0.24", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
 ureq = { version = "2", default-features = false, features = ["tls"] }
+# Settings window: charts on the Races page, and the file picker for reference laps and layouts.
+egui_plot = "0.38"
+# Local dates and times on the Races and Layouts pages.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[target.'cfg(not(windows))'.dependencies]
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 
 [target.'cfg(windows)'.dependencies]
+rfd = "0.17"
+tray-icon = { version = "0.25", default-features = false }
 global-hotkey = "0.9"
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
 

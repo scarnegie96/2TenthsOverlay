@@ -48,12 +48,12 @@ Work starts once the panel agents are merged (these touch the shared files:
 
 | Item | Status |
 |---|---|
-| Tray icon and menu: Open settings, Edit layout, Show/hide overlays, Next layout, Check for updates, Quit (`tray-icon` crate) | ⬜ |
-| Single instance (a second launch focuses the first) | ⬜ |
-| Demo toggle (`general.demo`) switching the runner live | ⬜ |
-| Corrupt config: keep it aside and show a notice (as `config_notice`) | ⬜ |
-| Laps saved (`laps_dir`), personal bests across sessions | ⬜ |
-| Reference lap: import `.ibt`/`.blap`, pick a lap, save `reference.json`, load at start, clear (`inspect_lap_file`, `load_reference`, `clear_reference`) | ⬜ |
+| Tray icon and menu: Open settings, Edit layout, Show/hide overlays, Next layout, Check for updates, Quit (`tray-icon` crate) | ✅ tray-icon, Windows only (stub elsewhere, untested on Windows); Next layout is a no-op until G2/G3 adds layout switching; Check for updates ⏭️ (G7) |
+| Single instance (a second launch focuses the first) | ✅ |
+| Demo toggle (`general.demo`) switching the runner live | ✅ |
+| Corrupt config: keep it aside and show a notice (as `config_notice`) | ✅ |
+| Laps saved (`laps_dir`), personal bests across sessions | ✅ |
+| Reference lap: import `.ibt`/`.blap`, pick a lap, save `reference.json`, load at start, clear (`inspect_lap_file`, `load_reference`, `clear_reference`) | ✅ |
 
 ## G5. Settings window — `src/settings/Settings.tsx`
 
@@ -61,21 +61,21 @@ A second egui viewport (normal window, not an overlay).
 
 | Item | Status |
 |---|---|
-| General: demo, units, show-when, shortcuts list, controls button, corrupt-config notice | ⬜ |
-| Controls pane: every action, key capture and wheel-button capture (suspends hotkeys while capturing), reset | ⬜ |
-| Layouts pane: save, switch, rename, delete, import/export, shortcut numbers | ⬜ |
-| Appearance: theme, every colour token with reset, follows rules | ⬜ |
-| A pane per widget generated from `schema.rs` options (toggle / number with min/max/step/suffix / select with help / text with maxLength), enable, scale, opacity, display | ⬜ |
-| Delta pane: reference lap import (file picker via `rfd`), lap list, clear | ⬜ |
-| About: version, release notes, updates status | ⬜ |
+| General: demo, units, show-when, shortcuts list, controls button, corrupt-config notice | ✅ |
+| Controls pane: every action, key capture and wheel-button capture (suspends hotkeys while capturing), reset | ✅ key capture and reset; ⏭️ wheel-button capture UI (bindings keep and show `button`; capture needs the G1 input thread to call `feed_button`) |
+| Layouts pane: save, switch, rename, delete, import/export, shortcut numbers | ✅ files in `layouts/`; applying a switch live is G2/G3 |
+| Appearance: theme, every colour token with reset, follows rules | ✅ |
+| A pane per widget generated from `schema.rs` options (toggle / number with min/max/step/suffix / select with help / text with maxLength), enable, scale, opacity, display | ✅ |
+| Delta pane: reference lap import (file picker via `rfd`), lap list, clear | ✅ |
+| About: version, release notes, updates status | ✅ version and credits; ⏭️ release notes and updates status (G7) |
 | Streaming pane | ⏭️ the OBS pages are web pages; decide later (window capture, off-screen images or Spout) |
 
 ## G6. Race reports — `crates/telemetry/src/report.rs`, `src-tauri/src/reports.rs`, `src/settings/Races.tsx`
 
 | Item | Status |
 |---|---|
-| Saving: `reports_dir` + `general.saveReports` wired into the runner | ⬜ |
-| Races page in Settings: list, delete, report view with facts, results table, lap time / position / gap charts (`egui_plot`: hover, legend focus, zoom, pit marks), stint chart, your laps | ⬜ |
+| Saving: `reports_dir` + `general.saveReports` wired into the runner | ✅ |
+| Races page in Settings: list, delete, report view with facts, results table, lap time / position / gap charts (`egui_plot`: hover, legend focus, zoom, pit marks), stint chart, your laps | ✅ |
 
 ## G7. Updates and release
 

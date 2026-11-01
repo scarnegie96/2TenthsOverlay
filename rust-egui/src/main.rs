@@ -14,6 +14,10 @@
 //!   tenths-egui --imperial        imperial units, over the config's
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
 //!   tenths-egui --shot out.png    save a screenshot after 5 s (--shot-after N) and quit
+//!   tenths-egui --settings        open the Settings window at start (--pane <name>, --report <id>;
+//!                                 with --shot the window is drawn inside the overlay window,
+//!                                 which is what a screenshot can capture)
+//!   tenths-egui --data-dir <dir>  laps, race reports and the reference lap in another folder
 //!
 //! Ctrl+Shift+E (Windows, anywhere) or F2 (in edit mode) toggles editing.
 //! Ctrl+Shift+Q quits.
@@ -29,6 +33,8 @@ mod kit;
 mod logic;
 mod ratings;
 mod schema;
+mod settings;
+mod shell;
 mod svg;
 mod sys;
 mod theme;
@@ -49,6 +55,11 @@ struct Args {
     bench: Option<f64>,
     shot: Option<String>,
     shot_after: f64,
+    // Settings window and app shell.
+    settings: bool,
+    pane: Option<String>,
+    report: Option<String>,
+    data_dir: Option<PathBuf>,
 }
 
 fn args() -> Args {
@@ -65,11 +76,29 @@ fn args() -> Args {
         bench: value("--bench").and_then(|v| v.parse().ok()),
         shot: value("--shot"),
         shot_after: value("--shot-after").and_then(|v| v.parse().ok()).unwrap_or(5.0),
+        settings: has("--settings"),
+        pane: value("--pane"),
+        report: value("--report"),
+        data_dir: value("--data-dir").map(PathBuf::from),
     }
 }
 
 fn main() -> eframe::Result {
     let args = args();
+    // One copy at a time: a second launch asks the first to open Settings. Runs
+    // with their own config, a screenshot or a benchmark are never "the app".
+    let single = args.config.is_none() && args.shot.is_none() && args.bench.is_none() && !args.offline;
+    let listener = if single {
+        match shell::instance::claim() {
+            shell::instance::Instance::AlreadyRunning => {
+                println!("Tenths is already running: asked it to open Settings.");
+                return Ok(());
+            }
+            shell::instance::Instance::First(l) => Some(l),
+        }
+    } else {
+        None
+    };
     let viewport = egui::ViewportBuilder::default()
         .with_title("Tenths (egui)")
         .with_decorations(false)
@@ -82,7 +111,7 @@ fn main() -> eframe::Result {
         .with_inner_size([1920.0, 1080.0])
         .with_mouse_passthrough(!args.edit);
     let options = eframe::NativeOptions { viewport, ..Default::default() };
-    eframe::run_native("tenths-egui", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args)))))
+    eframe::run_native("tenths-egui", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args, listener)))))
 }
 
 struct App {
@@ -102,6 +131,14 @@ struct App {
     shot_done: std::sync::Arc<std::sync::atomic::AtomicBool>,
     picker: bool,
     stats: Stats,
+    // App shell (shell/) and the Settings window (settings/).
+    control: telemetry::runner::RunnerControl,
+    /// `--demo` (and every non-Windows run): the demo race whatever the setting says.
+    force_demo: bool,
+    shell: shell::Shell,
+    settings: settings::SettingsWindow,
+    overlays_visible: bool,
+    tray_synced: bool,
     #[cfg(windows)]
     hotkeys: Option<hotkeys::Hotkeys>,
 }
@@ -122,14 +159,36 @@ struct Stats {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, args: Args, listener: Option<shell::instance::Listener>) -> Self {
         theme::install_fonts(&cc.egui_ctx);
-        let path = args.config.clone().or_else(config::default_path);
-        let store = config::Store::open(path);
+        // eframe can't screenshot a second window: for a --shot of Settings, draw it inside this one.
+        if args.settings && args.shot.is_some() {
+            cc.egui_ctx.set_embed_viewports(true);
+        }
+        let paths = shell::Paths::new(args.config.clone(), args.data_dir.clone());
+        // A config.json that can't be read is kept aside, and Settings says so.
+        let notice = paths.config.as_deref().and_then(shell::keep_corrupt_config);
+        let store = config::Store::open(paths.config.clone());
         // The Tauri app's "demo" setting counts too.
         let demo = args.demo || store.config.general.demo;
-        let (shared, _control) = data::start(cc.egui_ctx.clone(), demo, args.offline);
+        let (shared, control) = data::start_with(cc.egui_ctx.clone(), demo, args.offline, |c| shell::setup_runner(&paths, c));
+        let shell = shell::Shell::new(paths, notice);
+        if let Some(l) = listener {
+            l.serve(shell.sender(), cc.egui_ctx.clone());
+        }
+        let launch = settings::Launch {
+            open: args.settings,
+            pane: args.pane.as_deref().and_then(settings::Pane::parse),
+            report: args.report.clone(),
+        };
+        let settings = settings::SettingsWindow::new(&shell, launch);
         Self {
+            control,
+            force_demo: args.demo,
+            shell,
+            settings,
+            overlays_visible: !(args.settings && args.shot.is_some()),
+            tray_synced: false,
             shared,
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
@@ -154,6 +213,9 @@ impl App {
     fn set_editing(&mut self, ctx: &egui::Context, on: bool) {
         self.editing = on;
         self.picker = false;
+        if on {
+            self.overlays_visible = true;
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(!on));
         if on {
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -201,15 +263,28 @@ impl eframe::App for App {
             self.set_editing(ctx, false);
         }
 
+        if !std::mem::replace(&mut self.tray_synced, true) {
+            self.update_tray_shortcuts();
+        }
+        // What the tray and a second launch ask for.
+        for r in self.shell.poll() {
+            self.handle(ctx, r);
+        }
+
         // Settings saved by the Tauri app, and new driver ratings.
-        self.store.poll();
+        if self.store.poll() {
+            self.control.save_reports.store(shell::save_reports_setting(self.shell.paths.config.as_deref()), std::sync::atomic::Ordering::Relaxed);
+            self.update_tray_shortcuts();
+        }
+        // The demo race on or off at once, from this or the Tauri app's settings.
+        self.control.demo.store(self.force_demo || self.store.config.general.demo, std::sync::atomic::Ordering::Relaxed);
         self.ratings.poll();
         let general = self.general();
         let th = theme::Theme::from_general(&general);
 
         let live = data::Live::take(&self.shared);
         let on_track = live.tick.as_ref().is_some_and(|t| t.is_on_track);
-        let show = self.editing || (live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
+        let show = self.overlays_visible && self.editing || self.overlays_visible && (live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
         let screen = ctx.content_rect();
         if self.editing {
             edit_backdrop(ctx, screen);
@@ -231,6 +306,24 @@ impl eframe::App for App {
         self.stats(ctx, live.ticks, frame_start, live.status.as_deref());
         if self.editing {
             self.edit_bar(ctx, &th, live.status.as_deref());
+        }
+
+        // The Settings window, when it's open.
+        let requests = self.settings.show(
+            ctx,
+            settings::Env {
+                store: &mut self.store,
+                live: &live,
+                control: &self.control,
+                shell: &self.shell,
+                general: &general,
+                editing: self.editing,
+                overlays_visible: self.overlays_visible,
+                displays: &[],
+            },
+        );
+        for r in requests {
+            self.handle(ctx, r);
         }
 
         // Screenshot mode (for the README and checks without a screen).
@@ -262,6 +355,30 @@ impl eframe::App for App {
         }
         // Keep looking for hotkeys and config changes even when no telemetry arrives.
         ctx.request_repaint_after(Duration::from_millis(100));
+    }
+}
+
+impl App {
+    /// What the tray, a second launch or the Settings window ask of the overlay window.
+    fn handle(&mut self, ctx: &egui::Context, r: shell::Request) {
+        use shell::Request::*;
+        match r {
+            OpenSettings => self.settings.show_pane(None),
+            OpenAbout => self.settings.show_pane(Some(settings::Pane::About)),
+            ToggleEdit => self.set_editing(ctx, !self.editing),
+            ToggleOverlays => self.overlays_visible = !self.overlays_visible,
+            // Integration point (layouts and displays, G2/G3): switch to the next saved layout.
+            NextLayout => {}
+            Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+        }
+    }
+
+    /// The tray's items carry their shortcuts, as in the Tauri app.
+    fn update_tray_shortcuts(&mut self) {
+        use logic::settings_bindings as bind;
+        let all = bind::from_json(&self.store.config.general.controls);
+        let key = |id: &str| all.iter().find(|(a, _)| a.id == id).and_then(|(_, b)| b.key.as_ref()).map(bind::key_label);
+        self.shell.set_tray_shortcuts(&[("overlay.edit", key("overlay.edit")), ("overlay.toggle", key("overlay.toggle")), ("layout.next", key("layout.next"))]);
     }
 }
 
