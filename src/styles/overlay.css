@@ -2860,3 +2860,65 @@
 .pit-auto.is-paused {
   background: var(--ink-3);
 }
+
+/* ---------- Twitch chat (experimental) ------------------------------------------ */
+
+.twitch-chat {
+  width: 340px;
+}
+.tc-status::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  vertical-align: 1px;
+}
+.tc-status.is-connected::before {
+  background: var(--gain);
+}
+.tc-status.is-error::before,
+.tc-status.is-reconnecting::before {
+  background: var(--attention);
+}
+.tc-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 8px 10px 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.tc-name {
+  font-weight: 700;
+}
+.tc-msg.is-action .tc-text {
+  font-style: italic;
+}
+.tc-emote {
+  height: 20px;
+  margin: -3px 1px;
+  vertical-align: middle;
+}
+.edit-widget-exp {
+  color: var(--attention);
+}
+
+/* ---------- OBS pages (experimental) --------------------------------------------- */
+
+.stream-body {
+  background: transparent;
+}
+.stream-one {
+  display: inline-block;
+  transform-origin: top left;
+}
+.stream-help {
+  margin: 2em;
+  color: #fff;
+  font: 16px system-ui, sans-serif;
+}

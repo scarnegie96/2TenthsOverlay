@@ -124,6 +124,7 @@ export function Overlay() {
                     title={m.description} onClick={() => commit(m.id, { enabled: !on })}>
                     <span className="edit-widget-check" aria-hidden />
                     {m.name}
+                    {m.experimental && <small className="edit-widget-exp"> exp</small>}
                   </button>
                 );
               })}

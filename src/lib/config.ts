@@ -4,7 +4,7 @@ import type { ColorKey, Theme } from "./theme";
 
 export type WidgetId =
   | "relative" | "standings" | "session" | "inputs" | "delta" | "laplog" | "coach" | "dynamics" | "instruments" | "fuel"
-  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace" | "stints";
+  | "radar" | "tires" | "pitstop" | "flags" | "weather" | "racepace" | "stints" | "twitch";
 
 export type AnchorX = "l" | "c" | "r";
 export type AnchorY = "t" | "m" | "b";
@@ -46,6 +46,8 @@ export interface GeneralConfig {
   controls: Record<ActionId, ControlBinding>;
   /** Look for a new version of Tenths after starting and every few hours. */
   checkUpdates: boolean;
+  /** Experimental: the widgets as web pages for OBS (src-tauri/src/stream.rs). */
+  streaming: { enabled: boolean; port: number };
 }
 
 export interface AppConfig {
@@ -71,6 +73,8 @@ export interface WidgetMeta {
   y: number;
   enabled: boolean;
   options: OptionSpec[];
+  /** Still being tried out: marked as such in Settings and the edit bar. */
+  experimental?: boolean;
 }
 
 export const WIDGETS: WidgetMeta[] = [
@@ -407,6 +411,19 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "alwaysShow", label: "Always visible", type: "toggle", default: false, help: "Shows the dark board when there's no flag" },
     ],
   },
+  {
+    id: "twitch",
+    name: "Twitch chat",
+    description: "A Twitch channel's live chat, read-only, so you can see it without leaving the car. Newest at the bottom.",
+    x: 620, y: 300, enabled: false,
+    experimental: true,
+    options: [
+      { key: "channel", label: "Channel", type: "text", default: "", maxLength: 60, help: "Your channel name, or its twitch.tv link. No login needed: chat is read the way anyone watching can" },
+      { key: "rows", label: "Messages", type: "number", default: 10, min: 3, max: 30 },
+      { key: "fadeAfter", label: "Hide messages after", type: "number", default: 60, min: 0, max: 600, suffix: "s", help: "So it stays quiet when chat is. 0 keeps them" },
+      { key: "showEmotes", label: "Show emotes", type: "toggle", default: true },
+    ],
+  },
 ];
 
 export const widgetMeta = (id: WidgetId) => WIDGETS.find((w) => w.id === id)!;
@@ -422,12 +439,15 @@ export function defaultWidgetConfig(meta: WidgetMeta): WidgetConfig {
 export function defaultConfig(): AppConfig {
   return {
     version: 1,
-    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls(), checkUpdates: true },
+    general: { demo: false, units: "metric", showWhen: "connected", theme: "dark", colors: { dark: {}, light: {}, f1: {} }, activeProfile: null, controls: defaultControls(), checkUpdates: true, streaming: { enabled: false, port: STREAM_PORT } },
     widgets: Object.fromEntries(WIDGETS.map((m) => [m.id, defaultWidgetConfig(m)])) as AppConfig["widgets"],
   };
 }
 
 // --- Checking saved and imported configs -----------------------------------
+
+/** Where the OBS pages are served by default (src-tauri/src/stream.rs). */
+export const STREAM_PORT = 7457;
 
 /** Same limits as the sliders in the settings window. */
 export const SCALE_MIN = 0.5;
@@ -498,6 +518,13 @@ export function normalizeConfig(raw: unknown): AppConfig {
     activeProfile: typeof g.activeProfile === "string" ? g.activeProfile : base.general.activeProfile,
     controls: { ...base.general.controls },
     checkUpdates: typeof g.checkUpdates === "boolean" ? g.checkUpdates : base.general.checkUpdates,
+    streaming: {
+      enabled: isObject(g.streaming) && g.streaming.enabled === true,
+      port:
+        isObject(g.streaming) && isNum(g.streaming.port) && g.streaming.port >= 1024 && g.streaming.port <= 65535
+          ? Math.round(g.streaming.port)
+          : STREAM_PORT,
+    },
   };
   if (isObject(g.colors)) {
     for (const t of THEME_IDS) {

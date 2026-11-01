@@ -25,9 +25,12 @@ layout turns on fewer, and you can place each one wherever you like.
 
 ## Features
 
-- **17 widgets**: timing tables, a race pace chart, everyone's stints, a lap
+- **18 widgets**: timing tables, a race pace chart, everyone's stints, a lap
   delta graph, a lap log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
-  weather, a radar and an LED flag board. Each one has its own options.
+  weather, a radar, an LED flag board and (experimental) Twitch chat. Each one has its own options.
+- **Streaming (experimental)**: every widget as a transparent web page for an OBS
+  Browser Source, fed live by the app, so your stream shows them without screen
+  capture.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
   litres more or less, or let auto fuel keep it at enough to finish), tires, fast repair and a tear-off for your next stop
   without opening iRacing's pit menu, and see what iRacing has ticked.
@@ -407,6 +410,46 @@ the flag's color says what it means.
 to three letters for the safety car board, how long green shows, and whether
 the empty board stays visible.
 
+### Twitch chat (experimental)
+
+![Twitch chat widget](docs/widgets/twitch.png)
+
+A Twitch channel's live chat, so you can read it without leaving the car. Set
+your channel name (or paste its twitch.tv link) in the widget's settings. No
+login is needed: Tenths reads chat the way anyone watching can, and can't post.
+Newest messages are at the bottom, with names in their Twitch colours and
+emotes as pictures. Messages hide after a minute by default, so the panel goes
+quiet when chat does, and anything a moderator deletes (or a timed-out user's
+messages) disappears here too. The dot by the channel is green when connected.
+Off by default.
+
+*Options*: channel, how many messages, how long before they hide (0 keeps
+them), and emotes.
+
+## Streaming (experimental)
+
+![Settings: Streaming](docs/settings/streaming.png)
+
+Put the widgets on stream without capturing your screen. In **Settings →
+Streaming**, turn on **Serve the widgets to OBS** and Tenths serves each widget
+as a web page with a transparent background and the same live data as the
+overlay. In OBS add a **Browser Source** with one of the addresses listed there:
+
+| Address | Shows |
+| ------- | ----- |
+| `http://127.0.0.1:7457/stream.html?widget=relative` | One widget at the top left; any widget's id works (`standings`, `delta`, `twitch`…). Add `&scale=1.5` to make it bigger |
+| `http://127.0.0.1:7457/stream.html?layout` | Every widget on your main display, where it is on screen. Size the source like the display (1920×1080 for 4K at 200%) |
+| `…?layout&display=2` | The same for display 2 |
+
+Leave "Shutdown source when not visible" off so the page stays connected. The
+pages follow the app's layout, theme and options, and they never take the
+mouse or change anything. The server only listens on `127.0.0.1`, so nothing
+outside your PC can open it; change the port there if another program uses
+7457.
+
+Both are marked experimental in Settings: they're new, so expect rough edges and
+changes.
+
 ## The app
 
 Tenths runs in the background with an icon in the system tray. It has two
@@ -423,8 +466,8 @@ it; Tenths keeps running until you quit it from the tray.
 
 Along the top of the settings window are the connection status (Waiting for
 iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
-**Edit layout**. Down the side are the General, Layouts, Appearance, Controls
-and About pages (About has the version and updates, with a dot when there's
+**Edit layout**. Down the side are the General, Layouts, Appearance, Controls,
+Streaming and About pages (About has the version and updates, with a dot when there's
 a new one), then a page for each widget with a dot showing whether it's on.
 
 ### General
@@ -723,6 +766,7 @@ URL parameters help too:
 | `?pits`         | Keeps one GT3 car in the pit lane, so the pit symbol shows |
 | `?displays=2`   | Adds a second display; `&display=2` makes the tab that display's overlay |
 | `?finished`    | You've taken the flag: the Standings shows the thumbs for rating drivers |
+| `?chat`        | The Twitch chat widget plays a made-up chat instead of connecting |
 | `?update`      | Settings → About: **Check now** finds a pretend newer version, and installing it shows the progress |
 | `?corrupt`     | Settings shows the notice for a settings file that couldn't be read |
 
@@ -745,9 +789,9 @@ cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left
 
 Before committing, run `npm run build` (type-checks the front end), `npm run lint`
 and `cargo clippy --workspace --all-targets`. Layout validation, the
-iRating estimate, the incident limits and auto fuel have their own checks: see
-the top of `scripts/check-config.ts`, `scripts/check-irating.ts`,
-`scripts/check-incidents.ts` and `scripts/check-pit.ts`.
+iRating estimate, the incident limits, auto fuel and the Twitch chat parser have
+their own checks: see the top of `scripts/check-config.ts`, `scripts/check-irating.ts`,
+`scripts/check-incidents.ts`, `scripts/check-pit.ts` and `scripts/check-twitch.ts`.
 
 ## Project layout
 

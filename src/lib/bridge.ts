@@ -8,9 +8,52 @@ import type { Controller, Display, IbtSummary, PitCommand, Profile, ProfileSumma
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+/**
+ * An OBS page served by the app itself (src-tauri/src/stream.rs): live data
+ * comes as Server-Sent Events from /events, and it can only read.
+ */
+export const isStream = !isTauri && typeof location !== "undefined" && location.pathname.endsWith("/stream.html");
+
 type Unlisten = () => void;
 
+let source: EventSource | null = null;
+const streamHandlers = new Map<string, Set<(payload: unknown) => void>>();
+
+function streamOn(event: string, handler: (payload: unknown) => void): Unlisten {
+  source ??= new EventSource("/events");
+  let set = streamHandlers.get(event);
+  if (!set) {
+    const handlers = new Set<(payload: unknown) => void>();
+    streamHandlers.set(event, handlers);
+    source.addEventListener(event, (e) => {
+      const payload = JSON.parse((e as MessageEvent<string>).data);
+      handlers.forEach((h) => h(payload));
+    });
+    set = handlers;
+  }
+  set.add(handler);
+  return () => set.delete(handler);
+}
+
+/** What an OBS page may ask the app for, and where. Everything else does nothing there. */
+const STREAM_API: Record<string, string> = {
+  get_snapshot: "snapshot",
+  load_config: "config",
+  get_displays: "displays",
+  list_profiles: "profiles",
+  get_driver_ratings: "driver_ratings",
+};
+
+async function streamCall(cmd: string): Promise<unknown> {
+  const path = STREAM_API[cmd];
+  if (!path) return cmd === "my_display" ? null : undefined;
+  const r = await fetch(`/api/${path}`);
+  if (!r.ok) throw new Error(`${cmd}: ${r.status}`);
+  return r.json();
+}
+
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<Unlisten> {
+  if (isStream) return streamOn(event, handler as (p: unknown) => void);
   if (isTauri) {
     const { listen } = await import("@tauri-apps/api/event");
     return listen<T>(event, (e) => handler(e.payload));
@@ -20,6 +63,7 @@ export async function on<T>(event: string, handler: (payload: T) => void): Promi
 }
 
 export async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (isStream) return streamCall(cmd) as Promise<T>;
   if (isTauri) {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<T>(cmd, args);
@@ -89,6 +133,8 @@ export const api = {
     call<void>("set_driver_rating", { userId, name, rating }),
   /** Lets this overlay take the mouse, for clickable parts of widgets outside edit mode. */
   setClickable: (clickable: boolean) => call<void>("set_clickable", { clickable }),
+  /** The OBS pages' port while the streaming server is on, else null. */
+  streamPort: () => call<number | null>("stream_port"),
 
   listProfiles: () => call<ProfileSummary[]>("list_profiles"),
   getProfile: (id: string) => call<Profile>("get_profile", { id }),

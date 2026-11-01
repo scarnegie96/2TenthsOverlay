@@ -284,6 +284,8 @@ class Mock {
         return null;
       case "set_clickable":
         return;
+      case "stream_port":
+        return null;
       case "get_driver_ratings":
         try {
           return JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}");

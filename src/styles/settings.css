@@ -612,3 +612,38 @@ kbd {
   padding: 3px 8px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Experimental features */
+.tag-experimental {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--attention);
+  border-radius: 3px;
+  color: var(--attention);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+.tag-experimental.is-big {
+  margin-left: 10px;
+  font-size: 12px;
+  vertical-align: 5px;
+}
+
+/* Streaming pane */
+.stream-url {
+  max-width: 330px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.stream-port {
+  width: 90px;
+}
+.note.is-warn {
+  color: var(--attention);
+}

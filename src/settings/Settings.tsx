@@ -14,7 +14,7 @@ import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } f
 import { COLOR_GROUPS, THEMES, THEME_COLORS, effectiveColor, type ColorKey } from "../lib/theme";
 import type { ButtonPress, Controller, IbtSummary, UpdateProgress, UpdateStatus } from "../lib/types";
 
-type Pane = "general" | "layouts" | "appearance" | "controls" | "about" | WidgetId;
+type Pane = "general" | "layouts" | "appearance" | "controls" | "streaming" | "about" | WidgetId;
 
 export function Settings() {
   // Browser preview: ?pane=controls opens a page directly, for README screenshots.
@@ -45,6 +45,12 @@ export function Settings() {
         <NavItem active={pane === "controls"} onClick={() => setPane("controls")}>
           Controls
         </NavItem>
+        <NavItem active={pane === "streaming"} onClick={() => setPane("streaming")}>
+          <span>
+            Streaming
+            <span className="tag-experimental" title="Experimental: still being tried out">Exp</span>
+          </span>
+        </NavItem>
         <NavItem active={pane === "about"} onClick={() => setPane("about")}>
           About
           {updates?.available && <span className="dot is-update" aria-label="update available" />}
@@ -52,7 +58,10 @@ export function Settings() {
         <div className="nav-heading">Widgets</div>
         {WIDGETS.map((w) => (
           <NavItem key={w.id} active={pane === w.id} onClick={() => setPane(w.id)}>
-            {w.name}
+            <span>
+              {w.name}
+              {w.experimental && <span className="tag-experimental" title="Experimental: still being tried out">Exp</span>}
+            </span>
             <span className={`dot ${config.widgets[w.id].enabled ? "is-on" : ""}`} aria-label={config.widgets[w.id].enabled ? "shown" : "hidden"} />
           </NavItem>
         ))}
@@ -64,6 +73,7 @@ export function Settings() {
           : pane === "appearance" ? <AppearancePane />
           : pane === "controls" ? <ControlsPane />
           : pane === "about" ? <AboutPane status={updates} />
+          : pane === "streaming" ? <StreamingPane />
           : <WidgetPane id={pane} />}
       </main>
     </div>
@@ -214,6 +224,99 @@ function GeneralPane({ onControls }: { onControls: () => void }) {
         </Field>
       </Section>
       {!isTauri && <p className="note">Browser preview: settings are saved in this browser only.</p>}
+    </>
+  );
+}
+
+/** Experimental: the widgets as web pages for an OBS Browser Source (src-tauri/src/stream.rs). */
+function StreamingPane() {
+  const st = useLive((s) => s.config.general.streaming);
+  const displays = useLive((s) => s.displays);
+  const [running, setRunning] = useState<number | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  // The server starts or stops as the setting is saved; check what it's doing.
+  useEffect(() => {
+    let live = true;
+    const t = window.setTimeout(() => void api.streamPort().then((p) => live && setRunning(p ?? null)).catch(() => {}), 400);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [st.enabled, st.port]);
+
+  const base = `http://127.0.0.1:${st.port}/stream.html`;
+  const copy = (url: string) => {
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(url);
+      window.setTimeout(() => setCopied((c) => (c === url ? null : c)), 1500);
+    });
+  };
+  const Url = ({ label, url, help }: { label: string; url: string; help?: string }) => (
+    <Field label={label} help={help}>
+      <code className="stream-url">{url}</code>
+      <button className="btn" onClick={() => copy(url)}>{copied === url ? "Copied" : "Copy"}</button>
+    </Field>
+  );
+
+  return (
+    <>
+      <h1>
+        Streaming
+        <span className="tag-experimental is-big">Experimental</span>
+      </h1>
+      <p className="lede">
+        Show the widgets on stream without capturing your screen: Tenths serves each one as a web page for an OBS
+        Browser Source, with a transparent background and the same live data as the overlay.
+      </p>
+      <p className="note">Experimental: this is new and may change or have rough edges.</p>
+      <Section title="Pages for OBS">
+        <Field label="Serve the widgets to OBS" help="Only this PC can open them (they're on 127.0.0.1), and they can't change anything in Tenths.">
+          <Toggle checked={st.enabled} onChange={(enabled) => setGeneral({ streaming: { ...st, enabled } })} />
+        </Field>
+        <Field label="Port" help="Change it if another program already uses this one.">
+          <input className="text-input stream-port" type="number" min={1024} max={65535} value={st.port}
+            onChange={(e) => {
+              const port = Math.round(Number(e.target.value));
+              if (port >= 1024 && port <= 65535) setGeneral({ streaming: { ...st, port } });
+            }} />
+        </Field>
+        {st.enabled && (
+          <p className={`note ${running === st.port ? "" : "is-warn"}`}>
+            {running === st.port
+              ? `Running at http://127.0.0.1:${st.port}.`
+              : isTauri
+                ? `Not running yet. If it doesn't start, port ${st.port} may be in use: try another.`
+                : "The pages are served by the desktop app."}
+          </p>
+        )}
+      </Section>
+
+      {st.enabled && (
+        <>
+          <Section title="Whole layout">
+            {(displays.length ? displays : [null]).map((d, i) => (
+              <Url key={d?.key ?? i} label={d ? displayName(d) : "Main display"}
+                url={`${base}?layout${i ? `&display=${i + 1}` : ""}`}
+                help={d ? `Browser Source size: ${Math.round(d.width / d.scale)} × ${Math.round(d.height / d.scale)}, so widgets sit where they are on screen` : undefined} />
+            ))}
+          </Section>
+          <Section title="One widget">
+            {WIDGETS.map((w) => (
+              <Url key={w.id} label={w.name} url={`${base}?widget=${w.id}`} />
+            ))}
+            <p className="note">
+              Add <code>&scale=1.5</code> for a bigger widget. Size the Browser Source to fit, or larger: the background is
+              transparent.
+            </p>
+          </Section>
+          <Section title="In OBS">
+            <p className="note">
+              Sources → + → Browser. Paste an address as the URL, set the width and height, and leave "Shutdown source when
+              not visible" off so it stays connected. Widgets follow this app's layout, theme and options.
+            </p>
+          </Section>
+        </>
+      )}
     </>
   );
 }
@@ -750,8 +853,14 @@ function WidgetPane({ id }: { id: WidgetId }) {
 
   return (
     <>
-      <h1>{meta.name}</h1>
+      <h1>
+        {meta.name}
+        {meta.experimental && <span className="tag-experimental is-big">Experimental</span>}
+      </h1>
       <p className="lede">{meta.description}</p>
+      {meta.experimental && (
+        <p className="note">Experimental: this is new and may change or have rough edges.</p>
+      )}
       <Section title="Display">
         <Field label="Show this widget">
           <Toggle checked={w.enabled} onChange={(enabled) => setWidget(id, (x) => ({ ...x, enabled }))} />

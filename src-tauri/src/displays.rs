@@ -153,6 +153,7 @@ pub fn sync(app: &AppHandle) -> bool {
     *state.windows.lock().unwrap() = windows;
     *state.list.lock().unwrap() = list.clone();
     let _ = app.emit("displays-changed", &list);
+    app.state::<crate::stream::StreamHub>().publish("displays-changed", &list);
     true
 }
 

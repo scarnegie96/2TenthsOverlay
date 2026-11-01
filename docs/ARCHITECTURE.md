@@ -321,6 +321,25 @@ or the auto key resume it. iRacing's own AutoFuel can't be set from the SDK
   `set_clickable` only while the mouse is over one, which also makes the
   window non-focusable so iRacing keeps the keyboard.
 
+- **Streaming (experimental)** (`stream.rs`, `stream.html`, `src/stream/`):
+  with `general.streaming.enabled`, a std-only HTTP server on
+  `127.0.0.1:<port>` (default 7457; Host header must be 127.0.0.1 or localhost
+  to stop DNS rebinding) serves the bundled pages via the asset resolver, `GET
+  /api/{snapshot,config,displays,profiles,driver_ratings}`, and `/events` as
+  Server-Sent Events. `TauriSink`, `save_config`, `set_driver_rating` and
+  `displays::sync` publish to the `StreamHub`, which does nothing with no
+  pages connected, thins ticks to 30 a second, and drops messages for a page
+  more than 512 behind. In the front end `isStream` (a page at `/stream.html`)
+  makes `on` use one `EventSource` and `call` use the read-only API; other
+  commands do nothing. `?widget=<id>` draws one widget, `?layout[&display=N]`
+  the display's widgets through `WidgetFrame`. The server starts, stops or
+  moves port whenever the config is saved. In `tauri dev`, pages come from
+  `dist/`, so build the front end first.
+- **Twitch chat (experimental)** (`src/lib/twitch.ts`): anonymous read-only IRC
+  over `wss://irc-ws.chat.twitch.tv` (`justinfan` login, IRCv3 tags for
+  colour, display name and emotes), reconnecting with back-off; `CLEARMSG` and
+  `CLEARCHAT` remove messages. Emotes are images from Twitch's CDN.
+
 ## Front end (`src`)
 
 - `lib/bridge.ts` calls Tauri when present and `lib/mock.ts` in a plain browser.

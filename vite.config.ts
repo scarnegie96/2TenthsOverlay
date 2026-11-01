@@ -19,6 +19,7 @@ export default defineConfig({
       input: {
         overlay: "overlay.html",
         settings: "settings.html",
+        stream: "stream.html",
       },
     },
   },

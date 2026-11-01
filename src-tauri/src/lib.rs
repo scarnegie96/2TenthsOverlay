@@ -6,6 +6,7 @@ mod controls;
 mod displays;
 mod profiles;
 mod ratings;
+mod stream;
 mod updates;
 
 use std::fs;
@@ -54,31 +55,42 @@ pub(crate) struct AppState {
     config_notice: Mutex<Option<String>>,
 }
 
-/// Forwards telemetry to the web views.
+/// Forwards telemetry to the web views, and to any OBS pages (stream.rs).
 struct TauriSink {
     app: AppHandle,
     latest: Arc<Mutex<Snapshot>>,
+}
+
+impl TauriSink {
+    fn stream(&self) -> tauri::State<'_, stream::StreamHub> {
+        self.app.state::<stream::StreamHub>()
+    }
 }
 
 impl Sink for TauriSink {
     fn status(&self, status: &StatusPayload) {
         self.latest.lock().unwrap().status = Some(status.clone());
         let _ = self.app.emit("status", status);
+        self.stream().publish("status", status);
     }
     fn reference(&self, reference: &ReferencePayload) {
         self.latest.lock().unwrap().reference = Some(reference.clone());
         let _ = self.app.emit("reference", reference);
+        self.stream().publish("reference", reference);
     }
     fn session(&self, session: &SessionPayload) {
         self.latest.lock().unwrap().session = Some(session.clone());
         let _ = self.app.emit("session", session);
+        self.stream().publish("session", session);
     }
     fn tick(&self, tick: &TickPayload) {
         // 60 Hz data only goes to the overlays.
         displays::emit_overlays(&self.app, "tick", tick);
+        self.stream().publish("tick", tick);
     }
     fn field(&self, field: &FieldPayload) {
         let _ = self.app.emit("field", field);
+        self.stream().publish("field", field);
     }
 }
 
@@ -151,14 +163,29 @@ fn save_config(app: AppHandle, state: State<AppState>, config: Value) -> Result<
     fs::write(&tmp, text).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     let _ = app.emit("config-changed", &config);
+    let hub = app.state::<stream::StreamHub>();
+    hub.publish("config-changed", &config);
+    hub.apply(&app, &config);
     Ok(())
+}
+
+/// The saved config as it is on disk (None if missing or unreadable), for the OBS pages.
+pub(crate) fn read_config(app: &AppHandle) -> Option<Value> {
+    let text = fs::read_to_string(config_path(app).ok()?).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// The streaming server's port while it's running.
+#[tauri::command]
+fn stream_port(state: State<stream::StreamHub>) -> Option<u16> {
+    state.port()
 }
 
 // ---------------------------------------------------------------------------
 // Saved layouts
 // ---------------------------------------------------------------------------
 
-fn profiles_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn profiles_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app.path().app_config_dir().map_err(|e| e.to_string())?.join("layouts"))
 }
 
@@ -215,7 +242,12 @@ struct LayoutShortcut {
 }
 
 #[tauri::command]
-fn get_snapshot(state: State<AppState>) -> Snapshot {
+fn get_snapshot(app: AppHandle) -> Snapshot {
+    snapshot(&app)
+}
+
+pub(crate) fn snapshot(app: &AppHandle) -> Snapshot {
+    let state = app.state::<AppState>();
     let mut snap = state.latest.lock().unwrap().clone();
     snap.edit_mode = state.edit_mode.load(Ordering::Relaxed);
     snap.overlay_visible = state.overlay_visible.load(Ordering::Relaxed);
@@ -249,7 +281,7 @@ fn my_display(window: WebviewWindow, state: State<Displays>) -> Option<String> {
 // Driver ratings (ratings.rs)
 // ---------------------------------------------------------------------------
 
-fn ratings_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn ratings_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_data_dir().map_err(|e| e.to_string())
 }
 
@@ -268,6 +300,7 @@ fn set_driver_rating(
     rating: Option<ratings::Rating>,
 ) -> Result<(), String> {
     let all = state.set(&ratings_dir(&app)?, user_id, &name, rating)?;
+    app.state::<stream::StreamHub>().publish("driver-ratings", &all);
     let _ = app.emit("driver-ratings", all);
     Ok(())
 }
@@ -534,6 +567,7 @@ pub fn run() {
         .manage(Displays::default())
         .manage(updates::Updates::default())
         .manage(ratings::Ratings::default())
+        .manage(stream::StreamHub::default())
         .manage(AppState {
             control: control.clone(),
             edit_mode: AtomicBool::new(false),
@@ -556,6 +590,7 @@ pub fn run() {
             set_clickable,
             get_driver_ratings,
             set_driver_rating,
+            stream_port,
             open_settings,
             pit_command,
             set_pit_active,
@@ -583,6 +618,10 @@ pub fn run() {
             displays::watch(handle.clone());
             build_tray(&handle)?;
             updates::watch(handle.clone());
+            // The OBS pages, if they were left on.
+            if let Some(config) = read_config(&handle) {
+                handle.state::<stream::StreamHub>().apply(&handle, &config);
+            }
             let buttons = handle.clone();
             controllers::spawn(move |press| controls::on_button(&buttons, press));
             if let Some(reference) = load_saved_reference(&handle) {

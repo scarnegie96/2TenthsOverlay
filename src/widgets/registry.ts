@@ -16,6 +16,7 @@ import { Session } from "./Session";
 import { Standings } from "./Standings";
 import { Stints } from "./Stints";
 import { Tires } from "./Tires";
+import { TwitchChat } from "./TwitchChat";
 import { Weather } from "./Weather";
 
 export interface WidgetProps {
@@ -42,4 +43,5 @@ export const COMPONENTS: Record<WidgetId, ComponentType<WidgetProps>> = {
   weather: Weather,
   racepace: RacePace,
   stints: Stints,
+  twitch: TwitchChat,
 };
