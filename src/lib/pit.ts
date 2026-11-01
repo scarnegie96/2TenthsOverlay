@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { api, isTauri, on } from "./bridge";
 import { opt } from "./config";
+import { updateConfig } from "./store";
 import { fuel as conv, fuelUnit, type Units } from "./format";
 import { useLive } from "./store";
 import type { FuelPayload, PitAction, PitCommand, PitPayload } from "./types";
@@ -40,7 +41,7 @@ export function steppedFuel(from: number, delta: number, tankMax: number): numbe
  * fuel sets the plan, or unticks fuel when that amount is already set; tires
  * tick all four, or untick them when any are ticked.
  */
-export function pitCommands(action: Exclude<PitAction, "fuelUp" | "fuelDown">, pit: PitPayload, plan: number | null, mode: FuelMode): PitCommand[] {
+export function pitCommands(action: Exclude<PitAction, "fuelUp" | "fuelDown" | "autoFuel">, pit: PitPayload, plan: number | null, mode: FuelMode): PitCommand[] {
   switch (action) {
     case "fuel":
       if (mode === "manual") return [pit.fuel ? { kind: "clearFuel" } : { kind: "fuel", litres: 0 }];
@@ -61,6 +62,35 @@ export function pitCommands(action: Exclude<PitAction, "fuelUp" | "fuelDown">, p
 
 /** The pit action last pressed and when, so the widget can light up its key. */
 export const usePitPressed = create<{ action: PitAction | null; at: number }>(() => ({ action: null, at: 0 }));
+
+/**
+ * Auto fuel to finish: whether it's paused because you changed the fuel by
+ * hand. Pressing the fuel key, or turning auto fuel back on, resumes it.
+ */
+export const useAutoFuel = create<{ paused: boolean }>(() => ({ paused: false }));
+
+/** Auto fuel only re-sends once the plan is this far (litres) from what's set... */
+export const AUTO_FUEL_TOLERANCE = 1;
+/** ...and at most this often (ms), so a moving estimate doesn't spam iRacing. */
+const AUTO_FUEL_EVERY_MS = 10_000;
+/** When auto fuel last sent; reset when it's turned on or resumed, so it acts at once. */
+let autoLastSent = -Infinity;
+const resumeAutoFuel = () => {
+  autoLastSent = -Infinity;
+  useAutoFuel.setState({ paused: false });
+};
+
+/**
+ * What auto fuel should send now, if anything: the amount to finish, ticked,
+ * when it's a litre or more from what iRacing has; untick fuel when nothing
+ * more is needed. Null to leave it alone.
+ */
+export function autoFuelCommand(pit: PitPayload, need: number | null): PitCommand | null {
+  if (need == null) return null;
+  if (need <= 0) return pit.fuel ? { kind: "clearFuel" } : null;
+  if (pit.fuel && Math.abs(pit.fuelAmount - need) < AUTO_FUEL_TOLERANCE) return null;
+  return { kind: "fuel", litres: need };
+}
 
 /** What was last sent, for the widget to show briefly. */
 export const usePitSent = create<{ text: string | null; at: number }>(() => ({ text: null, at: 0 }));
@@ -113,6 +143,17 @@ let fuelByHand = false;
 export function runPitAction(action: PitAction) {
   usePitPressed.setState({ action, at: performance.now() });
   const { s, mode, litres, text } = plan();
+  if (action === "autoFuel") {
+    // On or off, kept in the settings; turning it on (or back on) resumes it.
+    const on = !opt(s.config.widgets.pitstop, "keepFuelSet", false) || useAutoFuel.getState().paused;
+    resumeAutoFuel();
+    updateConfig((c) => ({
+      ...c,
+      widgets: { ...c.widgets, pitstop: { ...c.widgets.pitstop, options: { ...c.widgets.pitstop.options, keepFuelSet: on } } },
+    }));
+    usePitSent.setState({ text: on ? "Auto fuel to finish on" : "Auto fuel off", at: performance.now() });
+    return;
+  }
   const pit = s.field?.pit;
   if (!pit?.available) return;
   if (action === "fuelUp" || action === "fuelDown") {
@@ -122,17 +163,21 @@ export function runPitAction(action: PitAction) {
     const next = steppedFuel(from, action === "fuelUp" ? step : -step, s.field?.fuel.max ?? 0);
     stepped = { litres: next, at: now };
     fuelByHand = true;
+    // Set by hand: auto fuel steps back until you ask for it again.
+    useAutoFuel.setState({ paused: true });
     void send([next > 0 ? { kind: "fuel", litres: next } : { kind: "clearFuel" }], fuelText(next, s.config.general.units));
     return;
   }
   stepped = null;
   if (action === "fuel" || action === "clear") fuelByHand = false;
+  if (action === "fuel") resumeAutoFuel();
+  if (action === "clear") useAutoFuel.setState({ paused: true });
   void send(pitCommands(action, pit, litres, mode), text);
 }
 
-/** Browser preview: Shift + F, ↑, ↓, T, R, W and X stand in for the Ctrl+Shift hotkeys. */
+/** Browser preview: Shift + F, ↑, ↓, A, T, R, W and X stand in for the Ctrl+Shift hotkeys. */
 const PREVIEW_KEYS: Record<string, PitAction> = {
-  f: "fuel", arrowup: "fuelUp", arrowdown: "fuelDown", t: "tires", r: "fastRepair", w: "tearoff", x: "clear",
+  f: "fuel", arrowup: "fuelUp", arrowdown: "fuelDown", a: "autoFuel", t: "tires", r: "fastRepair", w: "tearoff", x: "clear",
 };
 
 /**
@@ -165,6 +210,27 @@ export function usePitControl(owner = true) {
       window.removeEventListener("keydown", key);
     };
   }, [live]);
+
+  // Auto fuel to finish: keep iRacing's amount at what you need, as the
+  // estimate changes. Not while you're in the pit lane (the stop is under
+  // way), and not when paused because you set it by hand.
+  const keep = useLive((s) => opt(s.config.widgets.pitstop, "keepFuelSet", false));
+  useEffect(() => {
+    if (!live || !keep) return;
+    autoLastSent = -Infinity;
+    return useLive.subscribe((s, prev) => {
+      if (s.field === prev.field || useAutoFuel.getState().paused) return;
+      const pit = s.field?.pit;
+      if (!pit?.available || s.tick?.onPitRoad) return;
+      const now = performance.now();
+      if (now - autoLastSent < AUTO_FUEL_EVERY_MS) return;
+      const need = fuelPlan("finish", s.field?.fuel, opt(s.config.widgets.fuel, "marginLaps", 0.5));
+      const cmd = autoFuelCommand(pit, need);
+      if (!cmd) return;
+      autoLastSent = now;
+      void api.pitCommand(cmd);
+    });
+  }, [live, keep]);
 
   // Auto fuel: set the planned amount as you cross into the pit lane.
   useEffect(() => {

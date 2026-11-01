@@ -57,6 +57,14 @@ pit keys and buttons (`set_pit_active`) while the Pit stop widget is on and the 
 in the car. To be confirmed in the sim: the variable names above, and that a
 fuel amount of 0 keeps the amount already set.
 
+Auto fuel to finish (`pitstop.options.keepFuelSet`, toggled by `pit.autoFuel`)
+runs in the primary overlay while the pit controls are live: on field updates,
+off pit road, at most every 10 s, `autoFuelCommand` sends the finish amount
+when it's ≥ 1 L from what iRacing reports (or unticks fuel when nothing more is
+needed). More/less fuel and untick-all pause it (`useAutoFuel`); the fuel key
+or the auto key resume it. iRacing's own AutoFuel can't be set from the SDK
+(only by its black box or the `#autofuel` chat command), so this is separate.
+
 ### Engine maths worth knowing
 
 - **Relative gap**: `CarIdxEstTime` is the time to reach a car's spot on track

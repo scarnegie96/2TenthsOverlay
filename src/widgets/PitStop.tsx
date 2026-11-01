@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { opt } from "../lib/config";
 import { fullLabel, shortLabel, type ActionId } from "../lib/controls";
 import { fuel as conv, fuelUnit, pressure } from "../lib/format";
-import { fuelPlan, usePitPressed, usePitSent, type FuelMode } from "../lib/pit";
+import { fuelPlan, useAutoFuel, usePitPressed, usePitSent, type FuelMode } from "../lib/pit";
 import { useLive } from "../lib/store";
 import { Empty, Panel } from "./Panel";
 import type { WidgetProps } from "./registry";
@@ -34,6 +34,8 @@ export function PitStop({ config }: WidgetProps) {
   const margin = useLive((s) => opt(s.config.widgets.fuel, "marginLaps", 0.5));
   const inCar = useLive((s) => s.tick?.isOnTrack ?? false);
   const mode = opt<FuelMode>(config, "fuelMode", "finish");
+  const autoOn = opt(config, "keepFuelSet", false);
+  const autoPaused = useAutoFuel((s) => s.paused);
   const showKeys = opt(config, "showKeys", true);
   const controls = useLive((s) => s.config.general.controls);
   const lit = useLitAction();
@@ -70,7 +72,16 @@ export function PitStop({ config }: WidgetProps) {
 
   let fuelNote: ReactNode;
   let fuelWarn = false;
-  if (mode === "manual") {
+  const finish = fuelPlan("finish", fuel, margin);
+  if (autoOn) {
+    // Auto fuel to finish keeps iRacing's amount right, so the note says what it's doing.
+    if (autoPaused) {
+      fuelNote = finish == null ? "Auto paused: set by hand" : `Auto paused · needs ${v(finish)} ${u}`;
+      fuelWarn = finish != null && finish > 0 && (!pit.fuel || Math.abs(pit.fuelAmount - finish) >= 1);
+    } else {
+      fuelNote = finish == null ? "Auto: plan after a green lap" : finish === 0 ? "Auto: enough to finish" : `Auto: ${v(finish)} ${u} to finish`;
+    }
+  } else if (mode === "manual") {
     fuelNote = "Hotkey keeps iRacing's amount";
   } else if (plan == null) {
     fuelNote = "Plan after a green lap";
@@ -84,8 +95,11 @@ export function PitStop({ config }: WidgetProps) {
 
   return (
     <Panel className="pitstop" title="Pit stop" aside={<span className={problem ? "pit-problem" : ""}>{aside}</span>}>
-      <Row label="Fuel" on={pit.fuel} hotkeys={hints(["pit.fuel"], ["pit.fuelUp", "pit.fuelDown"])}>
-        <span className="pit-value">{pit.fuel ? `+${v(pit.fuelAmount)} ${u}` : "No fuel"}</span>
+      <Row label="Fuel" on={pit.fuel} hotkeys={hints(["pit.fuel", "pit.autoFuel"], ["pit.fuelUp", "pit.fuelDown"])}>
+        <span className="pit-value">
+          {pit.fuel ? `+${v(pit.fuelAmount)} ${u}` : "No fuel"}
+          {autoOn && <span className={`pit-auto ${autoPaused ? "is-paused" : ""}`} title="Auto fuel to finish">AUTO</span>}
+        </span>
         <span className={`pit-note ${fuelWarn ? "is-warn" : ""}`}>{fuelNote}</span>
       </Row>
       <Row label="Tires" on={anyTire} hotkeys={hints(["pit.tires"])}>

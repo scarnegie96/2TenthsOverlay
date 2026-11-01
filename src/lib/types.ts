@@ -393,7 +393,7 @@ export interface ButtonPress {
 }
 
 /** What a pit hotkey asks for. */
-export type PitAction = "fuel" | "fuelUp" | "fuelDown" | "tires" | "fastRepair" | "tearoff" | "clear";
+export type PitAction = "fuel" | "fuelUp" | "fuelDown" | "autoFuel" | "tires" | "fastRepair" | "tearoff" | "clear";
 
 export interface FieldPayload {
   clock: SessionClock;

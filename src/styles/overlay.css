@@ -2844,3 +2844,19 @@
 [data-theme="light"] .rate-btn:not(.is-on) {
   color: var(--ink-2);
 }
+
+/* Auto fuel to finish, in the Pit stop's fuel row. */
+.pit-auto {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--gain);
+  color: var(--panel-solid);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: 2px;
+}
+.pit-auto.is-paused {
+  background: var(--ink-3);
+}

@@ -29,7 +29,7 @@ export interface ControlBinding {
 export type ActionId =
   | "overlay.edit" | "overlay.toggle" | "layout.next"
   | "layout.1" | "layout.2" | "layout.3" | "layout.4" | "layout.5" | "layout.6" | "layout.7" | "layout.8" | "layout.9"
-  | "pit.fuel" | "pit.fuelUp" | "pit.fuelDown" | "pit.tires" | "pit.fastRepair" | "pit.tearoff" | "pit.clear";
+  | "pit.fuel" | "pit.fuelUp" | "pit.fuelDown" | "pit.autoFuel" | "pit.tires" | "pit.fastRepair" | "pit.tearoff" | "pit.clear";
 
 export interface ActionMeta {
   id: ActionId;
@@ -49,6 +49,7 @@ export const ACTIONS: ActionMeta[] = [
   { id: "pit.fuel", label: "Fuel: set the plan, or untick", group: "Pit stop", key: "KeyF" },
   { id: "pit.fuelUp", label: "More fuel", group: "Pit stop", key: "ArrowUp" },
   { id: "pit.fuelDown", label: "Less fuel", group: "Pit stop", key: "ArrowDown" },
+  { id: "pit.autoFuel", label: "Auto fuel to finish: on or off", group: "Pit stop", key: "KeyA" },
   { id: "pit.tires", label: "Four tires, or none", group: "Pit stop", key: "KeyT" },
   { id: "pit.fastRepair", label: "Fast repair", group: "Pit stop", key: "KeyR" },
   { id: "pit.tearoff", label: "Tear-off", group: "Pit stop", key: "KeyW" },

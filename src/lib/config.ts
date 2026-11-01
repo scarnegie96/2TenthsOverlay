@@ -283,6 +283,7 @@ export const WIDGETS: WidgetMeta[] = [
         ],
       },
       { key: "fuelStep", label: "Fuel up and down step", type: "number", default: 5, min: 1, max: 20, suffix: "L", help: "How much the more fuel and less fuel controls add or take off, in litres" },
+      { key: "keepFuelSet", label: "Auto fuel to finish", type: "toggle", default: false, help: "Keeps iRacing's fuel amount at what you need to finish (with the Fuel widget's margin), updating it as the estimate changes, so whenever you pit it's right. Changing the fuel by hand pauses it; the Auto fuel key turns it on and off" },
       { key: "autoFuel", label: "Set fuel as you enter the pits", type: "toggle", default: false, help: "Ticks fuel with the planned amount when you cross pit entry, unless it's already set or you've changed it with more or less fuel" },
       { key: "showKeys", label: "Show the hotkeys", type: "toggle", default: true, help: "The key or wheel button for each row" },
     ],

@@ -29,7 +29,7 @@ layout turns on fewer, and you can place each one wherever you like.
   delta graph, a lap log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
   weather, a radar and an LED flag board. Each one has its own options.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
-  litres more or less), tires, fast repair and a tear-off for your next stop
+  litres more or less, or let auto fuel keep it at enough to finish), tires, fast repair and a tear-off for your next stop
   without opening iRacing's pit menu, and see what iRacing has ticked.
 - **Your keys, your wheel buttons**: every shortcut can be changed, and any
   action can also go on a button on your wheel, button box or gamepad.
@@ -350,6 +350,7 @@ default keys; put them on other keys or on buttons in
 | -------------------- | ---- |
 | `Ctrl + Shift + F`   | Fuel: the amount to finish (from the Fuel widget, with its safety margin), or a full tank. Press again to untick it, or to update it once the amount has changed. |
 | `Ctrl + Shift + ↑` `↓` | A few litres more or less (5 by default). Quick presses add up. |
+| `Ctrl + Shift + A`   | Auto fuel to finish, on or off (see below) |
 | `Ctrl + Shift + T`   | All four tires, or untick them |
 | `Ctrl + Shift + R`   | Fast repair |
 | `Ctrl + Shift + W`   | Windscreen tear-off |
@@ -364,10 +365,23 @@ take `Ctrl+Shift+T` and the rest from other programs the rest of the time. Each
 row shows its key, or its wheel button if it has one, and lights it up for a
 moment when you press it. Off by default.
 
+**Auto fuel to finish.** With it on, Tenths keeps iRacing's fuel amount at
+what you need to finish (from the Fuel widget, with its safety margin),
+updating it as the estimate changes, so whenever you box the amount is already
+right. It only changes the amount when it's a litre or more out, at most every
+10 seconds, and not while you're in the pit lane. The fuel row shows **AUTO**.
+Changing the fuel with more or less, or unticking everything, pauses it (AUTO
+goes grey) so it doesn't fight you; the fuel key or the Auto fuel key picks it
+back up.
+
+This is Tenths' own, using the same commands as the keys. iRacing also has an
+AutoFuel of its own (the checkbox in the fuel black box, or the `#autofuel`
+chat command), which plans from its own fuel data; use one or the other.
+
 *Options*: what the fuel key adds (enough to finish, a full tank, or the
-amount already set in iRacing), how much more or less fuel changes it, set
-fuel automatically as you enter the pits (skipped if you've changed it by
-hand), and show the keys.
+amount already set in iRacing), how much more or less fuel changes it, auto
+fuel to finish, set fuel automatically as you enter the pits (skipped if
+you've changed it by hand), and show the keys.
 
 ### Radar
 
@@ -731,8 +745,9 @@ cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left
 
 Before committing, run `npm run build` (type-checks the front end), `npm run lint`
 and `cargo clippy --workspace --all-targets`. Layout validation, the
-iRating estimate and the incident limits have their own checks: see the top of
-`scripts/check-config.ts`, `scripts/check-irating.ts` and `scripts/check-incidents.ts`.
+iRating estimate, the incident limits and auto fuel have their own checks: see
+the top of `scripts/check-config.ts`, `scripts/check-irating.ts`,
+`scripts/check-incidents.ts` and `scripts/check-pit.ts`.
 
 ## Project layout
 
