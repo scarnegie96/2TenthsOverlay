@@ -220,6 +220,20 @@ or the auto key resume it. iRacing's own AutoFuel can't be set from the SDK
   chart scales to cars on the lead lap; lapped and retired cars are pinned to
   the bottom edge. The gap change per lap compares each car's gap now with
   its stored gap one leader-lap ago.
+- **Race reports** (`report.rs`, `src-tauri/src/reports.rs`,
+  `src/lib/report.ts`, `src/settings/Races.tsx`): `RaceRecorder` notes, for
+  every car, the session time it completes each lap once `SessionState` is
+  racing, and one more crossing after the flag (its finish); later laps are
+  cool-down. The engine saves a `RaceReport` (event, classes and SoF, every
+  car's grid and finish positions, crossings, stints from `stints.rs`, pit
+  stops from `pitloss.rs` with their lap, and your `LapRecord`s) when you
+  finish, again at most every 10 s while others finish, and once more when the
+  session changes or Tenths disconnects if you raced at least a lap. Files are
+  written on a background thread to `reports/<UTC stamp>_<track>_<car>.json`;
+  the demo doesn't save. The front end derives lap times (crossing to
+  crossing), order across the line and gaps (crossing time differences) and
+  never fills gaps. `examples/report_demo.rs` produces a real report from the
+  demo, which the preview uses.
 - **Battle** (`src/lib/battle.ts`, `widgets/Battle.tsx`): the class
   neighbours from the Standings; the gap now from their gaps to the class
   leader; the change per lap and the gap line from the Race pace history

@@ -136,6 +136,11 @@ export const api = {
   /** The OBS pages' port while the streaming server is on, else null. */
   streamPort: () => call<number | null>("stream_port"),
 
+  /** Saved race reports, newest first. */
+  listReports: () => call<import("./report").ReportSummary[]>("list_reports"),
+  getReport: (id: string) => call<import("./report").RaceReport>("get_report", { id }),
+  deleteReport: (id: string) => call<void>("delete_report", { id }),
+
   listProfiles: () => call<ProfileSummary[]>("list_profiles"),
   getProfile: (id: string) => call<Profile>("get_profile", { id }),
   /** Creates a layout (id null) or updates one (name null keeps its name). Returns its id. */

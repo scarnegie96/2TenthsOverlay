@@ -4,6 +4,7 @@
 //
 // The real maths lives in crates/telemetry; this only needs to look plausible.
 
+import type { RaceReport } from "./report";
 import type {
   CarStatus, CarStints, CoachPayload, Display, Stint, Cue, Deltas, FieldPayload, LapFlag, LapRecord, PitCommand, PitPayload, Profile, ProfileSummary, ReferencePayload, NearbyCar, RelativeRow, SessionPayload, Snapshot, StandingRow,
   StatusPayload, TickPayload, TiresPayload, UpdateInfo,
@@ -164,6 +165,7 @@ class Mock {
   }
 
   private update: UpdateInfo | null = null;
+  private deletedReports = new Set<string>();
   private updateChecked: number | null = null;
 
   async call(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
@@ -286,6 +288,23 @@ class Mock {
         return;
       case "stream_port":
         return null;
+      // A real report from the Rust demo (report_demo example), for the Races page.
+      case "list_reports": {
+        const r = (await import("./fixtures/demo-report.json")).default as unknown as RaceReport;
+        if (this.deletedReports.has(r.id)) return [];
+        const me = r.cars.find((c) => c.isPlayer);
+        return [{
+          id: r.id, startedAt: r.startedAt, track: r.track, trackConfig: r.trackConfig, car: r.car,
+          sessionType: r.sessionType, official: r.official, finished: r.finished,
+          classPosition: me?.finishClassPosition ?? 0, classCars: r.cars.filter((c) => c.classId === r.playerClassId).length,
+          laps: me?.lapsCompleted ?? 0,
+        }];
+      }
+      case "get_report":
+        return (await import("./fixtures/demo-report.json")).default;
+      case "delete_report":
+        this.deletedReports.add(String(args.id));
+        return;
       case "get_driver_ratings":
         try {
           return JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}");

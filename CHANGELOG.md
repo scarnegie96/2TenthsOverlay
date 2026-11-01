@@ -6,6 +6,7 @@ when you bump the version.
 
 ## Unreleased
 
+- Race reports: every race saved with everyone's laps, gaps, positions, stints and pit stops, and your fuel and laps; Settings → Races shows them with interactive charts.
 - Battle widget: the gap to the cars ahead of and behind you in your class, its change per lap, and the gap over the last laps.
 
 ## 0.4.9

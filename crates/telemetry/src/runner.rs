@@ -36,6 +36,8 @@ pub struct RunnerControl {
     pub reference_rev: Arc<AtomicU64>,
     /// Folder for saved laps from iRacing (never the demo). None to not save.
     pub laps_dir: Option<PathBuf>,
+    /// Where race reports are saved (report.rs); None to not save them.
+    pub reports_dir: Option<PathBuf>,
     /// Pit commands waiting to go to the sim (or the demo).
     pub pit: Arc<Mutex<Vec<PitCommand>>>,
 }
@@ -151,12 +153,16 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
                 source = Some(Source::Demo(Box::default()));
                 demo_clock = FrameClock::new(DEMO_FRAME);
                 engine.set_lap_store(None);
+                engine.set_report_store(None);
             } else {
                 #[cfg(windows)]
                 {
                     source = crate::irsdk::Irsdk::open().map(Source::Iracing);
                 }
                 engine.set_lap_store(control.laps_dir.clone().filter(|_| source.is_some()).map(|dir| LapStore { dir }));
+                engine.set_report_store(
+                    control.reports_dir.clone().filter(|_| source.is_some()).map(|dir| crate::report::ReportStore { dir }),
+                );
                 if source.is_none() {
                     report(SourceKind::None, false, "Waiting for iRacing");
                     thread::sleep(RECONNECT_INTERVAL);

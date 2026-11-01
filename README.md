@@ -439,6 +439,37 @@ Off by default.
 *Options*: channel, how many messages, how long before they hide (0 keeps
 them), and emotes.
 
+## Race reports
+
+![Settings: Races](docs/settings/races.png)
+
+Every race you drive is saved as a report when you take the chequered flag
+(and updated as the rest of the field finishes), or when the session ends if
+you don't finish but did at least a lap. **Settings → Races** lists them, newest
+first; open one for the whole race:
+
+- **The result**: where you finished and started, laps, best lap, incidents,
+  stops and the strength of field.
+- **Results** for each class: finish and start, laps, best and median lap,
+  stops and total time in the pit lane, and who finished or retired.
+- **Position**, **gap to the class leader** and **lap times**, lap by lap, for
+  every driver in the class. Hover for every car's value on that lap, click a
+  line, a name or a results row to pick a driver out on every chart, and zoom
+  the gap and lap time charts. Pit stops are marked with a P.
+- **Tyre stints** for every driver, coloured by compound, with each pit stop
+  and its time.
+- **Your fuel** per lap, **track temperature**, and **your laps** with time,
+  fuel, incidents and temperatures.
+
+Only recorded data is shown. A lap time is the time between two recorded
+crossings of the line, a position is the order cars crossed the line, and a
+gap is the difference between two crossing times; laps Tenths didn't see (the
+first after it started, or after a car retired) are left out, not estimated.
+Your inputs aren't kept. Reports are JSON files in `reports\` (below), so
+they're yours to keep, share or delete.
+
+![Race report: gap to the class leader](docs/settings/races-gap.png)
+
 ## Streaming (experimental)
 
 ![Settings: Streaming](docs/settings/streaming.png)
@@ -479,7 +510,7 @@ it; Tenths keeps running until you quit it from the tray.
 
 Along the top of the settings window are the connection status (Waiting for
 iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
-**Edit layout**. Down the side are the General, Layouts, Appearance, Controls,
+**Edit layout**. Down the side are the General, Races, Layouts, Appearance, Controls,
 Streaming and About pages (About has the version and updates, with a dot when there's
 a new one), then a page for each widget with a dot showing whether it's on.
 
@@ -747,6 +778,7 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 | `laps\`          | Lap history and personal best, one file per car and track |
 | `reference.json` | The imported reference lap |
 | `driver-ratings.json` | Your thumbs up or down on other drivers, by iRacing id |
+| `reports\`      | Race reports, one `.json` file per race |
 
 If `config.json` can't be read, Tenths keeps it as
 `config.corrupt-<date>.json`, starts with default settings and says so in
@@ -782,6 +814,7 @@ URL parameters help too:
 | `?pits`         | Keeps one GT3 car in the pit lane, so the pit symbol shows |
 | `?displays=2`   | Adds a second display; `&display=2` makes the tab that display's overlay |
 | `?finished`    | You've taken the flag: the Standings shows the thumbs for rating drivers |
+| `?pane=races&report=…` | The Races page shows a real report from the Rust demo (`src/lib/fixtures/demo-report.json`) |
 | `?chat`        | The Twitch chat widget plays a made-up chat instead of connecting |
 | `?update`      | Settings → About: **Check now** finds a pretend newer version, and installing it shows the progress |
 | `?corrupt`     | Settings shows the notice for a settings file that couldn't be read |
@@ -801,14 +834,16 @@ cargo run -p telemetry --example inspect_lap -- lap.blap   # list the corners th
 cargo run -p telemetry --example coach_demo                # how often each cue fires in the demo
 cargo run -p telemetry --example stints_demo               # every demo car's stints and pit loss after 12 minutes
 cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left at the end of a timed race
+cargo run -p telemetry --example report_demo -- out 12     # race the demo 12 laps, wave the flag, save a report
 ```
 
 Before committing, run `npm run build` (type-checks the front end), `npm run lint`
 and `cargo clippy --workspace --all-targets`. Layout validation, the
 iRating estimate, the incident limits, auto fuel, the battle gaps and the Twitch
-chat parser have their own checks: see the top of `scripts/check-config.ts`,
-`scripts/check-irating.ts`, `scripts/check-incidents.ts`, `scripts/check-pit.ts`,
-`scripts/check-battle.ts` and `scripts/check-twitch.ts`.
+chat parser and the race report maths have their own checks: see the top of
+`scripts/check-config.ts`, `scripts/check-irating.ts`, `scripts/check-incidents.ts`,
+`scripts/check-pit.ts`, `scripts/check-battle.ts`, `scripts/check-twitch.ts` and
+`scripts/check-report.ts`.
 
 ## Project layout
 

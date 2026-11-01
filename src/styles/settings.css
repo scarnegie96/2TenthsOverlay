@@ -647,3 +647,349 @@ kbd {
 .note.is-warn {
   color: var(--attention);
 }
+
+/* ---------- Races ------------------------------------------------------------ */
+
+.rp-list {
+  display: grid;
+  gap: 6px;
+  max-width: 820px;
+}
+.rp-item {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.rp-open {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 170px 1fr auto;
+  grid-template-areas: "when track result" "when car result";
+  gap: 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-raised);
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.rp-open:hover {
+  border-color: var(--ink-3);
+}
+.rp-when {
+  grid-area: when;
+  align-self: center;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.rp-open b {
+  grid-area: track;
+}
+.rp-car {
+  grid-area: car;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.rp-result {
+  grid-area: result;
+  align-self: center;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.rp-back {
+  margin-bottom: 10px;
+}
+.rp-title small {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.rp-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 16px;
+}
+.rp-fact {
+  display: flex;
+  flex-direction: column;
+  min-width: 92px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--panel-raised);
+}
+.rp-fact-label {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.rp-fact b {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.rp-fact small {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.rp-classes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.rp-class {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cls);
+  border-radius: 5px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+.rp-class.is-on {
+  background: var(--panel-raised);
+  color: var(--ink);
+}
+.rp-section {
+  max-width: 820px;
+}
+.rp-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rp-help {
+  margin-top: 0;
+}
+.rp-zoom {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.rp-chart {
+  position: relative;
+}
+.rp-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+.rp-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.rp-axis {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.rp-series path {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.rp-series {
+  cursor: pointer;
+}
+.rp-series.is-dim {
+  opacity: 0.18;
+}
+.rp-series.is-focus path {
+  stroke-width: 3;
+}
+.rp-series circle.is-clipped {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+.rp-pit circle {
+  fill: var(--panel-solid);
+  stroke-width: 1.5;
+}
+.rp-pit text {
+  fill: var(--ink);
+  font-size: 8px;
+  font-weight: 700;
+}
+.rp-cursor {
+  stroke: var(--ink-3);
+  stroke-dasharray: 3 3;
+}
+.rp-tip {
+  position: absolute;
+  top: 8px;
+  transform: translateX(12px);
+  z-index: 2;
+  display: grid;
+  gap: 1px;
+  min-width: 200px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel-solid);
+  font-size: 12px;
+  pointer-events: none;
+}
+.rp-tip span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+}
+.rp-tip span.is-focus {
+  color: var(--ink);
+  font-weight: 700;
+}
+.rp-tip i,
+.rp-key i,
+.rp-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.rp-swatch {
+  margin-right: 6px;
+}
+.rp-tip em {
+  margin-left: auto;
+  padding-left: 10px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.rp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 6px;
+}
+.rp-key {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rp-key.is-focus {
+  color: var(--ink);
+  font-weight: 700;
+}
+.rp-key.is-dim {
+  opacity: 0.5;
+}
+.rp-table {
+  display: grid;
+  font-size: 13px;
+}
+.rp-row {
+  display: grid;
+  grid-template-columns: 54px 42px minmax(0, 1fr) 46px 40px 74px 74px 44px 70px 64px;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+button.rp-row {
+  cursor: pointer;
+}
+button.rp-row:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.rp-laps .rp-row {
+  grid-template-columns: 44px 84px 70px 74px 64px 64px minmax(0, 1fr);
+}
+.rp-head {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.rp-row.is-player {
+  background: color-mix(in srgb, #ffb547 12%, transparent);
+}
+.rp-row.is-focus {
+  outline: 1px solid var(--ink-3);
+}
+.rp-driver {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rp-status,
+.rp-flags {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.rp-pb {
+  color: var(--gain);
+}
+.rp-stint-row {
+  cursor: pointer;
+}
+.rp-stint-row.is-dim {
+  opacity: 0.3;
+}
+.rp-stint-name {
+  fill: var(--ink-2);
+  font-size: 12px;
+}
+.rp-stint-name.is-player {
+  fill: var(--ink);
+  font-weight: 700;
+}
+.rp-stint {
+  fill: var(--ink-3);
+}
+.rp-stint.tyre-hard {
+  fill: #d9d9d9;
+}
+.rp-stint.tyre-medium {
+  fill: #ffd34d;
+}
+.rp-stint.tyre-soft {
+  fill: #ff5a5a;
+}
+.rp-stint.tyre-wet {
+  fill: #4aa3ff;
+}
+.rp-stint.is-partial {
+  opacity: 0.55;
+}
+.rp-stint-stop rect {
+  fill: var(--attention);
+}
+.rp-bar {
+  fill: #ffb547;
+  opacity: 0.8;
+}
+.rp-bar.is-hover {
+  opacity: 1;
+}
+.rp-temp {
+  fill: none;
+  stroke: var(--attention);
+  stroke-width: 2;
+}
+.rp-tip.is-left {
+  transform: translateX(calc(-100% - 12px));
+}
+.rp-bar-value {
+  fill: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}

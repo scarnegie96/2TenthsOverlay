@@ -10,11 +10,12 @@ import {
 } from "../lib/controls";
 import { displayName, widgetDisplay } from "../lib/displays";
 import { lapTime } from "../lib/format";
+import { RacesPane } from "./Races";
 import { deleteProfile, saveNewProfile, switchProfile, updateConfig, useLive } from "../lib/store";
 import { COLOR_GROUPS, THEMES, THEME_COLORS, effectiveColor, type ColorKey } from "../lib/theme";
 import type { ButtonPress, Controller, IbtSummary, UpdateProgress, UpdateStatus } from "../lib/types";
 
-type Pane = "general" | "layouts" | "appearance" | "controls" | "streaming" | "about" | WidgetId;
+type Pane = "general" | "races" | "layouts" | "appearance" | "controls" | "streaming" | "about" | WidgetId;
 
 export function Settings() {
   // Browser preview: ?pane=controls opens a page directly, for README screenshots.
@@ -35,6 +36,9 @@ export function Settings() {
       <nav className="nav" aria-label="Sections">
         <NavItem active={pane === "general"} onClick={() => setPane("general")}>
           General
+        </NavItem>
+        <NavItem active={pane === "races"} onClick={() => setPane("races")}>
+          Races
         </NavItem>
         <NavItem active={pane === "layouts"} onClick={() => setPane("layouts")}>
           Layouts
@@ -69,6 +73,7 @@ export function Settings() {
       <main className="pane">
         <ConfigNotice />
         {pane === "general" ? <GeneralPane onControls={() => setPane("controls")} />
+          : pane === "races" ? <RacesPane />
           : pane === "layouts" ? <LayoutsPane />
           : pane === "appearance" ? <AppearancePane />
           : pane === "controls" ? <ControlsPane />

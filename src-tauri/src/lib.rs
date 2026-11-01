@@ -6,6 +6,7 @@ mod controls;
 mod displays;
 mod profiles;
 mod ratings;
+mod reports;
 mod stream;
 mod updates;
 
@@ -173,6 +174,29 @@ fn save_config(app: AppHandle, state: State<AppState>, config: Value) -> Result<
 pub(crate) fn read_config(app: &AppHandle) -> Option<Value> {
     let text = fs::read_to_string(config_path(app).ok()?).ok()?;
     serde_json::from_str(&text).ok()
+}
+
+// ---------------------------------------------------------------------------
+// Race reports (reports.rs)
+// ---------------------------------------------------------------------------
+
+fn reports_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("reports"))
+}
+
+#[tauri::command]
+fn list_reports(app: AppHandle) -> Result<Vec<reports::ReportSummary>, String> {
+    Ok(reports::list(&reports_dir(&app)?))
+}
+
+#[tauri::command]
+fn get_report(app: AppHandle, id: String) -> Result<Value, String> {
+    reports::read(&reports_dir(&app)?, &id)
+}
+
+#[tauri::command]
+fn delete_report(app: AppHandle, id: String) -> Result<(), String> {
+    reports::delete(&reports_dir(&app)?, &id)
 }
 
 /// The streaming server's port while it's running.
@@ -591,6 +615,9 @@ pub fn run() {
             get_driver_ratings,
             set_driver_rating,
             stream_port,
+            list_reports,
+            get_report,
+            delete_report,
             open_settings,
             pit_command,
             set_pit_active,
@@ -631,6 +658,7 @@ pub fn run() {
             // Lap log and personal bests, one file per car and track.
             let mut runner = control.clone();
             runner.laps_dir = handle.path().app_data_dir().ok().map(|d| d.join("laps"));
+            runner.reports_dir = handle.path().app_data_dir().ok().map(|d| d.join("reports"));
             telemetry::spawn(TauriSink { app: handle, latest: latest.clone() }, runner);
             Ok(())
         })

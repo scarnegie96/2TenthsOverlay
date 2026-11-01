@@ -359,6 +359,11 @@ impl LapLog {
         self.laps.push(record);
     }
 
+    /// Every lap logged this session.
+    pub fn session_laps(&self) -> &[LapRecord] {
+        &self.laps
+    }
+
     pub fn payload(&self) -> LapLogPayload {
         let start = self.laps.len().saturating_sub(PAYLOAD_LAPS);
         LapLogPayload {

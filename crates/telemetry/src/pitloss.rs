@@ -46,6 +46,8 @@ pub struct TimedStop {
     pub stall_s: f32,
     /// Lane time minus the racing time for the same stretch.
     pub loss_s: f32,
+    /// The car's completed laps when it entered the pit lane.
+    pub lap: i32,
 }
 
 /// The average loss for one class, once there are enough stops.
@@ -63,6 +65,7 @@ pub struct PitLoss {
 
 #[derive(Debug, Clone, Copy)]
 struct InLane {
+    lap: i32,
     t0: f64,
     pct0: f32,
     stall: f64,
@@ -179,7 +182,8 @@ impl PitLossTracker {
                 // Driven into the lane from the track. Not starting from the pits,
                 // and not towed or reset there (those jump or come from out of the world).
                 (false, true) if self.seen_on_track[i] && Self::drove_in(prev, pct, on_road, surface) => {
-                    self.lanes.insert(car, InLane { t0: t, pct0: pct, stall: 0.0, stall_since: None });
+                    let lap = f.car_lap_completed.get(i).copied().unwrap_or(0);
+                    self.lanes.insert(car, InLane { lap, t0: t, pct0: pct, stall: 0.0, stall_since: None });
                 }
                 (true, true) => {
                     if let Some(l) = self.lanes.get_mut(&car) {
@@ -228,7 +232,7 @@ impl PitLossTracker {
         if !(0.0..300.0).contains(&loss) {
             return;
         }
-        self.stops.push(TimedStop { car_idx: car, class_id: class, lane_s: lane as f32, stall_s: l.stall as f32, loss_s: loss });
+        self.stops.push(TimedStop { car_idx: car, class_id: class, lane_s: lane as f32, stall_s: l.stall as f32, loss_s: loss, lap: l.lap });
     }
 
     /// Average loss per class, for classes with at least `MIN_STOPS` stops.

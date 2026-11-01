@@ -34,6 +34,12 @@ pub struct Engine {
     pit_loss: crate::pitloss::PitLossTracker,
     /// Whether you've taken the chequered flag.
     finish: crate::finish::FinishTracker,
+    /// Records the race for its report.
+    recorder: crate::report::RaceRecorder,
+    /// Where race reports go; None in the demo.
+    report_store: Option<crate::report::ReportStore>,
+    last_session_num: Option<i32>,
+    last_incidents: i32,
 }
 
 impl Engine {
@@ -66,10 +72,44 @@ impl Engine {
 
     /// Clears everything learned from the current session. Keeps the reference lap and lap store.
     pub fn reset(&mut self) {
+        // Leaving iRacing or the demo mid-race: keep what was raced.
+        self.save_report(true);
         let reference = self.reference.take();
         let coach = reference.as_ref().map(Coach::new);
         let lap_store = self.lap_store.take();
-        *self = Self { reference, coach, lap_store, ..Self::default() };
+        let report_store = self.report_store.take();
+        *self = Self { reference, coach, lap_store, report_store, ..Self::default() };
+    }
+
+    pub fn set_report_store(&mut self, store: Option<crate::report::ReportStore>) {
+        self.report_store = store;
+    }
+
+    /// Saves the race report: while you've finished (`last` false), or at the
+    /// end of the session if you raced at least a lap (`last` true).
+    fn save_report(&mut self, last: bool) {
+        let (Some(store), Some(s)) = (&self.report_store, &self.session) else { return };
+        let Some(num) = self.last_session_num else { return };
+        let player = s.player().map(|p| p.car_idx).unwrap_or(-1);
+        let finished = self.finish.finished();
+        let wanted = if last { self.recorder.wants_final_save(player) } else { self.recorder.wants_save(finished) };
+        if !wanted {
+            return;
+        }
+        let grid = &self.grid;
+        let report = self.recorder.build(
+            s,
+            num,
+            class_summaries(s),
+            &self.stints.payload(),
+            self.pit_loss.stops(),
+            self.laps.session_laps(),
+            finished,
+            self.last_incidents,
+            |car| grid.start(car, s),
+        );
+        store.save(&report);
+        self.recorder.mark_saved();
     }
 
     pub fn set_reference(&mut self, reference: Option<ReferenceLap>) {
@@ -142,6 +182,10 @@ impl Engine {
 
     /// Call on every frame (60 Hz). Updates trackers and returns the fast payload.
     pub fn tick(&mut self, f: &RawFrame) -> TickPayload {
+        // A new session: save the race that just ended before the trackers start again.
+        if self.recorder.session_changed(f) {
+            self.save_report(true);
+        }
         self.fuel.update(f);
         let starts = self.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]);
         self.sectors.update(f, starts);
@@ -149,6 +193,10 @@ impl Engine {
         let race = self.is_race(f.session_num);
         self.grid.update(f, race);
         self.finish.update(f, race);
+        self.recorder.update(f, race);
+        self.last_session_num = Some(f.session_num);
+        self.last_incidents = if self.session.as_ref().is_some_and(|s| s.team_racing) { f.team_incidents } else { f.incidents };
+        self.save_report(false);
         self.stints.update(f);
         if let Some(s) = &self.session {
             self.pit_loss.update(f, |car| s.driver(car).map(|d| d.class_id));

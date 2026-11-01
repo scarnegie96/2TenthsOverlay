@@ -26,6 +26,7 @@ pub mod model;
 pub mod pitloss;
 pub mod pit;
 pub mod reference;
+pub mod report;
 pub mod runner;
 pub mod session;
 pub mod shm;
