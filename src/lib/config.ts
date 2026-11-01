@@ -239,7 +239,7 @@ export const WIDGETS: WidgetMeta[] = [
           { value: "accel", label: "Car's acceleration (braking pulls it down)" },
         ],
       },
-      { key: "showAttitude", label: "Show slip, pitch and roll", type: "toggle", default: true },
+      { key: "showAttitude", label: "Show slip, pitch and roll", type: "toggle", default: true, help: "Turn this and balance off for just a narrow g-meter" },
       { key: "exaggerate", label: "Exaggerate pitch and roll", type: "number", default: 4, min: 1, max: 10, suffix: "×", help: "Real angles are small; the numbers always show the true value" },
       { key: "showBalance", label: "Show balance", type: "toggle", default: true, help: "Learnt from your driving, so it settles after a few corners" },
     ],

@@ -1232,6 +1232,9 @@
 .dynamics {
   width: 470px;
 }
+.dynamics.is-meter-only {
+  width: auto;
+}
 .dyn-body {
   display: flex;
   gap: 14px;

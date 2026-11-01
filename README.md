@@ -267,7 +267,8 @@ oversteer from how the car rotates for the steering you put in.
 
 *Options*: g-meter range, how long the grip outline holds and how quickly it
 shrinks back to the centre, which way the dot moves, slip/pitch/roll views and
-how much to exaggerate them, and the balance bar.
+how much to exaggerate them, and the balance bar. With the views and the
+balance bar both off, it's just a narrow g-meter.
 
 ### Instruments
 

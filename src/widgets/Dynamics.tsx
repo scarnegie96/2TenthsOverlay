@@ -51,7 +51,8 @@ export function Dynamics({ config }: { config: WidgetConfig }) {
   const total = Math.hypot(lat, long);
 
   return (
-    <Panel className="dynamics" title="Car dynamics" aside={`${total.toFixed(2)} g`}>
+    // With neither, it's just the g-meter, as narrow as the meter.
+    <Panel className={`dynamics ${!showAttitude && !showBalance ? "is-meter-only" : ""}`} title={!showAttitude && !showBalance ? "G-meter" : "Car dynamics"} aside={`${total.toFixed(2)} g`}>
       <div className="dyn-body">
         <div className="dyn-meter">
           <GMeter maxG={maxG} felt={felt} holdS={holdS} returnS={returnS} />
@@ -61,9 +62,9 @@ export function Dynamics({ config }: { config: WidgetConfig }) {
             <Readout label="Vertical" value={dyn?.vertG ?? 1} unit="g" />
           </div>
         </div>
-        {showAttitude && (
+        {(showAttitude || showBalance) && (
           <div className="dyn-side">
-            <div className="dyn-views">
+            {showAttitude && <div className="dyn-views">
               <View label="Slip" value={dyn?.slipDeg ?? 0} title="Angle between where the car points and where it's going">
                 <TopView slip={dyn?.slipDeg ?? 0} />
               </View>
@@ -73,7 +74,7 @@ export function Dynamics({ config }: { config: WidgetConfig }) {
               <View label="Roll" value={dyn?.rollDeg ?? 0} title="Leaning right (+) or left (−)">
                 <RearView roll={(dyn?.rollDeg ?? 0) * exaggerate} />
               </View>
-            </div>
+            </div>}
             {showBalance && <Balance value={balance} live={live} />}
           </div>
         )}
