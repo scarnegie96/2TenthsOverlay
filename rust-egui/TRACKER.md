@@ -155,9 +155,9 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Cars within `range` from `tick.nearby`, you in the middle | ⬜ |
-| Alongside warning (amber/red), side brackets | ⬜ |
-| `alwaysShow`, `classColors` | ⬜ |
+| Cars within `range` from `tick.nearby`, you in the middle | ✅ |
+| Alongside warning (amber/red), side brackets | ✅ |
+| `alwaysShow`, `classColors` | ✅ |
 
 ## 12. Tires — `src/widgets/Tires.tsx`
 
