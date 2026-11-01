@@ -8,3 +8,4 @@ pub mod incidents;
 pub mod irating;
 pub mod pit;
 pub mod rejoin;
+pub mod weather;

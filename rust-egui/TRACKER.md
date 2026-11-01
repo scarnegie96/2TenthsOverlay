@@ -192,11 +192,11 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Track and air temperature with units, sky in header | ⬜ |
-| Track wetness bar and word, rain %, humidity % | ⬜ |
-| Trend arrows (`showTrends`, `addSample`/`trend` port) | ⬜ |
-| Wind compass (`showCompass`), `compass` car/north, wind arrow from `windDir`, car icon, cardinal letters upright, "No heading" note | ⬜ |
-| Calm wind, speed with units | ⬜ |
+| Track and air temperature with units, sky in header | ✅ |
+| Track wetness bar and word, rain %, humidity % | ✅ |
+| Trend arrows (`showTrends`, `addSample`/`trend` port) | ✅ |
+| Wind compass (`showCompass`), `compass` car/north, wind arrow from `windDir`, car icon, cardinal letters upright, "No heading" note | ✅ |
+| Calm wind, speed with units | ✅ |
 
 ## 16. Race pace — `src/widgets/RacePace.tsx`, `src/lib/raceHistory.ts`
 
