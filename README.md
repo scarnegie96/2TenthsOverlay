@@ -4,7 +4,7 @@ iRacing overlays you own. Tenths is a Tauri 2 app for Windows that reads the
 iRacing SDK directly and draws a set of configurable widgets over the sim: no
 subscriptions, no third-party services, and every line of it is yours to change.
 
-Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. 
+Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. This tool is currently a webapp but I am transitioning it to Rust and eGUI experimentally.
 
 ![Every Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
 
