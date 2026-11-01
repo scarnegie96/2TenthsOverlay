@@ -43,6 +43,11 @@ pub const TRACE_SECONDS: f64 = 20.0;
 
 pub type Shared = Arc<Mutex<Latest>>;
 
+/// Longest the overlay waits between redraws while telemetry flows, in ms
+/// (`--fps`; 30 fps by default). iRacing sends 60 frames a second; drawing
+/// every one of them costs the sim more than it gains on screen.
+pub static FRAME_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(33);
+
 struct UiSink {
     shared: Shared,
     ctx: egui::Context,
@@ -87,8 +92,10 @@ impl Sink for UiSink {
             l.tick = Some(Arc::new(tick.clone()));
             l.ticks += 1;
         }
-        // One repaint per telemetry frame; egui merges requests, so it never queues up.
-        self.ctx.request_repaint();
+        // A redraw at most every FRAME_MS: egui keeps the earliest pending
+        // request, so frames arriving in between don't add any.
+        let ms = FRAME_MS.load(std::sync::atomic::Ordering::Relaxed);
+        self.ctx.request_repaint_after(std::time::Duration::from_millis(ms));
     }
 
     fn field(&self, field: &FieldPayload) {

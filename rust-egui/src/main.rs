@@ -72,6 +72,11 @@ struct Args {
     pane: Option<String>,
     report: Option<String>,
     data_dir: Option<PathBuf>,
+    /// Redraws a second while telemetry flows (`--fps`, default 30).
+    fps: u32,
+    /// Wait for the display's refresh before showing each frame (`--vsync`;
+    /// off by default, so the overlay never holds up its frame to line up with the sim's).
+    vsync: bool,
 }
 
 fn args() -> Args {
@@ -94,6 +99,8 @@ fn args() -> Args {
         pane: value("--pane"),
         report: value("--report"),
         data_dir: value("--data-dir").map(PathBuf::from),
+        fps: value("--fps").and_then(|v| v.parse().ok()).filter(|f: &u32| (5..=240).contains(f)).unwrap_or(30),
+        vsync: has("--vsync"),
     }
 }
 
@@ -124,7 +131,9 @@ fn main() -> eframe::Result {
         // Resized to the whole display on the first frame, once the monitor is known.
         .with_inner_size([1920.0, 1080.0])
         .with_mouse_passthrough(!args.edit);
-    let options = eframe::NativeOptions { viewport, ..Default::default() };
+    data::FRAME_MS.store((1000 / args.fps).max(1) as u64, std::sync::atomic::Ordering::Relaxed);
+    let glow_options = eframe::egui_glow::GlowConfiguration { vsync: args.vsync, ..Default::default() };
+    let options = eframe::NativeOptions { viewport, glow_options, ..Default::default() };
     eframe::run_native("tenths-egui", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args, listener)))))
 }
 
