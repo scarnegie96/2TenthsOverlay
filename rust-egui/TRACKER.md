@@ -211,9 +211,9 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Rows per class (`classes`, `rows`, `otherClassRows`) with tyre (`showCompound`), stint laps, stops | ⬜ |
-| Timeline (`showTimeline`) coloured by compound with stop ticks, lengths (`showLengths`), lap axis | ⬜ |
-| Partial stints, out cars, empty state | ⬜ |
+| Rows per class (`classes`, `rows`, `otherClassRows`) with tyre (`showCompound`), stint laps, stops | ✅ |
+| Timeline (`showTimeline`) coloured by compound with stop ticks, lengths (`showLengths`), lap axis | ✅ |
+| Partial stints, out cars, empty state | ✅ |
 
 ## 18. Battle — `src/widgets/Battle.tsx`, `src/lib/battle.ts`
 
