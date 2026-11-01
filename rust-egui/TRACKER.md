@@ -181,11 +181,11 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| LED matrix board (28×28 dots, halo), every pattern: fills, SC text board (`scBoard`), checker, meatball, debris stripes, black-and-white warning, DSQ/BLK text, "1" to green | ⬜ |
-| Priority order and flashing for waved flags | ⬜ |
-| Green only in races and for `greenSeconds` after a start/restart | ⬜ |
-| Caption per flag (`showCaption`, every `text*` option) | ⬜ |
-| `alwaysShow` dark board; "No flag" in edit mode | ⬜ |
+| LED matrix board (28×28 dots, halo), every pattern: fills, SC text board (`scBoard`), checker, meatball, debris stripes, black-and-white warning, DSQ/BLK text, "1" to green | ✅ |
+| Priority order and flashing for waved flags | ✅ |
+| Green only in races and for `greenSeconds` after a start/restart | ✅ |
+| Caption per flag (`showCaption`, every `text*` option) | ✅ |
+| `alwaysShow` dark board; "No flag" in edit mode | ✅ |
 
 ## 15. Weather — `src/widgets/Weather.tsx`, `src/lib/weather.ts`
 

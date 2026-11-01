@@ -3,6 +3,7 @@
 
 pub mod coach;
 pub mod delta_history;
+pub mod flags;
 pub mod format;
 pub mod incidents;
 pub mod irating;
