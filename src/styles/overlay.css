@@ -657,6 +657,10 @@
 .standings {
   width: 520px;
 }
+/* Room for the thumbs after the race. */
+.standings.is-voting {
+  width: 576px;
+}
 /* Labels and their numbers share a center line. */
 .standings .row-head > span:not(.row-head-title),
 .standings .gap,
@@ -2784,4 +2788,59 @@
 .rel-inc.is-danger {
   color: var(--loss);
   font-weight: 700;
+}
+
+/* ---------- Driver ratings ------------------------------------------------------ */
+
+.thumb {
+  display: block;
+  fill: currentColor;
+}
+/* The small thumb by a driver you've rated: quiet, so it doesn't distract in a race. */
+.rating-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  margin-left: 4px;
+  opacity: 0.85;
+}
+.rating-mark.is-up {
+  color: var(--gain);
+}
+.rating-mark.is-down {
+  color: var(--loss);
+}
+/* Thumbs up and down after the race. */
+.rate {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+.rate-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.rate-btn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.rate-btn.is-up.is-on {
+  color: var(--gain);
+  opacity: 1;
+}
+.rate-btn.is-down.is-on {
+  color: var(--loss);
+  opacity: 1;
+}
+[data-theme="light"] .rate-btn:not(.is-on) {
+  color: var(--ink-2);
 }

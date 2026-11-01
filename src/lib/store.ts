@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api, isTauri, on } from "./bridge";
 import { type AppConfig, defaultConfig, normalizeConfig } from "./config";
 import { THEMES, applyTheme, type Theme } from "./theme";
-import type { Display, FieldPayload, ProfileSummary, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
+import type { Display, DriverRatings, FieldPayload, ProfileSummary, ReferencePayload, SessionPayload, StatusPayload, TickPayload } from "./types";
 
 interface LiveState {
   status: StatusPayload | null;
@@ -20,6 +20,8 @@ interface LiveState {
   displays: Display[];
   /** The display this overlay window covers (null in Settings). */
   myDisplay: string | null;
+  /** Your thumbs up or down on other drivers. */
+  driverRatings: DriverRatings;
 }
 
 export const useLive = create<LiveState>(() => ({
@@ -35,6 +37,7 @@ export const useLive = create<LiveState>(() => ({
   profiles: [],
   displays: [],
   myDisplay: null,
+  driverRatings: {},
 }));
 
 /** Subscribes this window to everything the backend sends. Call once per window. */
@@ -57,6 +60,7 @@ export async function connect(opts: { telemetry: boolean }) {
     on<boolean>("edit-mode", (editMode) => set({ editMode })),
     on<boolean>("overlay-visible", (overlayVisible) => set({ overlayVisible })),
     on<ProfileSummary[]>("profiles-changed", (profiles) => set({ profiles })),
+    on<DriverRatings>("driver-ratings", (driverRatings) => set({ driverRatings })),
     on<Display[]>("displays-changed", (displays) => {
       set({ displays });
       // Windows can swap displays when the primary changes, so ask again.
@@ -77,6 +81,7 @@ export async function connect(opts: { telemetry: boolean }) {
     api.getDisplays().catch(() => []),
     api.myDisplay().catch(() => null),
   ]);
+  void api.getDriverRatings().then((driverRatings) => set({ driverRatings })).catch(() => {});
   set({
     status: snap.status ?? useLive.getState().status,
     session: snap.session ?? useLive.getState().session,

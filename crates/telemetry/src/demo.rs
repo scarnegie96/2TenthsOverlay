@@ -518,8 +518,9 @@ DriverInfo:
             };
             let abbrev = name.split_whitespace().last().unwrap_or(name);
             y.push_str(&format!(
-                " - CarIdx: {i}\n   UserName: {name}\n   AbbrevName: {abbrev}\n   CarNumber: \"{num}\"\n   CarScreenNameShort: {car}\n   CarClassID: {cid}\n   CarClassShortName: {cls}\n   CarClassColor: {col}\n   CarClassEstLapTime: {est:.4}\n   IRating: {ir}\n   LicString: {lic} {sr:.2}\n   LicColor: {lic_color}\n   IsSpectator: 0\n   CarIsPaceCar: 0\n",
+                " - CarIdx: {i}\n   UserID: {uid}\n   UserName: {name}\n   AbbrevName: {abbrev}\n   CarNumber: \"{num}\"\n   CarScreenNameShort: {car}\n   CarClassID: {cid}\n   CarClassShortName: {cls}\n   CarClassColor: {col}\n   CarClassEstLapTime: {est:.4}\n   IRating: {ir}\n   LicString: {lic} {sr:.2}\n   LicColor: {lic_color}\n   IsSpectator: 0\n   CarIsPaceCar: 0\n",
                 num = 3 + i * 7 % 97,
+                uid = 400_000 + i * 7919,
                 car = class.car,
                 cid = class.id,
                 cls = class.name,

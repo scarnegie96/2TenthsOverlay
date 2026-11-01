@@ -5,6 +5,7 @@ mod controllers;
 mod controls;
 mod displays;
 mod profiles;
+mod ratings;
 mod updates;
 
 use std::fs;
@@ -244,6 +245,46 @@ fn my_display(window: WebviewWindow, state: State<Displays>) -> Option<String> {
     state.windows.lock().unwrap().get(window.label()).cloned()
 }
 
+// ---------------------------------------------------------------------------
+// Driver ratings (ratings.rs)
+// ---------------------------------------------------------------------------
+
+fn ratings_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path().app_data_dir().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_driver_ratings(app: AppHandle, state: State<ratings::Ratings>) -> Result<std::collections::BTreeMap<String, ratings::DriverRating>, String> {
+    Ok(state.all(&ratings_dir(&app)?))
+}
+
+/// Thumbs up or down for a driver (None clears it). Every window hears about it.
+#[tauri::command]
+fn set_driver_rating(
+    app: AppHandle,
+    state: State<ratings::Ratings>,
+    user_id: i64,
+    name: String,
+    rating: Option<ratings::Rating>,
+) -> Result<(), String> {
+    let all = state.set(&ratings_dir(&app)?, user_id, &name, rating)?;
+    let _ = app.emit("driver-ratings", all);
+    Ok(())
+}
+
+/// Lets the calling overlay take the mouse (true) or pass every click through
+/// to iRacing (false), for the parts of a widget you can click outside edit
+/// mode. The overlay turns it on only while the pointer is over them.
+#[tauri::command]
+fn set_clickable(window: WebviewWindow, state: State<AppState>, clickable: bool) {
+    if state.edit_mode.load(Ordering::Relaxed) {
+        return;
+    }
+    // Clicking shouldn't take the keyboard away from iRacing.
+    let _ = window.set_focusable(!clickable);
+    let _ = window.set_ignore_cursor_events(!clickable);
+}
+
 /// The mouse on the desktop and whether its button is held, for dragging widgets between displays.
 #[tauri::command]
 fn pointer(app: AppHandle) -> Option<displays::Pointer> {
@@ -384,6 +425,7 @@ fn apply_edit_mode(app: &AppHandle, enabled: bool) {
         apply_overlay_visible(app, true);
     }
     for w in displays::overlays(app) {
+        let _ = w.set_focusable(true);
         let _ = w.set_ignore_cursor_events(!enabled);
     }
     if enabled {
@@ -491,6 +533,7 @@ pub fn run() {
         .manage(controls::Controls::default())
         .manage(Displays::default())
         .manage(updates::Updates::default())
+        .manage(ratings::Ratings::default())
         .manage(AppState {
             control: control.clone(),
             edit_mode: AtomicBool::new(false),
@@ -510,6 +553,9 @@ pub fn run() {
             get_displays,
             my_display,
             pointer,
+            set_clickable,
+            get_driver_ratings,
+            set_driver_rating,
             open_settings,
             pit_command,
             set_pit_active,

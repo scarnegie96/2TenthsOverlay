@@ -16,6 +16,7 @@ pub mod coach;
 pub mod demo;
 pub mod dynamics;
 pub mod engine;
+pub mod finish;
 pub mod grid;
 pub mod ibt;
 pub mod laps;

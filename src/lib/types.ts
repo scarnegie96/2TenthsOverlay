@@ -233,6 +233,8 @@ export interface DriverCell {
   className: string;
   classColor: string;
   irating: number;
+  /** iRacing customer id, the same in every session; 0 when unknown. */
+  userId: number;
   license: string;
   licenseColor: string;
 }
@@ -311,6 +313,8 @@ export interface SessionClock {
   incidentLimit: number | null;
   fastRepairsUsed: number;
   fastRepairsLimit: number | null;
+  /** You've taken the chequered flag in this race. */
+  playerFinished: boolean;
 }
 
 export interface ClassSummary {
@@ -544,3 +548,16 @@ export interface UpdateProgress {
   downloaded: number;
   total: number | null;
 }
+
+/** Your thumbs up or down on another driver (src-tauri/src/ratings.rs). */
+export type Rating = "up" | "down";
+
+export interface DriverRating {
+  name: string;
+  rating: Rating;
+  /** Seconds since 1970. */
+  at: number;
+}
+
+/** Customer id (as a string) -> rating. */
+export type DriverRatings = Record<string, DriverRating>;

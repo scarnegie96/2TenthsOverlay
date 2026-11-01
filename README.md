@@ -107,6 +107,16 @@ each class. iRacing doesn't
 publish its formula, so this uses the community calculator other overlays use
 (the "iRacing SOF iRating Calculator"); it's usually within a few points.
 
+**Rate drivers.** Once you've taken the chequered flag, a **Rate** column
+appears with a thumbs up and a thumbs down by every other driver. They're
+white until you click one, then green or red; click it again to clear it.
+Clicking works without edit mode: the overlay takes the mouse only while it's
+over the thumbs, so everything else still goes to iRacing. Ratings are kept in
+`driver-ratings.json` and, in later sessions, a small green or red thumb sits
+next to that driver's name in the Standings and the Relative.
+
+![Rating drivers after the race](docs/widgets/standings-rate.png)
+
 Next to the name, an outlined **P** means the car is in the pit lane and a
 solid **P** that it's stopped in its pit box. A car that has left the sim gets
 **OUT** in a race (retired, quit or towed to the garage) and **GAR** in
@@ -651,6 +661,7 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 | `layouts\`       | Saved layouts, one `.json` file each |
 | `laps\`          | Lap history and personal best, one file per car and track |
 | `reference.json` | The imported reference lap |
+| `driver-ratings.json` | Your thumbs up or down on other drivers, by iRacing id |
 
 If `config.json` can't be read, Tenths keeps it as
 `config.corrupt-<date>.json`, starts with default settings and says so in
@@ -685,6 +696,7 @@ URL parameters help too:
 | `?all`          | Turns every widget on, laid out for a 2560×1440 window (the overview screenshots) |
 | `?pits`         | Keeps one GT3 car in the pit lane, so the pit symbol shows |
 | `?displays=2`   | Adds a second display; `&display=2` makes the tab that display's overlay |
+| `?finished`    | You've taken the flag: the Standings shows the thumbs for rating drivers |
 | `?update`      | Settings → About: **Check now** finds a pretend newer version, and installing it shows the progress |
 | `?corrupt`     | Settings shows the notice for a settings file that couldn't be read |
 

@@ -97,6 +97,7 @@ export const WIDGETS: WidgetMeta[] = [
         ],
       },
       { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "For your class, in the header" },
+      { key: "showRatings", label: "Show your driver ratings", type: "toggle", default: true, help: "A small thumb next to drivers you've rated after a race" },
       { key: "showIncidents", label: "Show incidents", type: "toggle", default: true, help: "Yours and the next limit, in the header. Amber from three quarters of the limit, red within 4x of it" },
       { key: "incidentStep", label: "After the limit, a penalty every", type: "number", default: 4, min: 0, max: 50, help: "Incidents. Many series penalise at the limit (17x) and again every few after it (21x, 25x…); the next one is shown. 0 if the limit is the end" },
     ],
@@ -124,6 +125,8 @@ export const WIDGETS: WidgetMeta[] = [
       { key: "showLast", label: "Show last lap", type: "toggle", default: true, help: "Purple for the fastest lap in class, green for a personal best" },
       { key: "showBest", label: "Show best lap", type: "toggle", default: true },
       { key: "showSoF", label: "Show strength of field", type: "toggle", default: true, help: "Per class in multi-class races" },
+      { key: "rateDrivers", label: "Rate drivers after the race", type: "toggle", default: true, help: "Once you've taken the chequered flag, thumbs up and down appear by each driver. Click one; it's kept and shown next to their name in later races" },
+      { key: "showRatings", label: "Show your driver ratings", type: "toggle", default: true, help: "A small thumb next to drivers you've rated" },
     ],
   },
   {

@@ -3,7 +3,7 @@ import { opt, type WidgetConfig } from "../lib/config";
 import { clock, gap, irating, license } from "../lib/format";
 import { useLive } from "../lib/store";
 import type { RelativeRow, SessionClock } from "../lib/types";
-import { ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
+import { ClassStripe, IRatingBadge, LastLap, RatingMark, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { compoundKind } from "./Stints";
 import { incidentTarget } from "../lib/incidents";
@@ -29,6 +29,7 @@ export function Relative({ config }: { config: WidgetConfig }) {
   const showLast = opt(config, "showLastLap", true);
   const showPit = opt(config, "showPit", true);
   const showInterval = opt(config, "showInterval", true);
+  const showMarks = opt(config, "showRatings", true);
   const compounds = useLive((s) => s.session?.tireCompounds ?? []);
   const showCompound = opt<string>(config, "showCompound", "auto");
   // Only worth the space when there's a choice of tyres.
@@ -81,7 +82,7 @@ export function Relative({ config }: { config: WidgetConfig }) {
           {slots.map((s, k) =>
             s ? (
               <Row key={s.r.carIdx} r={s.r} interval={showInterval ? s.interval : undefined} race={race}
-                showIR={showIR} showLic={showLic} showLast={showLast} multiclass={multiclass}
+                showIR={showIR} showLic={showLic} showLast={showLast} multiclass={multiclass} showMarks={showMarks}
                 tyre={showTyre ? (s.r.compound >= 0 ? compounds[s.r.compound] ?? "" : "") : null} />
             ) : (
               <div key={`e${k}`} className="row row-empty" />
@@ -117,7 +118,8 @@ function Incidents({ count, limit, step }: { count: number; limit: number | null
 /** Within this many seconds of the car ahead counts as a close fight. */
 const CLOSE_S = 1.0;
 
-function Row({ r, interval, race, showIR, showLic, showLast, multiclass, tyre }: {
+function Row({ r, interval, race, showIR, showLic, showLast, multiclass, tyre, showMarks }: {
+  showMarks: boolean;
   r: RelativeRow;
   /** The compound's name ("" when unknown); null when the column is off. */
   tyre: string | null;
@@ -135,6 +137,7 @@ function Row({ r, interval, race, showIR, showLic, showLast, multiclass, tyre }:
       <span className="num">{r.number}</span>
       <span className="name">
         <span className="name-text">{r.name}</span>
+        {showMarks && !r.isPlayer && <RatingMark userId={r.userId} />}
         <StatusBadge status={r.status} race={race} />
       </span>
       {tyre !== null && (

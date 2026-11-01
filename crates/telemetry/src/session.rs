@@ -10,6 +10,8 @@ use serde_yaml::Value;
 #[derive(Debug, Clone, Default)]
 pub struct DriverInfo {
     pub car_idx: i32,
+    /// iRacing customer id (`UserID`); 0 when unknown.
+    pub user_id: i64,
     pub user_name: String,
     pub abbrev_name: String,
     pub team_name: String,
@@ -240,6 +242,7 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
 fn parse_driver(d: &Value) -> DriverInfo {
     DriverInfo {
         car_idx: int(&d["CarIdx"]).unwrap_or(-1),
+        user_id: int(&d["UserID"]).map(i64::from).unwrap_or(0),
         user_name: text(&d["UserName"]),
         abbrev_name: text(&d["AbbrevName"]),
         team_name: text(&d["TeamName"]),

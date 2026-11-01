@@ -4,7 +4,7 @@
 //    so the UI can be worked on without Windows or iRacing.
 
 import type { ActionId, ControlBinding } from "./controls";
-import type { Controller, Display, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot, UpdateInfo, UpdateStatus } from "./types";
+import type { Controller, Display, IbtSummary, PitCommand, Profile, ProfileSummary, Snapshot, UpdateInfo, UpdateStatus, DriverRatings, Rating } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -81,6 +81,14 @@ export const api = {
   checkUpdate: () => call<UpdateInfo | null>("check_update"),
   /** Downloads, verifies and installs it; Tenths closes and reopens. Progress comes as "update-progress". */
   installUpdate: () => call<void>("install_update"),
+
+  /** Your thumbs up or down on drivers, by customer id. */
+  getDriverRatings: () => call<DriverRatings>("get_driver_ratings"),
+  /** Rates a driver (null clears it). Every window hears "driver-ratings". */
+  setDriverRating: (userId: number, name: string, rating: Rating | null) =>
+    call<void>("set_driver_rating", { userId, name, rating }),
+  /** Lets this overlay take the mouse, for clickable parts of widgets outside edit mode. */
+  setClickable: (clickable: boolean) => call<void>("set_clickable", { clickable }),
 
   listProfiles: () => call<ProfileSummary[]>("list_profiles"),
   getProfile: (id: string) => call<Profile>("get_profile", { id }),

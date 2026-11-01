@@ -4,6 +4,7 @@ import { WIDGETS, type WidgetConfig, type WidgetId } from "../lib/config";
 import { displayName, primaryKey, widgetDisplay } from "../lib/displays";
 import { usePitControl } from "../lib/pit";
 import { cycleProfile, switchProfile, updateConfig, useLive } from "../lib/store";
+import type { Display } from "../lib/types";
 import type { Guide, Rect } from "./snapping";
 import { WidgetFrame } from "./WidgetFrame";
 
@@ -29,6 +30,7 @@ export function Overlay() {
   const isPrimary = displays.length === 0 || !!me?.primary;
   const toast = useLayoutToast(activeProfile, profiles.find((p) => p.id === activeProfile)?.name);
   usePitControl(isPrimary);
+  useClickableParts(editing, me, useLive((s) => !!s.field?.clock.playerFinished));
 
   // Rust owns the global shortcuts and controller buttons; keep it up to date with the config.
   const controls = config.general.controls;
@@ -152,6 +154,53 @@ export function Overlay() {
       {!isTauri && !editing && <div className="preview-hint">Browser preview. Press E to edit the layout, L to switch layouts.</div>}
     </div>
   );
+}
+
+/** How often to check whether the mouse is over a clickable part (ms). */
+const CLICKABLE_POLL_MS = 50;
+
+/**
+ * Outside edit mode every click goes through to iRacing. A few parts of
+ * widgets take clicks anyway (marked `data-clickable`, like the thumbs in the
+ * Standings after a race), so while any are on screen, follow the mouse and
+ * let this window take it only while it's over one of them.
+ */
+function useClickableParts(editing: boolean, me: Display | null, active: boolean) {
+  useEffect(() => {
+    if (!isTauri || editing || !active) return;
+    let clickable = false;
+    let stopped = false;
+    const set = (on: boolean) => {
+      if (on === clickable) return;
+      clickable = on;
+      void api.setClickable(on);
+    };
+    const tick = async () => {
+      if (stopped) return;
+      const parts = document.querySelectorAll("[data-clickable]");
+      if (parts.length === 0) {
+        set(false);
+      } else {
+        const p = await api.pointer().catch(() => null);
+        if (stopped) return;
+        if (p) {
+          const scale = me?.scale ?? window.devicePixelRatio;
+          const x = (p.x - (me?.x ?? 0)) / scale;
+          const y = (p.y - (me?.y ?? 0)) / scale;
+          set([...parts].some((el) => {
+            const r = el.getBoundingClientRect();
+            return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+          }));
+        }
+      }
+      window.setTimeout(() => void tick(), CLICKABLE_POLL_MS);
+    };
+    void tick();
+    return () => {
+      stopped = true;
+      if (clickable) void api.setClickable(false);
+    };
+  }, [editing, me, active]);
 }
 
 /** Names the layout for a moment after it changes, so a shortcut press is confirmed. */

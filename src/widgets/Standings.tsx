@@ -5,7 +5,7 @@ import { useLive } from "../lib/store";
 import { iratingChanges } from "../lib/irating";
 import { rejoinAfterStop, type Rejoin } from "../lib/rejoin";
 import type { StandingRow } from "../lib/types";
-import { BestLap, ClassStripe, IRatingBadge, LastLap, StatusBadge, posClass } from "./cells";
+import { BestLap, ClassStripe, IRatingBadge, LastLap, RateButtons, RatingMark, StatusBadge, posClass } from "./cells";
 import { Empty, Panel } from "./Panel";
 import { sessionAside } from "./Relative";
 
@@ -54,8 +54,11 @@ export function Standings({ config }: { config: WidgetConfig }) {
   const showBest = opt(config, "showBest", true);
   const showIR = opt(config, "showIRating", true);
   const showSoF = opt(config, "showSoF", true);
+  const showMarks = opt(config, "showRatings", true);
   const race = /race/i.test(field?.clock.sessionType ?? "");
   // Estimated iRating change: official races only, where iRating moves.
+  // Once you've taken the flag: thumbs up or down for the other drivers.
+  const voting = race && !!field?.clock.playerFinished && opt(config, "rateDrivers", true);
   const showIRChange = showIR && opt(config, "showIRatingChange", true) && race && !!session?.official;
   // Positions gained or lost: only in races, and only once we know a grid.
   const showChange = opt(config, "showChange", true) && (field?.standings ?? []).some((r) => r.startPosition != null);
@@ -65,7 +68,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
   // Pit rejoin: only in races, and only once a session average for your class exists.
   const loss = field?.pitLoss.find((p) => p.classId === playerClass) ?? null;
   const myRow = all.find((r) => r.isPlayer);
-  const showRejoin = opt(config, "showRejoin", true) && race && !!loss && !!myRow && myRow.status === "track";
+  const showRejoin = opt(config, "showRejoin", true) && race && !field?.clock.playerFinished && !!loss && !!myRow && myRow.status === "track";
   let groups = groupByClass(all);
   if (myClassOnly) groups = groups.filter((g) => g.classId === playerClass);
   const showClassHeads = groups.length > 1;
@@ -80,12 +83,13 @@ export function Standings({ config }: { config: WidgetConfig }) {
     "54px",
     showLast && "62px",
     showBest && "62px",
+    voting && "52px",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <Panel className="standings">
+    <Panel className={`standings ${voting ? "is-voting" : ""}`}>
       {all.length === 0 ? (
         <Empty>Standings appear when a session is running.</Empty>
       ) : (
@@ -102,6 +106,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
             <span>{gapMode === "interval" ? "Int" : "Gap"}</span>
             {showLast && <span>Last</span>}
             {showBest && <span>Best</span>}
+            {voting && <span title="Thumbs up or down for each driver, kept for next time">Rate</span>}
           </div>
           {groups.map((g) => {
             const max = g.classId === playerClass ? myRows : otherRows;
@@ -133,6 +138,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
                       <span className="num">{r.number}</span>
                       <span className="name">
                         <span className="name-text">{r.name}</span>
+                        {showMarks && !r.isPlayer && <RatingMark userId={r.userId} />}
                         <StatusBadge status={r.status} race={race} />
                       </span>
                       {showChange && <PlacesChange start={r.startPosition} now={r.classPosition} />}
@@ -140,6 +146,7 @@ export function Standings({ config }: { config: WidgetConfig }) {
                       <span className="gap">{gapCell(r, gapMode)}</span>
                       {showLast && <LastLap time={r.lastLap} flag={r.lastFlag} />}
                       {showBest && <BestLap time={r.bestLap} fastest={r.classFastest} />}
+                      {voting && (r.isPlayer || r.userId <= 0 ? <span /> : <RateButtons driver={r} />)}
                     </div>
                   ),
                 )}

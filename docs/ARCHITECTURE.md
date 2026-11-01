@@ -301,6 +301,18 @@ fuel amount of 0 keeps the amount already set.
   repository's signing secrets and publishes the installer, `.sig` and
   `latest.json`, using the tag message as release notes.
 
+- **Finishing and driver ratings** (`finish.rs`, `ratings.rs`): you've
+  finished a race once your completed laps go up after `SessionState` turns
+  chequered (5), or at cool down (6), or if you leave the car after the flag;
+  sent as `clock.playerFinished`. The Standings then shows thumbs up/down per
+  driver, saved by `UserID` (now in every row as `userId`) in
+  `driver-ratings.json` (`get_driver_ratings`, `set_driver_rating`, event
+  `driver-ratings`) and marked next to names afterwards. Overlays normally
+  ignore the mouse; elements marked `data-clickable` get clicks anyway: while
+  any are on screen the overlay polls `pointer` every 50 ms and calls
+  `set_clickable` only while the mouse is over one, which also makes the
+  window non-focusable so iRacing keeps the keyboard.
+
 ## Front end (`src`)
 
 - `lib/bridge.ts` calls Tauri when present and `lib/mock.ts` in a plain browser.

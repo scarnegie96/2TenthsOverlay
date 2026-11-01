@@ -32,6 +32,8 @@ pub struct Engine {
     stints: crate::stints::StintTracker,
     /// Times every pit stop, for the pit rejoin estimate.
     pit_loss: crate::pitloss::PitLossTracker,
+    /// Whether you've taken the chequered flag.
+    finish: crate::finish::FinishTracker,
 }
 
 impl Engine {
@@ -146,6 +148,7 @@ impl Engine {
         self.laps.update(f);
         let race = self.is_race(f.session_num);
         self.grid.update(f, race);
+        self.finish.update(f, race);
         self.stints.update(f);
         if let Some(s) = &self.session {
             self.pit_loss.update(f, |car| s.driver(car).map(|d| d.class_id));
@@ -352,6 +355,7 @@ impl Engine {
             fog_level: f.fog_level,
             incidents: if s.team_racing { f.team_incidents } else { f.incidents },
             incident_limit: s.incident_limit,
+            player_finished: self.finish.finished(),
             fast_repairs_used: f.fast_repairs_used,
             fast_repairs_limit: s.fast_repairs_limit,
             session_type: def.map(|d| d.session_type.clone()).unwrap_or_default(),
@@ -566,6 +570,7 @@ fn driver_cell(d: &DriverInfo) -> DriverCell {
         class_name: d.class_short_name.clone(),
         class_color: d.class_color.clone(),
         irating: d.irating,
+        user_id: d.user_id,
         license: d.license.clone(),
         license_color: d.license_color.clone(),
     }

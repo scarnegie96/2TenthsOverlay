@@ -14,6 +14,8 @@ type Handler = (payload: unknown) => void;
 const CONFIG_KEY = "tenths.config";
 /** ?sample: a few saved layouts, with Sprint on screen, for the README screenshots. */
 const SAMPLE = typeof location !== "undefined" && new URLSearchParams(location.search).has("sample");
+const FINISHED = typeof location !== "undefined" && new URLSearchParams(location.search).has("finished");
+const RATINGS_KEY = "tenths.driverRatings";
 const SHOWCASE = typeof location !== "undefined" && new URLSearchParams(location.search).has("all");
 const SHOW_PITS = typeof location !== "undefined" && new URLSearchParams(location.search).has("pits");
 
@@ -280,6 +282,23 @@ class Mock {
         return [];
       case "pointer":
         return null;
+      case "set_clickable":
+        return;
+      case "get_driver_ratings":
+        try {
+          return JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}");
+        } catch {
+          return {};
+        }
+      case "set_driver_rating": {
+        const all = (await this.call("get_driver_ratings")) as Record<string, unknown>;
+        const key = String(args.userId);
+        if (args.rating) all[key] = { name: args.name, rating: args.rating, at: Math.floor(Date.now() / 1000) };
+        else delete all[key];
+        localStorage.setItem(RATINGS_KEY, JSON.stringify(all));
+        this.broadcast("driver-ratings", all);
+        return;
+      }
       // ?update pretends a newer version is out.
       case "update_status":
         return { current: "0.4.1", available: this.update, lastChecked: this.updateChecked, enabled: true };
@@ -689,7 +708,7 @@ class Mock {
     return {
       carIdx: i, name: NAMES[i], abbrev: NAMES[i].split(" ").pop() ?? "", number: String(3 + ((i * 7) % 97)),
       classId: c.id, className: c.name, classColor: c.color,
-      irating: 1200 + Math.floor(rand(i + 11) * 3800), license: `${lic} ${(1.5 + rand(i + 17) * 2.9).toFixed(2)}`,
+      irating: 1200 + Math.floor(rand(i + 11) * 3800), userId: 400000 + i * 7919, license: `${lic} ${(1.5 + rand(i + 17) * 2.9).toFixed(2)}`,
       licenseColor: lic === "A" ? "#0153db" : lic === "B" ? "#00c702" : "#feec04",
     };
   }
@@ -788,6 +807,8 @@ class Mock {
         timeOfDay: 14 * 3600 + (performance.now() / 1000) % 3600, ...this.weather(), declaredWet: false,
         incidents: 2, incidentLimit: 17, fastRepairsUsed: 0,
         fastRepairsLimit: 1,
+        // ?finished: you've taken the flag, so the Standings asks for ratings.
+        playerFinished: FINISHED,
       },
       relative,
       standings,

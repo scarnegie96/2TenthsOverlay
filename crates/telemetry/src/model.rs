@@ -334,6 +334,8 @@ pub struct DriverCell {
     pub class_name: String,
     pub class_color: String,
     pub irating: i32,
+    /// iRacing customer id (`UserID`), the same in every session; 0 when unknown.
+    pub user_id: i64,
     pub license: String,
     pub license_color: String,
 }
@@ -484,6 +486,8 @@ pub struct SessionClock {
     pub fast_repairs_used: i32,
     /// None when unlimited.
     pub fast_repairs_limit: Option<i32>,
+    /// You've taken the chequered flag in this race.
+    pub player_finished: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
