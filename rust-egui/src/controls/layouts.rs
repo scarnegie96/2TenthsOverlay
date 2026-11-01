@@ -1,12 +1,7 @@
-//! The layout shortcuts (`layout.next`, `layout.1` to `layout.9`) call this.
-//!
-//! MERGE POINT: saved layouts (G3, `src-tauri/src/profiles.rs`) are built on
-//! another branch. Until that lands, `switch_layout` only logs. When merging,
-//! replace its body with the real switch (load the layout's widgets into the
-//! store and set `general.activeProfile`); nothing else in `controls` needs to
-//! change, `main.rs` already calls it with the store.
+//! The layout shortcuts (`layout.next`, `layout.1` to `layout.9`): which
+//! layout a shortcut asks for. The app switches it (`App::next_layout`,
+//! `App::layout_at` in main.rs, on `layouts::Layouts`).
 
-use crate::config::Store;
 
 /// Which layout a shortcut asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,11 +19,6 @@ pub fn from_action(action: &str) -> Option<LayoutSwitch> {
         return Some(LayoutSwitch::Next);
     }
     n.parse::<usize>().ok().filter(|n| (1..=9).contains(n)).map(|n| LayoutSwitch::Index(n - 1))
-}
-
-/// Switches layout. No saved layouts yet: says so and does nothing.
-pub fn switch_layout(_store: &mut Store, switch: LayoutSwitch) {
-    eprintln!("[tenths] layout shortcut {switch:?}: saved layouts aren't available in this build yet");
 }
 
 #[cfg(test)]

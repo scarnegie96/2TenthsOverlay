@@ -21,16 +21,20 @@ ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [target.'cfg(windows)'.dependencies]
 global-hotkey = "0.9"
-# Win32_System_ProcessStatus and _Threading: the stats line. The rest is Raw Input and HID,
-# for wheel and button-box buttons (src/controls/controllers.rs, as in src-tauri/Cargo.toml).
+# Win32_System_ProcessStatus and _Threading: the stats line. Devices_HumanInterfaceDevice,
+# Security, Storage_FileSystem, LibraryLoader, UI_Input: Raw Input and HID for wheel and button-box
+# buttons (src/controls/controllers.rs). Graphics_Gdi, UI_HiDpi, KeyboardAndMouse, WindowsAndMessaging:
+# the display list, cursor and button state, WS_EX_NOACTIVATE (displays.rs) and hotkeys.
 windows-sys = { version = "0.59", features = [
   "Win32_Devices_HumanInterfaceDevice",
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_LibraryLoader",
   "Win32_System_ProcessStatus",
   "Win32_System_Threading",
+  "Win32_UI_HiDpi",
   "Win32_UI_Input",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",

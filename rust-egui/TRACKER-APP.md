@@ -27,22 +27,22 @@ Work starts once the panel agents are merged (these touch the shared files:
 
 | Item | Status |
 |---|---|
-| One overlay per monitor (egui viewports), keyed like the Tauri app's display keys so `widget.display` works; widgets on a missing display fall back to the primary | ⬜ |
-| Cross-display drag in edit mode (drop on another monitor moves the widget there and saves `display`) | ⬜ |
-| Edit bar on every display; secondary displays say which display it is | ⬜ |
-| Edit bar: layout picker (switch saved layout), widget picker (turn widgets on/off), Done | ⬜ |
-| Per-widget edit controls: − / + scale, hide, move-to-next-display button | ⬜ |
-| Layout toast when the layout changes | ⬜ |
-| Click-through regions: after the flag, the Standings rate thumbs take clicks while everything else passes through (cursor polling + toggling passthrough, as `useClickableParts`) | ⬜ |
-| Standings rate buttons (thumb up/down, one at a time) writing `driver-ratings.json` (port `ratings.rs` `set`, keep-unreadable rule) | ⬜ |
+| One overlay per monitor (egui viewports), keyed like the Tauri app's display keys so `widget.display` works; widgets on a missing display fall back to the primary | ✅ |
+| Cross-display drag in edit mode (drop on another monitor moves the widget there and saves `display`) | ✅ |
+| Edit bar on every display; secondary displays say which display it is | ✅ |
+| Edit bar: layout picker (switch saved layout), widget picker (turn widgets on/off), Done | ✅ |
+| Per-widget edit controls: − / + scale, hide, move-to-next-display button | ✅ |
+| Layout toast when the layout changes | ✅ |
+| Click-through regions: after the flag, the Standings rate thumbs take clicks while everything else passes through (cursor polling + toggling passthrough, as `useClickableParts`) | ✅ (Windows-only: cursor polling is `GetCursorPos`, untested here) |
+| Standings rate buttons (thumb up/down, one at a time) writing `driver-ratings.json` (port `ratings.rs` `set`, keep-unreadable rule) | ✅ |
 
 ## G3. Layouts (profiles) — `src-tauri/src/profiles.rs`
 
 | Item | Status |
 |---|---|
-| List / load / save / delete saved layouts in `layouts/` (same files as the Tauri app), `general.activeProfile` | ⬜ |
-| Edits save into the active layout; switching applies its widgets | ⬜ |
-| Import / export layout files | ⬜ |
+| List / load / save / delete saved layouts in `layouts/` (same files as the Tauri app), `general.activeProfile` | ✅ |
+| Edits save into the active layout; switching applies its widgets | ✅ |
+| Import / export layout files | ✅ (functions `Layouts::import/export`; the file-picker UI belongs to the G5 Layouts pane) |
 
 ## G4. Tray and app lifecycle — `src-tauri/src/lib.rs`
 

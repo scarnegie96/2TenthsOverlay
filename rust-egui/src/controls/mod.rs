@@ -157,6 +157,8 @@ pub enum AppAction {
     ToggleEdit,
     /// `overlay.toggle`: show or hide every overlay.
     ToggleVisible,
+    /// `layout.next` / `layout.1`–`layout.9`: switched by the app (`App::next_layout`, `App::layout_at`).
+    Layout(layouts::LayoutSwitch),
     Quit,
 }
 
@@ -303,7 +305,7 @@ impl Controls {
             QUIT => out.app.push(AppAction::Quit),
             _ => {
                 if let Some(switch) = layouts::from_action(action) {
-                    layouts::switch_layout(store, switch);
+                    out.app.push(AppAction::Layout(switch));
                 } else if let Some(pit_action) = PitAction::from_id(action).filter(|_| self.live(action)) {
                     let inputs = pit_inputs(Settings::from_config(&store.config, units), live, now);
                     if let Some(on) = self.pit.run_action(pit_action, &inputs, &mut self.runner) {
@@ -490,8 +492,11 @@ mod tests {
         }
         c.inject("nonsense");
         let out = c.frame(&mut store, &live_in_car(true), Units::Metric, 1.0);
-        // Layout actions go to the layouts hook, not the window.
-        assert_eq!(out.app, [AppAction::ToggleEdit, AppAction::ToggleVisible, AppAction::Quit]);
+        use layouts::LayoutSwitch;
+        assert_eq!(
+            out.app,
+            [AppAction::ToggleEdit, AppAction::ToggleVisible, AppAction::Quit, AppAction::Layout(LayoutSwitch::Next), AppAction::Layout(LayoutSwitch::Index(2))]
+        );
     }
 
     #[test]

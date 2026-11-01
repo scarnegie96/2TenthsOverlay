@@ -2,8 +2,9 @@
 //! app, reading the Tauri app's own `config.json` for which widgets are on,
 //! where they are, their options, theme and units.
 //!
-//! One transparent, always-on-top window over the primary display. Clicks go
-//! through to iRacing except while editing the layout.
+//! One transparent, always-on-top window over each display (`displays.rs`),
+//! showing the widgets placed on it. Clicks go through to iRacing except
+//! while editing the layout, and over the Standings' rate thumbs after the flag.
 //!
 //!   tenths-egui                   iRacing (Windows), falls back to waiting
 //!   tenths-egui --demo            the demo race
@@ -28,8 +29,10 @@ mod anchor;
 mod config;
 mod controls;
 mod data;
+mod displays;
 mod frame;
 mod kit;
+mod layouts;
 mod logic;
 mod ratings;
 mod schema;
@@ -38,7 +41,9 @@ mod sys;
 mod theme;
 mod widgets;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use egui::{Align2, Color32, Id, LayerId, Order, Pos2, Rect, Stroke, Vec2};
@@ -80,7 +85,7 @@ fn args() -> Args {
 fn main() -> eframe::Result {
     let args = args();
     let viewport = egui::ViewportBuilder::default()
-        .with_title("Tenths (egui)")
+        .with_title(PRIMARY_TITLE)
         .with_decorations(false)
         .with_transparent(true)
         .with_always_on_top()
@@ -98,18 +103,31 @@ struct App {
     shared: data::Shared,
     store: config::Store,
     ratings: ratings::Ratings,
+    layouts: layouts::Layouts,
     layout: frame::Layout,
+    /// The connected displays (one overlay window each), re-read every couple of seconds.
+    displays: Arc<Vec<displays::Display>>,
+    displays_at: Option<Instant>,
+    /// Per overlay window: moving it onto its display, click-through or not,
+    /// and whether it refuses the keyboard.
+    placers: HashMap<egui::ViewportId, displays::Placer>,
+    passthrough: HashMap<egui::ViewportId, bool>,
+    no_activate: HashMap<egui::ViewportId, bool>,
+    /// The layout name shown for a moment after switching, and when it started.
+    toast: Option<(String, f64)>,
+    /// The active layout as last seen (None before the first frame), to spot a switch.
+    seen_active: Option<Option<String>>,
     editing: bool,
     imperial: bool,
     theme: Option<config::ThemeId>,
-    sized: bool,
     started: Instant,
     bench: Option<f64>,
     shot: Option<String>,
     shot_after: f64,
     shot_asked: bool,
     shot_done: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    picker: bool,
+    /// The display (key) whose widget list is open in its edit bar.
+    picker: Option<String>,
     stats: Stats,
     controls: controls::Controls,
     /// `overlay.toggle`: every overlay hidden. Editing shows them again.
@@ -137,7 +155,8 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
         theme::install_fonts(&cc.egui_ctx);
         let path = args.config.clone().or_else(config::default_path);
-        let store = config::Store::open(path);
+        let store = config::Store::open(path.clone());
+        let layouts = layouts::Layouts::open(path.as_deref(), &store);
         // The Tauri app's "demo" setting counts too.
         let demo = args.demo || store.config.general.demo;
         let (shared, runner) = data::start(cc.egui_ctx.clone(), demo, args.offline);
@@ -145,18 +164,26 @@ impl App {
             shared,
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
+            layouts,
             layout: frame::Layout::new(),
+            displays: Arc::new(Vec::new()),
+            displays_at: None,
+            placers: HashMap::new(),
+            // The root window starts click-through unless we start in edit mode (see main()).
+            passthrough: HashMap::from([(egui::ViewportId::ROOT, !args.edit)]),
+            no_activate: HashMap::new(),
+            toast: None,
+            seen_active: None,
             editing: args.edit,
             imperial: args.imperial,
             theme: args.theme,
-            sized: false,
             started: Instant::now(),
             bench: args.bench,
             shot: args.shot,
             shot_after: args.shot_after,
             shot_asked: false,
             shot_done: Default::default(),
-            picker: false,
+            picker: None,
             stats: Stats::default(),
             controls: controls::Controls::new(cc.egui_ctx.clone(), runner),
             visible: true,
@@ -167,14 +194,79 @@ impl App {
 
     fn set_editing(&mut self, ctx: &egui::Context, on: bool) {
         self.editing = on;
-        self.picker = false;
+        self.picker = None;
         if on {
             self.visible = true;
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(!on));
+        // Each overlay window's click-through follows `editing` on its next frame (`click_through`).
         if on {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
         }
+    }
+
+    // --- Layouts: for the hotkeys, the tray and the edit bar ---------------------
+
+    /// Puts a saved layout on screen and makes it the active one (edits save into it).
+    pub fn switch_layout(&mut self, id: &str) {
+        if let Err(e) = self.layouts.switch(&mut self.store, id) {
+            eprintln!("[tenths-egui] couldn't switch layout: {e}");
+            self.store.error = Some(e);
+        }
+    }
+
+    /// The next saved layout (`step` 1) or the previous one (-1), wrapping round.
+    pub fn next_layout(&mut self, step: i32) {
+        self.layouts.cycle(&mut self.store, Some(step), None);
+    }
+
+    /// The saved layout at a position in the list (0 = first), for Ctrl+Shift+1..9.
+    pub fn layout_at(&mut self, index: usize) {
+        self.layouts.cycle(&mut self.store, None, Some(index));
+    }
+
+    /// Names the layout for a moment after it changes (also when the Tauri app switched it).
+    fn note_layout(&mut self, now: f64) {
+        let active = self.store.config.general.active_profile.clone();
+        if self.seen_active.as_ref() == Some(&active) {
+            return;
+        }
+        let first = self.seen_active.is_none();
+        self.seen_active = Some(active.clone());
+        if let (false, Some(id)) = (first, active) {
+            if let Some(name) = self.layouts.name_of(&id) {
+                self.toast = Some((name.to_string(), now));
+            }
+        }
+    }
+
+    /// Reads the connected displays every couple of seconds. Where the system
+    /// can't list them, the one display is the window's monitor. False until
+    /// there's at least one.
+    fn refresh_displays(&mut self, ctx: &egui::Context) -> bool {
+        if self.displays_at.is_none_or(|t| t.elapsed() >= Duration::from_secs(2)) || self.displays.is_empty() {
+            self.displays_at = Some(Instant::now());
+            let mut list = displays::current();
+            if list.is_empty() {
+                let (size, ppp) = ctx.input(|i| (i.viewport().monitor_size, i.viewport().native_pixels_per_point));
+                if let Some(size) = size {
+                    let ppp = ppp.unwrap_or(1.0);
+                    list = displays::finish(vec![displays::Display {
+                        key: "primary".into(),
+                        number: 0,
+                        primary: true,
+                        x: 0,
+                        y: 0,
+                        width: (size.x * ppp).round() as u32,
+                        height: (size.y * ppp).round() as u32,
+                        scale: ppp as f64,
+                    }]);
+                }
+            }
+            if list != *self.displays {
+                self.displays = Arc::new(list);
+            }
+        }
+        !self.displays.is_empty()
     }
 
     fn general(&self) -> config::General {
@@ -198,22 +290,23 @@ impl eframe::App for App {
         let ctx = &ui.ctx().clone();
         let frame_start = Instant::now();
 
-        // Cover the whole primary display once its size is known.
-        if !self.sized {
-            if let Some(size) = ctx.input(|i| i.viewport().monitor_size) {
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(Pos2::ZERO));
-                self.sized = true;
-            }
+        // One overlay window per display; wait until the first one's size is known.
+        if !self.refresh_displays(ctx) {
+            ctx.request_repaint_after(Duration::from_millis(50));
+            return;
         }
 
         if self.editing && ctx.input(|i| i.key_pressed(egui::Key::F2) || i.key_pressed(egui::Key::Escape)) {
             self.set_editing(ctx, false);
         }
 
-        // Settings saved by the Tauri app, and new driver ratings.
+        // Settings saved by the Tauri app, new driver ratings and layouts, and edits into the active layout.
         self.store.poll();
         self.ratings.poll();
+        self.layouts.poll();
+        self.layouts.sync(&mut self.store);
+        let now = self.started.elapsed().as_secs_f64();
+        self.note_layout(now);
         let general = self.general();
         let th = theme::Theme::from_general(&general);
 
@@ -230,32 +323,38 @@ impl eframe::App for App {
             match action {
                 controls::AppAction::ToggleEdit => self.set_editing(ctx, !self.editing),
                 controls::AppAction::ToggleVisible => self.visible = !self.visible,
+                controls::AppAction::Layout(controls::layouts::LayoutSwitch::Next) => self.next_layout(1),
+                controls::AppAction::Layout(controls::layouts::LayoutSwitch::Index(i)) => self.layout_at(i),
                 controls::AppAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             }
         }
         let on_track = live.tick.as_ref().is_some_and(|t| t.is_on_track);
         let show = self.editing || (self.visible && live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
-        let screen = ctx.content_rect();
-        if self.editing {
-            edit_backdrop(ctx, screen);
+        self.layout.observe(&live, now);
+        // Each display's window draws the widgets placed on it.
+        let displays = self.displays.clone();
+        for d in displays.iter() {
+            if d.primary {
+                self.overlay(ctx, d, &th, &live, general.units, show, now);
+            } else {
+                let id = egui::ViewportId::from_hash_of(("tenths-overlay", &d.key));
+                ctx.show_viewport_immediate(id, overlay_viewport(d), |ui, class| {
+                    if class == egui::ViewportClass::EmbeddedWindow {
+                        return;
+                    }
+                    let ctx = ui.ctx().clone();
+                    self.overlay(&ctx, d, &th, &live, general.units, show, now);
+                });
+            }
         }
-        self.layout.run(frame::Frame {
-            ctx,
-            store: &mut self.store,
-            th: &th,
-            live: &live,
-            ratings: &self.ratings,
-            units: general.units,
-            editing: self.editing,
-            show,
-            now,
-            screen,
-        });
+        // Windows of displays that have gone are closed by egui (no longer shown); forget their state.
+        let live_ids: Vec<egui::ViewportId> = displays.iter().map(|d| egui::ViewportId::from_hash_of(("tenths-overlay", &d.key))).collect();
+        for map in [&mut self.passthrough, &mut self.no_activate] {
+            map.retain(|id, _| *id == egui::ViewportId::ROOT || live_ids.contains(id));
+        }
+        self.placers.retain(|id, _| *id == egui::ViewportId::ROOT || live_ids.contains(id));
 
         self.stats(ctx, live.ticks, frame_start, live.status.as_deref());
-        if self.editing {
-            self.edit_bar(ctx, &th, live.status.as_deref());
-        }
 
         // Screenshot mode (for the README and checks without a screen).
         if let Some(path) = self.shot.clone() {
@@ -340,17 +439,136 @@ impl App {
         let _ = ctx;
     }
 
-    fn edit_bar(&mut self, ctx: &egui::Context, th: &theme::Theme, status: Option<&telemetry::model::StatusPayload>) {
+    /// One display's overlay window, from inside it: puts it on its display,
+    /// draws its widgets, the edit bar and the layout toast, and sets whether it
+    /// is click-through.
+    #[allow(clippy::too_many_arguments)]
+    fn overlay(&mut self, ctx: &egui::Context, d: &displays::Display, th: &theme::Theme, live: &data::Live, units: config::Units, show: bool, now: f64) {
+        let vid = ctx.viewport_id();
+        self.placers.entry(vid).or_default().update(ctx, d, now);
+        if self.editing && ctx.input(|i| i.key_pressed(egui::Key::F2) || i.key_pressed(egui::Key::Escape)) {
+            self.set_editing(ctx, false);
+        }
+        let screen = ctx.content_rect();
+        if self.editing {
+            edit_backdrop(ctx, screen);
+        }
+        let displays = self.displays.clone();
+        let mut clicks = Vec::new();
+        self.layout.run(frame::Frame {
+            ctx,
+            store: &mut self.store,
+            th,
+            live,
+            ratings: &self.ratings,
+            units,
+            editing: self.editing,
+            show,
+            now,
+            screen,
+            displays: &displays,
+            me: d,
+            clicks: &mut clicks,
+        });
+        if self.editing {
+            self.edit_bar(ctx, th, live.status.as_deref(), d, displays.len());
+        }
+        if d.primary {
+            self.layout_toast(ctx, th, now);
+        }
+        self.click_through(ctx, d, &clicks);
+    }
+
+    /// Outside edit mode every click goes through to iRacing. The thumbs in the
+    /// Standings after the flag take clicks anyway (`useClickableParts`), so
+    /// while any are on screen, follow the mouse (the window gets no events
+    /// while click-through, so read it from the system) and take clicks only
+    /// while it's over one. Also keeps the window from taking the keyboard when
+    /// clicked, so iRacing keeps it.
+    fn click_through(&mut self, ctx: &egui::Context, d: &displays::Display, clicks: &[(egui::Rect, widgets::ClickAction)]) {
+        let vid = ctx.viewport_id();
+        let mut over = false;
+        if !self.editing && !clicks.is_empty() {
+            let pos = displays::pointer().map(|p| displays::to_client(d, p.x, p.y)).or_else(|| ctx.input(|i| i.pointer.hover_pos()));
+            over = pos.is_some_and(|p| click_at(clicks, p).is_some());
+            if over && ctx.input(|i| i.pointer.primary_pressed()) {
+                if let Some(at) = ctx.input(|i| i.pointer.interact_pos()) {
+                    if let Some(action) = click_at(clicks, at).cloned() {
+                        self.perform(action);
+                    }
+                }
+            }
+            // Keep following the mouse (CLICKABLE_POLL_MS in the Tauri overlay).
+            ctx.request_repaint_after(Duration::from_millis(50));
+        }
+        // TENTHS_EGUI_VOTING=1 (a check, with no cursor to poll off Windows): never click-through.
+        let want = !self.editing && !over && std::env::var_os("TENTHS_EGUI_VOTING").is_none();
+        if self.passthrough.get(&vid).copied().unwrap_or(true) != want {
+            self.passthrough.insert(vid, want);
+            ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(want));
+        }
+        let title = if d.primary { PRIMARY_TITLE.to_string() } else { overlay_title(d) };
+        let no_activate = !self.editing;
+        if self.no_activate.get(&vid) != Some(&no_activate) && displays::set_no_activate(&title, no_activate) {
+            self.no_activate.insert(vid, no_activate);
+        }
+    }
+
+    fn perform(&mut self, action: widgets::ClickAction) {
+        match action {
+            widgets::ClickAction::Rate { user_id, name, rating } => {
+                if let Err(e) = self.ratings.set(user_id, &name, rating) {
+                    eprintln!("[tenths-egui] couldn't save the rating: {e}");
+                    self.store.error = Some(format!("Couldn't save the rating: {e}"));
+                }
+            }
+        }
+    }
+
+    /// "Layout: Night", fading in and out near the top for a moment (`.layout-toast`).
+    fn layout_toast(&mut self, ctx: &egui::Context, th: &theme::Theme, now: f64) {
+        let Some((name, at)) = self.toast.clone() else { return };
+        let t = ((now - at) / TOAST_S) as f32;
+        if !(0.0..1.0).contains(&t) {
+            self.toast = None;
+            return;
+        }
+        let opacity = toast_opacity(t);
+        let screen = ctx.content_rect();
+        let p = ctx.layer_painter(LayerId::new(Order::Tooltip, Id::unique("tenths-layout-toast")));
+        let font_regular = th.medium(17.0);
+        let font_bold = th.bold(17.0);
+        let (a, b) = ("Layout: ", name.as_str());
+        let (wa, wb) = (kit::width(&p, a, font_regular.clone()), kit::width(&p, b, font_bold.clone()));
+        let rect = Rect::from_center_size(
+            Pos2::new(screen.center().x, screen.top() + screen.height() * 0.18 + 20.0 + (1.0 - (t / 0.1).min(1.0)) * 6.0),
+            Vec2::new(wa + wb + 36.0, 40.0),
+        );
+        let fade = |c: Color32| c.gamma_multiply(opacity);
+        p.rect_filled(rect, 8.0, fade(th.panel_solid));
+        p.rect_stroke(rect, 8.0, Stroke::new(1.0, fade(th.line_strong)), egui::StrokeKind::Inside);
+        let left = rect.left() + 18.0;
+        kit::text(&p, Pos2::new(left, rect.center().y), Align2::LEFT_CENTER, a, font_regular, fade(th.ink2));
+        kit::text(&p, Pos2::new(left + wa, rect.center().y), Align2::LEFT_CENTER, b, font_bold, fade(th.ink));
+        ctx.request_repaint();
+    }
+
+    fn edit_bar(&mut self, ctx: &egui::Context, th: &theme::Theme, status: Option<&telemetry::model::StatusPayload>, d: &displays::Display, display_count: usize) {
         let s = &self.stats;
         let mut done = false;
         let mut quit = false;
         let mut toggle: Option<(&'static str, bool)> = None;
+        let mut switch: Option<String> = None;
         let screen = ctx.content_rect();
         let enabled = schema::WIDGETS.iter().filter(|m| self.store.config.widget(m.id).enabled).count();
         let button = |text: &str, fill: Color32, fg: Color32| {
             egui::Button::new(egui::RichText::new(text).font(th.bold(15.0)).color(fg)).fill(fill).corner_radius(5.0).min_size(Vec2::new(0.0, 28.0))
         };
-        egui::Area::new(Id::unique("edit-bar"))
+        let active = self.store.config.general.active_profile.clone();
+        let active_name = active.as_deref().and_then(|id| self.layouts.name_of(id)).unwrap_or("Unsaved layout").to_string();
+        let open = self.picker.as_deref() == Some(d.key.as_str());
+        let mut picker_click = false;
+        egui::Area::new(Id::unique(("edit-bar", &d.key)))
             .pivot(Align2::CENTER_TOP)
             .fixed_pos(Pos2::new(screen.center().x, screen.top() + screen.height() * 0.4))
             .order(egui::Order::Foreground)
@@ -363,32 +581,64 @@ impl App {
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 16.0;
-                            ui.label(egui::RichText::new("Drag to move. Drag the corner, or use − and +, to resize.").font(th.medium(15.0)).color(th.ink2));
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{:.0} MB · {:.0} fps · telemetry {:.0} Hz · UI {:.2} ms · {}",
-                                    s.memory_mb,
-                                    s.fps,
-                                    s.tick_hz,
-                                    s.cpu_ms,
-                                    status.map(|s| s.message.as_str()).unwrap_or("starting")
-                                ))
-                                .font(th.medium(14.0))
-                                .color(th.ink3),
-                            );
+                            // Which display this is, when there's more than one.
+                            if display_count > 1 {
+                                ui.label(egui::RichText::new(d.name()).font(th.bold(15.0)).color(th.attention));
+                            }
+                            let hint = if d.primary || display_count < 2 {
+                                "Drag to move. Drag the corner, or use − and +, to resize."
+                            } else {
+                                "Drag widgets here from another screen, or use the display button on a widget."
+                            };
+                            ui.label(egui::RichText::new(hint).font(th.medium(15.0)).color(th.ink2));
+                            if d.primary {
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        "{:.0} MB · {:.0} fps · telemetry {:.0} Hz · UI {:.2} ms · {}",
+                                        s.memory_mb,
+                                        s.fps,
+                                        s.tick_hz,
+                                        s.cpu_ms,
+                                        status.map(|s| s.message.as_str()).unwrap_or("starting")
+                                    ))
+                                    .font(th.medium(14.0))
+                                    .color(th.ink3),
+                                );
+                            }
                             if let Some(err) = &self.store.error {
                                 ui.label(egui::RichText::new(err).font(th.semi(14.0)).color(th.loss));
                             }
+                            // The saved layout to switch to; changes save into the active one.
+                            let hover = if active.is_some() { "Changes save into this layout" } else { "Save layouts in Settings → Layouts" };
+                            egui::ComboBox::from_id_salt(("edit-layout", &d.key))
+                                .selected_text(egui::RichText::new(&active_name).font(th.semi(15.0)).color(th.ink))
+                                .width(160.0)
+                                .show_ui(ui, |ui| {
+                                    for p in &self.layouts.list {
+                                        let picked = active.as_deref() == Some(p.id.as_str());
+                                        let label = egui::RichText::new(&p.name).font(th.semi(15.0));
+                                        if ui.selectable_label(picked, label).clicked() && !picked {
+                                            switch = Some(p.id.clone());
+                                        }
+                                    }
+                                    if self.layouts.list.is_empty() {
+                                        ui.label(egui::RichText::new("No saved layouts").font(th.medium(14.0)).color(th.ink3));
+                                    }
+                                })
+                                .response
+                                .on_hover_text(hover);
                             let label = format!("Widgets {enabled}/{}", schema::WIDGETS.len());
                             if ui.add(button(&label, th.panel_raised, th.ink)).clicked() {
-                                self.picker = !self.picker;
+                                picker_click = true;
                             }
                             done = ui.add(button("Done", th.ink, th.panel_solid)).clicked();
-                            quit = ui.add(button("Quit", th.panel_raised, th.ink)).clicked();
+                            if d.primary {
+                                quit = ui.add(button("Quit", th.panel_raised, th.ink)).clicked();
+                            }
                         });
-                        if self.picker {
+                        if open {
                             ui.add_space(6.0);
-                            egui::Grid::new("widget-picker").num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
+                            egui::Grid::new(("widget-picker", &d.key)).num_columns(3).spacing([4.0, 4.0]).show(ui, |ui| {
                                 for (i, m) in schema::WIDGETS.iter().enumerate() {
                                     let on = self.store.config.widget(m.id).enabled;
                                     let text = format!("{} {}", if on { "☑" } else { "☐" }, m.name);
@@ -405,14 +655,139 @@ impl App {
                         }
                     });
             });
+        if picker_click {
+            self.picker = if open { None } else { Some(d.key.clone()) };
+        }
         if let Some((id, on)) = toggle {
             self.store.save_widget(id, &[("enabled", serde_json::json!(on))]);
+        }
+        if let Some(id) = switch {
+            self.switch_layout(&id);
         }
         if done {
             self.set_editing(ctx, false);
         }
         if quit {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
         }
+    }
+}
+
+const PRIMARY_TITLE: &str = "Tenths (egui)";
+/// Seconds the layout toast is up.
+const TOAST_S: f64 = 1.8;
+
+fn overlay_title(d: &displays::Display) -> String {
+    format!("Tenths overlay {}", d.number)
+}
+
+/// A secondary display's overlay window, set up like the primary one in main().
+fn overlay_viewport(d: &displays::Display) -> egui::ViewportBuilder {
+    let r = displays::window_rect(d, d.scale as f32);
+    egui::ViewportBuilder::default()
+        .with_title(overlay_title(d))
+        .with_decorations(false)
+        .with_transparent(true)
+        .with_always_on_top()
+        .with_taskbar(false)
+        .with_resizable(false)
+        .with_active(false)
+        .with_position(r.min)
+        .with_inner_size(r.size())
+        // Click-through to start with; `click_through` changes it from there.
+        .with_mouse_passthrough(true)
+}
+
+/// The toast's opacity over its life (0..1): in over the first tenth, held, out from three quarters.
+fn toast_opacity(t: f32) -> f32 {
+    if t < 0.1 {
+        t / 0.1
+    } else if t < 0.75 {
+        1.0
+    } else {
+        ((1.0 - t) / 0.25).clamp(0.0, 1.0)
+    }
+}
+
+/// The clickable part under a point, topmost first.
+fn click_at(clicks: &[(Rect, widgets::ClickAction)], p: Pos2) -> Option<&widgets::ClickAction> {
+    clicks.iter().rev().find(|(r, _)| r.contains(p)).map(|(_, a)| a)
+}
+
+#[cfg(windows)]
+mod hotkeys {
+    use global_hotkey::hotkey::{Code, HotKey, Modifiers};
+    use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
+
+    pub enum Action {
+        ToggleEdit,
+        Quit,
+    }
+
+    pub struct Hotkeys {
+        _manager: GlobalHotKeyManager,
+        edit: u32,
+        quit: u32,
+    }
+
+    impl Hotkeys {
+        /// Ctrl+Shift+E and Ctrl+Shift+Q, system-wide. None if they're taken
+        /// (the Tauri app uses Ctrl+Shift+E too: don't run both at once).
+        pub fn register() -> Option<Self> {
+            let manager = GlobalHotKeyManager::new().ok()?;
+            let edit = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyE);
+            let quit = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyQ);
+            if let Err(e) = manager.register(edit) {
+                eprintln!("couldn't register Ctrl+Shift+E: {e}");
+            }
+            if let Err(e) = manager.register(quit) {
+                eprintln!("couldn't register Ctrl+Shift+Q: {e}");
+            }
+            Some(Self { _manager: manager, edit: edit.id(), quit: quit.id() })
+        }
+
+        pub fn poll(&self) -> Option<Action> {
+            while let Ok(e) = GlobalHotKeyEvent::receiver().try_recv() {
+                if e.state != HotKeyState::Pressed {
+                    continue;
+                }
+                if e.id == self.edit {
+                    return Some(Action::ToggleEdit);
+                }
+                if e.id == self.quit {
+                    return Some(Action::Quit);
+                }
+            }
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toast_fades_in_holds_and_out() {
+        assert_eq!(toast_opacity(0.0), 0.0);
+        assert!((toast_opacity(0.05) - 0.5).abs() < 1e-5);
+        assert_eq!(toast_opacity(0.5), 1.0);
+        assert!((toast_opacity(0.875) - 0.5).abs() < 1e-5);
+        assert_eq!(toast_opacity(1.0), 0.0);
+    }
+
+    #[test]
+    fn clicks_find_the_thumb_under_the_pointer() {
+        let rate = |id: i64| widgets::ClickAction::Rate { user_id: id, name: "A".into(), rating: Some(kit::Thumb::Up) };
+        let clicks = vec![
+            (Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(22.0, 20.0)), rate(1)),
+            (Rect::from_min_size(Pos2::new(36.0, 10.0), Vec2::new(22.0, 20.0)), rate(2)),
+        ];
+        assert_eq!(click_at(&clicks, Pos2::new(12.0, 12.0)), Some(&rate(1)));
+        assert_eq!(click_at(&clicks, Pos2::new(40.0, 29.0)), Some(&rate(2)));
+        // In the gap, or outside: nothing, so the window stays click-through.
+        assert_eq!(click_at(&clicks, Pos2::new(33.0, 12.0)), None);
+        assert_eq!(click_at(&clicks, Pos2::new(12.0, 31.0)), None);
+        assert_eq!(click_at(&[], Pos2::ZERO), None);
     }
 }
