@@ -87,12 +87,12 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Gear (yellow; red at shift RPM when `shiftLight`), speed with units | ⬜ |
-| Steering wheel (`showSteering`), shapes `wheel` auto/round/gt/formula/oval (auto from car) | ⬜ |
-| Trace (`showTrace`) over `traceSeconds` (6): throttle, brake, clutch (`showClutch`) | ⬜ |
-| Pedal bars with values; clutch bar optional | ⬜ |
-| Reference ghost strip (`showGhost`, from `tick.coach` ghost inputs) | ⬜ |
-| Theme colours for pedals and wheel | ⬜ |
+| Gear (yellow; red at shift RPM when `shiftLight`), speed with units | ✅ |
+| Steering wheel (`showSteering`), shapes `wheel` auto/round/gt/formula/oval (auto from car) | ✅ |
+| Trace (`showTrace`) over `traceSeconds` (6): throttle, brake, clutch (`showClutch`) | ✅ |
+| Pedal bars with values; clutch bar optional | ✅ |
+| Reference ghost strip (`showGhost`, from `tick.coach` ghost inputs) | ✅ |
+| Theme colours for pedals and wheel | ✅ |
 
 ## 5. Delta — `src/widgets/Delta.tsx`, `src/lib/deltaHistory.ts`
 
