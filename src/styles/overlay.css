@@ -2926,14 +2926,16 @@
 /* ---------- Battle ---------------------------------------------------------------- */
 
 .battle {
-  width: 330px;
+  width: 360px;
 }
 .bt-car {
   display: grid;
-  gap: 2px;
-  min-height: 62px;
-  padding: 7px 10px 8px;
+  gap: 3px;
+  padding: 6px 10px 6px 8px;
   border-left: 3px solid transparent;
+}
+.bt-car.is-none {
+  min-height: 30px;
 }
 .bt-car + .bt-car {
   border-top: 1px solid var(--line);
@@ -2957,6 +2959,7 @@
   flex: none;
 }
 .bt-name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2964,43 +2967,62 @@
   font-weight: 600;
   color: var(--ink);
 }
+.bt-who .ir {
+  flex: none;
+}
 .bt-main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
-.bt-gap b {
-  display: inline-block;
-  min-width: 76px;
-  font-size: 30px;
+.bt-figures {
+  display: grid;
+  flex: none;
+  min-width: 112px;
+}
+.bt-gap {
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .bt-rate {
-  flex: 1;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
 }
-.bt-rate.is-good {
+.bt-rate small {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.bt-rate.is-good,
+.bt-facts .is-good {
   color: var(--gain);
 }
-.bt-rate.is-bad {
+.bt-rate.is-bad,
+.bt-facts .is-bad {
   color: var(--loss);
 }
 .bt-spark {
-  flex: none;
+  flex: 1;
+  min-width: 0;
   overflow: visible;
 }
 .bt-spark-base {
   stroke: var(--line);
 }
+.bt-spark-area {
+  fill: var(--ink-2);
+  opacity: 0.08;
+}
 .bt-spark-line {
   fill: none;
   stroke: var(--ink-2);
-  stroke-width: 1.5;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
 }
 .bt-spark-dot {
   fill: var(--ink-2);
@@ -3008,12 +3030,36 @@
 .bt-spark.is-good .bt-spark-line {
   stroke: var(--gain);
 }
-.bt-spark.is-good .bt-spark-dot {
+.bt-spark.is-good .bt-spark-dot,
+.bt-spark.is-good .bt-spark-area {
   fill: var(--gain);
 }
 .bt-spark.is-bad .bt-spark-line {
   stroke: var(--loss);
 }
-.bt-spark.is-bad .bt-spark-dot {
+.bt-spark.is-bad .bt-spark-dot,
+.bt-spark.is-bad .bt-spark-area {
   fill: var(--loss);
+}
+.bt-facts {
+  display: flex;
+  align-items: center;
+  column-gap: 9px;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.bt-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.bt-k,
+.bt-you {
+  color: var(--ink-3);
+}
+.bt-fact .tyre-badge {
+  margin-right: 1px;
 }

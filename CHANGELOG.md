@@ -4,10 +4,14 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
-## Unreleased
+## 0.4.10
 
 - Race reports: every race saved with everyone's laps, gaps, positions, stints and pit stops, and your fuel and laps; Settings → Races shows them with interactive charts. Saving them can be switched off there.
-- Battle widget: the gap to the cars ahead of and behind you in your class, its change per lap, and the gap over the last laps.
+- Battle widget: the cars ahead of and behind you in your class, with the gap, its change per lap, a graph of the gap over the last laps, their iRating, last and best laps against yours, tyres and stops.
+- Fixed: auto fuel to finish no longer re-sends every few seconds when the race needs more than a tankful.
+- Fixed: an unreadable driver-ratings.json is kept aside instead of being written over.
+- Fixed: turning streaming off now disconnects open OBS pages.
+- Fixed: the Twitch chat widget says when it can't reach Twitch.
 
 ## 0.4.9
 

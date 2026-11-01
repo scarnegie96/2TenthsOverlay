@@ -415,14 +415,24 @@ the empty board stays visible.
 
 ![Battle widget](docs/widgets/battle.png)
 
-The cars just ahead of and behind you in your class, ahead on top. For each:
-the gap now, how much it has changed per lap over the last few laps (green when
-it's going your way: the car ahead coming back to you, or the car behind
-dropping away; red the other way), and a line of the gap over the last laps.
+The cars just ahead of and behind you in your class, ahead on top, with your
+class position in the corner. For each car:
+
+- the gap now (or how many laps apart), and how much it has changed per lap
+  over the last few laps (green when it's going your way: the car ahead coming
+  back to you, or the car behind dropping away; red the other way);
+- a graph of the gap over the last laps, coloured the same way;
+- their iRating;
+- their last (L) and best (B) laps, each with the difference to yours (green
+  when theirs was slower);
+- their tyres and how many laps they've done on them (a + when the set went on
+  before Tenths saw it), and their pit stops with yours in brackets.
+
 An amber edge marks a car within two seconds. In races only. Off by default.
 
-*Options*: how many laps the change per lap is measured over, and whether to
-show the gap line and how many laps it covers.
+*Options*: how many laps the change per lap is measured over, whether to show
+the gap graph and how many laps it covers, and whether to show the lap times
+and the tyres and stops.
 
 ### Twitch chat (experimental)
 

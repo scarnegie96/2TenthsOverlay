@@ -416,12 +416,14 @@ export const WIDGETS: WidgetMeta[] = [
   {
     id: "battle",
     name: "Battle",
-    description: "The cars just ahead of and behind you in your class: the gap to each, how much it changes per lap, and the gap over the last laps.",
+    description: "The cars just ahead of and behind you in your class: the gap to each, how much it changes per lap, the gap over the last laps, their last and best laps against yours, tyres and stops.",
     x: 1060, y: 330, enabled: false,
     options: [
       { key: "trendLaps", label: "Change per lap measured over", type: "number", default: 3, min: 1, max: 10, suffix: "laps" },
       { key: "showSparkline", label: "Show the gap over recent laps", type: "toggle", default: true },
       { key: "sparkLaps", label: "Gap graph covers", type: "number", default: 8, min: 2, max: 30, suffix: "laps" },
+      { key: "showLaps", label: "Show last and best laps", type: "toggle", default: true },
+      { key: "showTyres", label: "Show tyres and stops", type: "toggle", default: true },
     ],
   },
   {

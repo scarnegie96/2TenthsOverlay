@@ -1,6 +1,6 @@
 [package]
 name = "tenths"
-version = "0.4.9"
+version = "0.4.10"
 description = "iRacing overlays you own"
 license = "GPL-3.0-or-later"
 edition = "2021"
