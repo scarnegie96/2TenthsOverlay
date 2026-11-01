@@ -15,6 +15,10 @@
 //!   tenths-egui --imperial        imperial units, over the config's
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
 //!   tenths-egui --shot out.png    save a screenshot after 5 s (--shot-after N) and quit
+//!   tenths-egui --settings        open the Settings window at start (--pane <name>, --report <id>;
+//!                                 with --shot the window is drawn inside the overlay window,
+//!                                 which is what a screenshot can capture)
+//!   tenths-egui --data-dir <dir>  laps, race reports and the reference lap in another folder
 //!
 //!   tenths-egui --press pit.fuel  run an action 4 s in (--press-at N), as if its key was pressed
 //!
@@ -36,6 +40,8 @@ mod layouts;
 mod logic;
 mod ratings;
 mod schema;
+mod settings;
+mod shell;
 mod svg;
 mod sys;
 mod theme;
@@ -61,6 +67,11 @@ struct Args {
     /// Actions to run once the app has been up `press_at` seconds (--press).
     press: Vec<String>,
     press_at: f64,
+    // Settings window and app shell.
+    settings: bool,
+    pane: Option<String>,
+    report: Option<String>,
+    data_dir: Option<PathBuf>,
 }
 
 fn args() -> Args {
@@ -79,11 +90,29 @@ fn args() -> Args {
         shot_after: value("--shot-after").and_then(|v| v.parse().ok()).unwrap_or(5.0),
         press: value("--press").map(|v| v.split(',').map(str::to_string).collect()).unwrap_or_default(),
         press_at: value("--press-at").and_then(|v| v.parse().ok()).unwrap_or(4.0),
+        settings: has("--settings"),
+        pane: value("--pane"),
+        report: value("--report"),
+        data_dir: value("--data-dir").map(PathBuf::from),
     }
 }
 
 fn main() -> eframe::Result {
     let args = args();
+    // One copy at a time: a second launch asks the first to open Settings. Runs
+    // with their own config, a screenshot or a benchmark are never "the app".
+    let single = args.config.is_none() && args.shot.is_none() && args.bench.is_none() && !args.offline;
+    let listener = if single {
+        match shell::instance::claim() {
+            shell::instance::Instance::AlreadyRunning => {
+                println!("Tenths is already running: asked it to open Settings.");
+                return Ok(());
+            }
+            shell::instance::Instance::First(l) => Some(l),
+        }
+    } else {
+        None
+    };
     let viewport = egui::ViewportBuilder::default()
         .with_title(PRIMARY_TITLE)
         .with_decorations(false)
@@ -96,7 +125,7 @@ fn main() -> eframe::Result {
         .with_inner_size([1920.0, 1080.0])
         .with_mouse_passthrough(!args.edit);
     let options = eframe::NativeOptions { viewport, ..Default::default() };
-    eframe::run_native("tenths-egui", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args)))))
+    eframe::run_native("tenths-egui", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args, listener)))))
 }
 
 struct App {
@@ -134,6 +163,13 @@ struct App {
     visible: bool,
     press: Vec<String>,
     press_at: f64,
+    // App shell (shell/) and the Settings window (settings/).
+    control: telemetry::runner::RunnerControl,
+    /// `--demo` (and every non-Windows run): the demo race whatever the setting says.
+    force_demo: bool,
+    shell: shell::Shell,
+    settings: settings::SettingsWindow,
+    tray_synced: bool,
 }
 
 /// Frame timing and memory, averaged over a second.
@@ -152,15 +188,38 @@ struct Stats {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, args: Args, listener: Option<shell::instance::Listener>) -> Self {
         theme::install_fonts(&cc.egui_ctx);
-        let path = args.config.clone().or_else(config::default_path);
-        let store = config::Store::open(path.clone());
-        let layouts = layouts::Layouts::open(path.as_deref(), &store);
+        // eframe can't screenshot a second window: for a --shot of Settings, draw it inside this one.
+        if args.settings && args.shot.is_some() {
+            cc.egui_ctx.set_embed_viewports(true);
+        }
+        let paths = shell::Paths::new(args.config.clone(), args.data_dir.clone());
+        // A config.json that can't be read is kept aside, and Settings says so.
+        let notice = paths.config.as_deref().and_then(shell::keep_corrupt_config);
+        let store = config::Store::open(paths.config.clone());
         // The Tauri app's "demo" setting counts too.
         let demo = args.demo || store.config.general.demo;
-        let (shared, runner) = data::start(cc.egui_ctx.clone(), demo, args.offline);
+        let (shared, control) = data::start_with(cc.egui_ctx.clone(), demo, args.offline, |c| shell::setup_runner(&paths, c));
+        let layouts = layouts::Layouts::open(paths.config.as_deref(), &store);
+        let shell = shell::Shell::new(paths, notice);
+        if let Some(l) = listener {
+            l.serve(shell.sender(), cc.egui_ctx.clone());
+        }
+        let launch = settings::Launch {
+            open: args.settings,
+            pane: args.pane.as_deref().and_then(settings::Pane::parse),
+            report: args.report.clone(),
+        };
+        let settings = settings::SettingsWindow::new(&shell, launch);
+        let settings_shot = args.settings && args.shot.is_some();
         Self {
+            controls: controls::Controls::new(cc.egui_ctx.clone(), control.clone()),
+            control,
+            force_demo: args.demo,
+            shell,
+            settings,
+            tray_synced: false,
             shared,
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
@@ -185,8 +244,8 @@ impl App {
             shot_done: Default::default(),
             picker: None,
             stats: Stats::default(),
-            controls: controls::Controls::new(cc.egui_ctx.clone(), runner),
-            visible: true,
+            // Hidden for a --shot of Settings, so the picture is just the window.
+            visible: !settings_shot,
             press: args.press,
             press_at: args.press_at,
         }
@@ -300,8 +359,21 @@ impl eframe::App for App {
             self.set_editing(ctx, false);
         }
 
-        // Settings saved by the Tauri app, new driver ratings and layouts, and edits into the active layout.
-        self.store.poll();
+        if !std::mem::replace(&mut self.tray_synced, true) {
+            self.update_tray_shortcuts();
+        }
+        // What the tray and a second launch ask for.
+        for r in self.shell.poll() {
+            self.handle(ctx, r);
+        }
+
+        // Settings saved by the Tauri app, and new driver ratings.
+        if self.store.poll() {
+            self.control.save_reports.store(shell::save_reports_setting(self.shell.paths.config.as_deref()), std::sync::atomic::Ordering::Relaxed);
+            self.update_tray_shortcuts();
+        }
+        // The demo race on or off at once, from this or the Tauri app's settings.
+        self.control.demo.store(self.force_demo || self.store.config.general.demo, std::sync::atomic::Ordering::Relaxed);
         self.ratings.poll();
         self.layouts.poll();
         self.layouts.sync(&mut self.store);
@@ -319,7 +391,13 @@ impl eframe::App for App {
                 self.controls.inject(&action);
             }
         }
-        for action in self.controls.frame(&mut self.store, &live, general.units, now).app {
+        // While Settings captures a key or button, the shortcuts stand down and button presses go to it.
+        self.controls.set_suspended(self.settings.capturing());
+        let out = self.controls.frame(&mut self.store, &live, general.units, now);
+        for p in out.presses {
+            self.settings.feed_button(logic::settings_bindings::ButtonBinding { device: p.device, name: p.name, button: p.button as i64 });
+        }
+        for action in out.app {
             match action {
                 controls::AppAction::ToggleEdit => self.set_editing(ctx, !self.editing),
                 controls::AppAction::ToggleVisible => self.visible = !self.visible,
@@ -356,6 +434,24 @@ impl eframe::App for App {
 
         self.stats(ctx, live.ticks, frame_start, live.status.as_deref());
 
+        // The Settings window, when it's open.
+        let requests = self.settings.show(
+            ctx,
+            settings::Env {
+                store: &mut self.store,
+                live: &live,
+                control: &self.control,
+                shell: &self.shell,
+                general: &general,
+                editing: self.editing,
+                overlays_visible: self.visible,
+                displays: &[],
+            },
+        );
+        for r in requests {
+            self.handle(ctx, r);
+        }
+
         // Screenshot mode (for the README and checks without a screen).
         if let Some(path) = self.shot.clone() {
             if !self.shot_asked && self.started.elapsed().as_secs_f64() >= self.shot_after {
@@ -385,6 +481,29 @@ impl eframe::App for App {
         }
         // Keep looking for hotkeys and config changes even when no telemetry arrives.
         ctx.request_repaint_after(Duration::from_millis(100));
+    }
+}
+
+impl App {
+    /// What the tray, a second launch or the Settings window ask of the overlay window.
+    fn handle(&mut self, ctx: &egui::Context, r: shell::Request) {
+        use shell::Request::*;
+        match r {
+            OpenSettings => self.settings.show_pane(None),
+            OpenAbout => self.settings.show_pane(Some(settings::Pane::About)),
+            ToggleEdit => self.set_editing(ctx, !self.editing),
+            ToggleOverlays => self.visible = !self.visible,
+            NextLayout => self.next_layout(1),
+            Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+        }
+    }
+
+    /// The tray's items carry their shortcuts, as in the Tauri app.
+    fn update_tray_shortcuts(&mut self) {
+        use logic::settings_bindings as bind;
+        let all = bind::from_json(&self.store.config.general.controls);
+        let key = |id: &str| all.iter().find(|(a, _)| a.id == id).and_then(|(_, b)| b.key.as_ref()).map(bind::key_label);
+        self.shell.set_tray_shortcuts(&[("overlay.edit", key("overlay.edit")), ("overlay.toggle", key("overlay.toggle")), ("layout.next", key("layout.next"))]);
     }
 }
 
@@ -712,55 +831,6 @@ fn toast_opacity(t: f32) -> f32 {
 /// The clickable part under a point, topmost first.
 fn click_at(clicks: &[(Rect, widgets::ClickAction)], p: Pos2) -> Option<&widgets::ClickAction> {
     clicks.iter().rev().find(|(r, _)| r.contains(p)).map(|(_, a)| a)
-}
-
-#[cfg(windows)]
-mod hotkeys {
-    use global_hotkey::hotkey::{Code, HotKey, Modifiers};
-    use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
-
-    pub enum Action {
-        ToggleEdit,
-        Quit,
-    }
-
-    pub struct Hotkeys {
-        _manager: GlobalHotKeyManager,
-        edit: u32,
-        quit: u32,
-    }
-
-    impl Hotkeys {
-        /// Ctrl+Shift+E and Ctrl+Shift+Q, system-wide. None if they're taken
-        /// (the Tauri app uses Ctrl+Shift+E too: don't run both at once).
-        pub fn register() -> Option<Self> {
-            let manager = GlobalHotKeyManager::new().ok()?;
-            let edit = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyE);
-            let quit = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyQ);
-            if let Err(e) = manager.register(edit) {
-                eprintln!("couldn't register Ctrl+Shift+E: {e}");
-            }
-            if let Err(e) = manager.register(quit) {
-                eprintln!("couldn't register Ctrl+Shift+Q: {e}");
-            }
-            Some(Self { _manager: manager, edit: edit.id(), quit: quit.id() })
-        }
-
-        pub fn poll(&self) -> Option<Action> {
-            while let Ok(e) = GlobalHotKeyEvent::receiver().try_recv() {
-                if e.state != HotKeyState::Pressed {
-                    continue;
-                }
-                if e.id == self.edit {
-                    return Some(Action::ToggleEdit);
-                }
-                if e.id == self.quit {
-                    return Some(Action::Quit);
-                }
-            }
-            None
-        }
-    }
 }
 
 #[cfg(test)]

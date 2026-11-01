@@ -101,8 +101,15 @@ impl Sink for UiSink {
 /// Starts the telemetry thread (iRacing, or the demo race with `demo`).
 /// `offline` starts nothing: no data at all, for checking empty states.
 pub fn start(ctx: egui::Context, demo: bool, offline: bool) -> (Shared, RunnerControl) {
+    start_with(ctx, demo, offline, |_| {})
+}
+
+/// `start`, with a chance to set up the runner first: where laps and race
+/// reports are saved, whether to save reports, the saved reference lap
+/// (`shell` and the Settings window own those).
+pub fn start_with(ctx: egui::Context, demo: bool, offline: bool, setup: impl FnOnce(&mut RunnerControl)) -> (Shared, RunnerControl) {
     let shared: Shared = Arc::default();
-    let control = RunnerControl::default();
+    let mut control = RunnerControl::default();
     if offline {
         shared.lock().unwrap().status = Some(Arc::new(StatusPayload {
             source: telemetry::model::SourceKind::None,
@@ -119,6 +126,7 @@ pub fn start(ctx: egui::Context, demo: bool, offline: bool) -> (Shared, RunnerCo
             control.set_reference(Some(lap));
         }
     }
+    setup(&mut control);
     runner::spawn(UiSink { shared: shared.clone(), ctx }, control.clone());
     (shared, control)
 }

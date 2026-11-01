@@ -74,7 +74,7 @@ pub const COLOR_KEYS: &[(&str, Option<&str>)] = &[
 ];
 
 /// `THEME_COLORS` in theme.ts.
-fn default_color(theme: ThemeId, key: &str) -> &'static str {
+pub fn default_color(theme: ThemeId, key: &str) -> &'static str {
     let table: &[(&str, &str)] = match theme {
         ThemeId::Dark => &[
             ("ink", "#e9eef3"),
