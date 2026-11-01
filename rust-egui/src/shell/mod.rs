@@ -183,7 +183,8 @@ impl Shell {
 
     /// Everything asked since the last call: from the tray, a second launch, other threads.
     pub fn poll(&mut self) -> Vec<Request> {
-        let out: Vec<Request> = self.rx.try_iter().collect();
+        #[cfg_attr(not(windows), allow(unused_mut))]
+        let mut out: Vec<Request> = self.rx.try_iter().collect();
         #[cfg(windows)]
         if let Some(t) = &self.tray {
             out.extend(t.poll());
