@@ -202,10 +202,10 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| History of every car's gap to the class leader (port `raceHistory`: sampling, thinning, lap marks) | ⬜ |
-| Chart: leader flat at top, each car a line, labels at the right with gap and trend (`showTrend`) | ⬜ |
-| `window` race/5/10/20 laps, `show` all/around with `around`, `maxGap` fixed scale | ⬜ |
-| Lapped / out handling, your line highlighted, races only state | ⬜ |
+| History of every car's gap to the class leader (port `raceHistory`: sampling, thinning, lap marks) | ✅ |
+| Chart: leader flat at top, each car a line, labels at the right with gap and trend (`showTrend`) | ✅ |
+| `window` race/5/10/20 laps, `show` all/around with `around`, `maxGap` fixed scale | ✅ |
+| Lapped / out handling, your line highlighted, races only state | ✅ |
 
 ## 17. Stints — `src/widgets/Stints.tsx`
 
@@ -219,20 +219,20 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Ahead/behind in class, `lapsBetween`, gap now, P in header | ⬜ |
-| Change per lap (`trendLaps`, `trend`, STEADY colouring) | ⬜ |
-| Sparkline (`showSparkline`, `sparkLaps`, `history`) with area fill | ⬜ |
-| iRating, last/best vs yours (`showLaps`), tyre + laps on set + stops vs yours (`showTyres`) | ⬜ |
-| Near edge (< 2 s), races only state; port `check-battle.ts` tests | ⬜ |
+| Ahead/behind in class, `lapsBetween`, gap now, P in header | ✅ |
+| Change per lap (`trendLaps`, `trend`, STEADY colouring) | ✅ |
+| Sparkline (`showSparkline`, `sparkLaps`, `history`) with area fill | ✅ |
+| iRating, last/best vs yours (`showLaps`), tyre + laps on set + stops vs yours (`showTyres`) | ✅ |
+| Near edge (< 2 s), races only state; port `check-battle.ts` tests | ✅ |
 
 ## 19. Twitch chat (experimental) — `src/widgets/TwitchChat.tsx`, `src/lib/twitch.ts`
 
 | Feature / option | Status |
 |---|---|
-| Anonymous IRC over WebSocket (`tungstenite` on a thread), tags, PRIVMSG/CLEARMSG/CLEARCHAT/RECONNECT, back-off, status | ⬜ |
-| `channel` (name or link via `channelName`), `rows`, `fadeAfter`, name colours, /me actions | ⬜ |
-| Emotes (`showEmotes`): images fetched and cached | ⬜ |
-| Port `check-twitch.ts` tests | ⬜ |
+| Anonymous IRC over WebSocket (`tungstenite` on a thread), tags, PRIVMSG/CLEARMSG/CLEARCHAT/RECONNECT, back-off, status | ✅ |
+| `channel` (name or link via `channelName`), `rows`, `fadeAfter`, name colours, /me actions | ✅ |
+| Emotes (`showEmotes`): images fetched and cached | ⏭️ shown as their code in text (no image fetching/caching); the code is highlighted when `showEmotes` is on |
+| Port `check-twitch.ts` tests | ✅ |
 
 ---
 
