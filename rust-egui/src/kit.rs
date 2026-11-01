@@ -154,6 +154,40 @@ pub fn hgradient(p: &Painter, rect: Rect, left: Color32, right: Color32) {
     p.add(Shape::mesh(mesh));
 }
 
+/// A pill (fully rounded ends) filled with a left-to-right gradient through
+/// `stops` (position 0..1, colour).
+pub fn pill_gradient(p: &Painter, rect: Rect, stops: &[(f32, Color32)]) {
+    let color_at = |f: f32| {
+        let f = f.clamp(0.0, 1.0);
+        for w in stops.windows(2) {
+            let ((a, ca), (b, cb)) = (w[0], w[1]);
+            if f <= b {
+                let t = if b > a { (f - a) / (b - a) } else { 0.0 };
+                return crate::theme::mix(cb, ca, t);
+            }
+        }
+        stops.last().map(|s| s.1).unwrap_or(Color32::TRANSPARENT)
+    };
+    let r = rect.height() / 2.0;
+    let n = 64;
+    let mut mesh = Mesh::default();
+    for i in 0..=n {
+        let x = rect.left() + rect.width() * i as f32 / n as f32;
+        // Half height at x: round within r of either end.
+        let d = (x - rect.left()).min(rect.right() - x);
+        let h = if d < r { (r * r - (r - d) * (r - d)).max(0.0).sqrt() } else { r };
+        let c = color_at((x - rect.left()) / rect.width());
+        mesh.colored_vertex(Pos2::new(x, rect.center().y - h), c);
+        mesh.colored_vertex(Pos2::new(x, rect.center().y + h), c);
+        if i > 0 {
+            let b = (i * 2) as u32;
+            mesh.add_triangle(b - 2, b - 1, b);
+            mesh.add_triangle(b - 1, b + 1, b);
+        }
+    }
+    p.add(Shape::mesh(mesh));
+}
+
 /// A top-to-bottom gradient.
 pub fn vgradient(p: &Painter, rect: Rect, top: Color32, bottom: Color32) {
     let mut mesh = Mesh::default();

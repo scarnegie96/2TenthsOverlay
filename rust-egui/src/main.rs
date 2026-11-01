@@ -29,6 +29,7 @@ mod kit;
 mod logic;
 mod ratings;
 mod schema;
+mod svg;
 mod sys;
 mod theme;
 mod widgets;

@@ -129,11 +129,11 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| G-meter with rings to `maxG`, dot (`direction` felt/accel), readouts lateral/accel/vertical | ⬜ |
-| Grip envelope with hold (`envelopeHold`) and return (`envelopeReturn`) | ⬜ |
-| Slip, pitch, roll car views (`showAttitude`, `exaggerate`), car silhouettes | ⬜ |
-| Balance bar (`showBalance`), "Learning your car" state | ⬜ |
-| Narrow g-meter-only layout when attitude and balance are off ("G-meter" title) | ⬜ |
+| G-meter with rings to `maxG`, dot (`direction` felt/accel), readouts lateral/accel/vertical | ✅ |
+| Grip envelope with hold (`envelopeHold`) and return (`envelopeReturn`) | ✅ |
+| Slip, pitch, roll car views (`showAttitude`, `exaggerate`), car silhouettes | ✅ |
+| Balance bar (`showBalance`), "Learning your car" state | ✅ |
+| Narrow g-meter-only layout when attitude and balance are off ("G-meter" title) | ✅ |
 
 ## 9. Instruments — `src/widgets/Instruments.tsx`, `dashIcons.tsx`
 
