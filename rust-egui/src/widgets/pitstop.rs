@@ -1,16 +1,17 @@
 //! Pit stop (`src/widgets/PitStop.tsx`): what iRacing has ticked for your
 //! next stop, read back from its telemetry, with the hotkey for each row.
 //!
-//! Sending the pit commands (hotkeys, wheel buttons, auto fuel) needs the
-//! controls service, which the prototype doesn't have yet; the display is
-//! complete, so the key hints, the fuel note and the footer all read as in
-//! the web app, but nothing here presses a key or lights one up.
+//! The commands themselves are sent by `controls::pit`; this shows their
+//! feedback: the key hint that lights up for a moment when pressed, the
+//! "last sent" line in the footer, and the AUTO tag greyed while auto fuel
+//! is paused (read from `controls::pit::feedback`).
 
 use egui::{Align2, Painter, Pos2, Rect, Vec2};
 use telemetry::model::PitPayload;
 
 use super::{Ctx, Widget};
 use crate::config::Opts;
+use crate::controls::pit::{self, PitAction};
 use crate::kit::{self, seg};
 use crate::logic::format::{fixed, fuel as conv_fuel, fuel_unit, pressure};
 use crate::logic::pit::{fuel_plan, full_label, short_label, FuelMode};
@@ -36,8 +37,14 @@ fn problem(status: i32) -> Option<&'static str> {
     })
 }
 
+/// A hotkey hint: its label, and whether it was just pressed.
+struct Hint {
+    label: String,
+    lit: bool,
+}
+
 /// A row's hotkey hints, a line per group.
-type Hints = Vec<Vec<String>>;
+type Hints = Vec<Vec<Hint>>;
 
 struct Row<'a> {
     label: &'a str,
@@ -55,7 +62,7 @@ fn key_width(p: &Painter, th: &Theme, s: &str) -> f32 {
 fn keys_size(p: &Painter, th: &Theme, hints: &Hints) -> Vec2 {
     let w = hints
         .iter()
-        .map(|line| line.iter().map(|k| key_width(p, th, k)).sum::<f32>() + KEY_GAP * line.len().saturating_sub(1) as f32)
+        .map(|line| line.iter().map(|k| key_width(p, th, &k.label)).sum::<f32>() + KEY_GAP * line.len().saturating_sub(1) as f32)
         .fold(0.0, f32::max);
     let h = if hints.is_empty() { 0.0 } else { hints.len() as f32 * KEY_H + KEY_GAP * (hints.len() - 1) as f32 };
     Vec2::new(w, h)
@@ -66,13 +73,20 @@ fn draw_keys(p: &Painter, th: &Theme, hints: &Hints, right: f32, cy: f32) {
     let size = keys_size(p, th, hints);
     let mut y = cy - size.y / 2.0;
     for line in hints {
-        let total: f32 = line.iter().map(|k| key_width(p, th, k)).sum::<f32>() + KEY_GAP * line.len().saturating_sub(1) as f32;
+        let total: f32 = line.iter().map(|k| key_width(p, th, &k.label)).sum::<f32>() + KEY_GAP * line.len().saturating_sub(1) as f32;
         let mut x = right - total;
         for k in line {
-            let w = key_width(p, th, k);
+            let w = key_width(p, th, &k.label);
             let r = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, KEY_H));
-            kit::outline(p, r, 3.0, 1.0, th.line_strong);
-            kit::text(p, r.center(), Align2::CENTER_CENTER, k, th.semi(12.0), th.ink3);
+            if k.lit {
+                // `.pit-key.is-lit`
+                kit::fill(p, r, 3.0, th.gain);
+                kit::outline(p, r, 3.0, 1.0, th.gain);
+                kit::text(p, r.center(), Align2::CENTER_CENTER, &k.label, th.semi(12.0), th.panel_solid);
+            } else {
+                kit::outline(p, r, 3.0, 1.0, th.line_strong);
+                kit::text(p, r.center(), Align2::CENTER_CENTER, &k.label, th.semi(12.0), th.ink3);
+            }
             x += w + KEY_GAP;
         }
         y += KEY_H + KEY_GAP;
@@ -108,9 +122,11 @@ impl Widget for PitStop {
         let margin = Opts::new(cx.cfg, "fuel").n("marginLaps") as f32;
         let mode = FuelMode::parse(o.s("fuelMode"));
         let auto_on = o.b("keepFuelSet");
-        // Auto fuel pauses when you change the fuel by hand with the up and
-        // down keys; without the controls service nothing ever does.
-        let auto_paused = false;
+        // Auto fuel pauses when you change the fuel by hand with the up and down keys.
+        let fb = pit::feedback();
+        let auto_paused = fb.paused;
+        let lit = fb.lit(cx.now);
+        let sent = fb.sent_text(cx.now);
         let show_keys = o.b("showKeys");
         let controls = &cx.general.controls;
         let in_car = cx.live.tick.as_ref().is_some_and(|t| t.is_on_track);
@@ -121,7 +137,11 @@ impl Widget for PitStop {
             }
             groups
                 .iter()
-                .map(|ids| ids.iter().filter_map(|id| short_label(controls, id)).collect::<Vec<_>>())
+                .map(|ids| {
+                    ids.iter()
+                        .filter_map(|id| short_label(controls, id).map(|label| Hint { label, lit: lit.is_some() && PitAction::from_id(id) == lit }))
+                        .collect::<Vec<_>>()
+                })
                 .filter(|line| !line.is_empty())
                 .collect()
         };
@@ -273,9 +293,11 @@ impl Widget for PitStop {
         }
 
         // The foot: what the keys do, or why they don't work yet.
-        if show_keys {
+        if sent.is_some() || show_keys {
             p.hline(x, y + 0.5, egui::Stroke::new(1.0, th.line));
-            let msg = if !in_car {
+            let msg = if let Some(sent) = sent {
+                sent.to_string()
+            } else if !in_car {
                 "Hotkeys work while you're in the car".to_string()
             } else if let Some(c) = clear {
                 format!("{c} unticks everything")
@@ -283,7 +305,9 @@ impl Widget for PitStop {
                 "Set keys in Settings → Controls".to_string()
             };
             let fy = y + 1.0 + 6.0;
-            kit::text(p, Pos2::new(x.min + 10.0, fy + note_h / 2.0), Align2::LEFT_CENTER, &msg, th.medium(13.0), th.ink3);
+            // `.pit-foot.is-sent`
+            let (font, color) = if sent.is_some() { (th.semi(13.0), th.gain) } else { (th.medium(13.0), th.ink3) };
+            kit::text(p, Pos2::new(x.min + 10.0, fy + note_h / 2.0), Align2::LEFT_CENTER, &msg, font, color);
             y += 1.0 + note_h + 12.0;
         }
         panel.finish(p, th, y)

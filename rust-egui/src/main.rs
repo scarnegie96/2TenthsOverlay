@@ -15,7 +15,10 @@
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
 //!   tenths-egui --shot out.png    save a screenshot after 5 s (--shot-after N) and quit
 //!
-//! Ctrl+Shift+E (Windows, anywhere) or F2 (in edit mode) toggles editing.
+//!   tenths-egui --press pit.fuel  run an action 4 s in (--press-at N), as if its key was pressed
+//!
+//! Hotkeys and wheel buttons (controls/): Ctrl+Shift+E (Windows, anywhere) or
+//! F2 (in edit mode) toggles editing; the rest are in `general.controls`.
 //! Ctrl+Shift+Q quits.
 
 // While the port is under way some helpers wait for the panels that use them.
@@ -23,6 +26,7 @@
 
 mod anchor;
 mod config;
+mod controls;
 mod data;
 mod frame;
 mod kit;
@@ -49,6 +53,9 @@ struct Args {
     bench: Option<f64>,
     shot: Option<String>,
     shot_after: f64,
+    /// Actions to run once the app has been up `press_at` seconds (--press).
+    press: Vec<String>,
+    press_at: f64,
 }
 
 fn args() -> Args {
@@ -65,6 +72,8 @@ fn args() -> Args {
         bench: value("--bench").and_then(|v| v.parse().ok()),
         shot: value("--shot"),
         shot_after: value("--shot-after").and_then(|v| v.parse().ok()).unwrap_or(5.0),
+        press: value("--press").map(|v| v.split(',').map(str::to_string).collect()).unwrap_or_default(),
+        press_at: value("--press-at").and_then(|v| v.parse().ok()).unwrap_or(4.0),
     }
 }
 
@@ -102,8 +111,11 @@ struct App {
     shot_done: std::sync::Arc<std::sync::atomic::AtomicBool>,
     picker: bool,
     stats: Stats,
-    #[cfg(windows)]
-    hotkeys: Option<hotkeys::Hotkeys>,
+    controls: controls::Controls,
+    /// `overlay.toggle`: every overlay hidden. Editing shows them again.
+    visible: bool,
+    press: Vec<String>,
+    press_at: f64,
 }
 
 /// Frame timing and memory, averaged over a second.
@@ -128,7 +140,7 @@ impl App {
         let store = config::Store::open(path);
         // The Tauri app's "demo" setting counts too.
         let demo = args.demo || store.config.general.demo;
-        let (shared, _control) = data::start(cc.egui_ctx.clone(), demo, args.offline);
+        let (shared, runner) = data::start(cc.egui_ctx.clone(), demo, args.offline);
         Self {
             shared,
             store,
@@ -146,14 +158,19 @@ impl App {
             shot_done: Default::default(),
             picker: false,
             stats: Stats::default(),
-            #[cfg(windows)]
-            hotkeys: hotkeys::Hotkeys::register(),
+            controls: controls::Controls::new(cc.egui_ctx.clone(), runner),
+            visible: true,
+            press: args.press,
+            press_at: args.press_at,
         }
     }
 
     fn set_editing(&mut self, ctx: &egui::Context, on: bool) {
         self.editing = on;
         self.picker = false;
+        if on {
+            self.visible = true;
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(!on));
         if on {
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -190,13 +207,6 @@ impl eframe::App for App {
             }
         }
 
-        #[cfg(windows)]
-        if let Some(action) = self.hotkeys.as_ref().and_then(|h| h.poll()) {
-            match action {
-                hotkeys::Action::ToggleEdit => self.set_editing(ctx, !self.editing),
-                hotkeys::Action::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
-            }
-        }
         if self.editing && ctx.input(|i| i.key_pressed(egui::Key::F2) || i.key_pressed(egui::Key::Escape)) {
             self.set_editing(ctx, false);
         }
@@ -208,13 +218,27 @@ impl eframe::App for App {
         let th = theme::Theme::from_general(&general);
 
         let live = data::Live::take(&self.shared);
+        let now = self.started.elapsed().as_secs_f64();
+
+        // Hotkeys, wheel buttons and pit commands (controls/).
+        if !self.press.is_empty() && now >= self.press_at {
+            for action in std::mem::take(&mut self.press) {
+                self.controls.inject(&action);
+            }
+        }
+        for action in self.controls.frame(&mut self.store, &live, general.units, now).app {
+            match action {
+                controls::AppAction::ToggleEdit => self.set_editing(ctx, !self.editing),
+                controls::AppAction::ToggleVisible => self.visible = !self.visible,
+                controls::AppAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            }
+        }
         let on_track = live.tick.as_ref().is_some_and(|t| t.is_on_track);
-        let show = self.editing || (live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
+        let show = self.editing || (self.visible && live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
         let screen = ctx.content_rect();
         if self.editing {
             edit_backdrop(ctx, screen);
         }
-        let now = self.started.elapsed().as_secs_f64();
         self.layout.run(frame::Frame {
             ctx,
             store: &mut self.store,
@@ -389,55 +413,6 @@ impl App {
         }
         if quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        }
-    }
-}
-
-#[cfg(windows)]
-mod hotkeys {
-    use global_hotkey::hotkey::{Code, HotKey, Modifiers};
-    use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
-
-    pub enum Action {
-        ToggleEdit,
-        Quit,
-    }
-
-    pub struct Hotkeys {
-        _manager: GlobalHotKeyManager,
-        edit: u32,
-        quit: u32,
-    }
-
-    impl Hotkeys {
-        /// Ctrl+Shift+E and Ctrl+Shift+Q, system-wide. None if they're taken
-        /// (the Tauri app uses Ctrl+Shift+E too: don't run both at once).
-        pub fn register() -> Option<Self> {
-            let manager = GlobalHotKeyManager::new().ok()?;
-            let edit = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyE);
-            let quit = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyQ);
-            if let Err(e) = manager.register(edit) {
-                eprintln!("couldn't register Ctrl+Shift+E: {e}");
-            }
-            if let Err(e) = manager.register(quit) {
-                eprintln!("couldn't register Ctrl+Shift+Q: {e}");
-            }
-            Some(Self { _manager: manager, edit: edit.id(), quit: quit.id() })
-        }
-
-        pub fn poll(&self) -> Option<Action> {
-            while let Ok(e) = GlobalHotKeyEvent::receiver().try_recv() {
-                if e.state != HotKeyState::Pressed {
-                    continue;
-                }
-                if e.id == self.edit {
-                    return Some(Action::ToggleEdit);
-                }
-                if e.id == self.quit {
-                    return Some(Action::Quit);
-                }
-            }
-            None
         }
     }
 }

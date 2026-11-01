@@ -174,8 +174,8 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 | Rows: fuel (amount, need to finish, AUTO tag), tires (pressures, compound, sets), fast repair (left), tear-off; ticked state | ✅ |
 | Hotkey hints (`showKeys`) from `general.controls` | ✅ |
 | Next stop / servicing / problem message in the header, footer line | ✅ |
-| "Last sent" message after a hotkey, key hint lighting up when pressed | ⏭️ nothing is sent yet (needs the controls service) |
-| Pit commands (fuel/tires/repair/tear-off/clear, fuel up/down, auto fuel with `fuelMode`, `fuelStep`, `keepFuelSet`, `autoFuel`): ⏭️ allowed (needs the controls/hotkeys service); the display must be complete | ⏭️ not sent: needs the controls service. The plan maths (`fuelPlan`, `fuelToFinish`, `steppedFuel`, `autoFuelCommand`) is ported in `logic/pit.rs` with the check-pit cases |
+| "Last sent" message after a hotkey, key hint lighting up when pressed, AUTO tag greyed while paused | ✅ from `controls::pit::feedback` |
+| Pit commands (fuel/tires/repair/tear-off/clear, fuel up/down, auto fuel with `fuelMode`, `fuelStep`, `keepFuelSet`, `autoFuel`) | ✅ sent through `RunnerControl::pit_command` by `controls/pit.rs` (hotkeys and wheel buttons: `controls/`); cases in its unit tests |
 | Empty state | ✅ |
 
 ## 14. Flags — `src/widgets/Flags.tsx`

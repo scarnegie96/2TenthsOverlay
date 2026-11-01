@@ -16,12 +16,12 @@ Work starts once the panel agents are merged (these touch the shared files:
 
 | Item | Status |
 |---|---|
-| Bindings from `general.controls` (keys and controller buttons per action), defaults from `controls.ts` | ⬜ |
-| Global hotkeys for every action (`RegisterHotKey` via `global-hotkey`), re-registered when the config changes; pit keys only while the Pit stop widget is on and you're in the car (as `set_pit_active`) | ⬜ |
-| Wheel / button-box buttons: port `controllers.rs` (Raw Input + HID, `vid:pid#instance` ids, SM_SWAPBUTTON etc.), same ids as the Tauri app so saved bindings work | ⬜ |
-| Actions: `overlay.edit`, `overlay.toggle` (show/hide), `layout.next`, `layout.1`–`layout.9` | ⬜ |
-| Pit actions: port `runPitAction` (fuel/fuelUp/fuelDown/autoFuel/tires/fastRepair/tearoff/clear) and `pitCommands`; send through `RunnerControl::pit_command`; pressed/sent feedback shown in the Pit stop panel | ⬜ |
-| Auto fuel to finish (`keepFuelSet`, 10 s throttle, pause on manual change, tankful cap) and set-fuel-at-pit-entry (`autoFuel`) | ⬜ |
+| Bindings from `general.controls` (keys and controller buttons per action), defaults from `controls.ts` | ✅ `controls/mod.rs` `parse_bindings`: saved entry when well formed (as `normalize`), else Ctrl+Shift+default; re-read when the config changes |
+| Global hotkeys for every action (`RegisterHotKey` via `global-hotkey`), re-registered when the config changes; pit keys only while the Pit stop widget is on and you're in the car (as `set_pit_active`) | ✅ `controls/hotkeys.rs` (`global-hotkey`), re-registered on change; pit keys only with the widget on, connected and in the car; suspended via `Controls::set_suspended`. Windows-only, untested here; Ctrl+Shift+Q (quit) kept as an extra |
+| Wheel / button-box buttons: port `controllers.rs` (Raw Input + HID, `vid:pid#instance` ids, SM_SWAPBUTTON etc.), same ids as the Tauri app so saved bindings work | ✅ `controls/controllers.rs`, a copy of the Tauri code (Raw Input + HID, same ids, hat 1001-1004, twin rule in `button_actions`); Windows-only, untested here |
+| Actions: `overlay.edit`, `overlay.toggle` (show/hide), `layout.next`, `layout.1`–`layout.9` | ✅ edit and show/hide are `AppAction`s handled in `main.rs`; `layout.*` call `controls/layouts.rs` `switch_layout`, a logging no-op marked MERGE POINT until saved layouts (G3) land |
+| Pit actions: port `runPitAction` (fuel/fuelUp/fuelDown/autoFuel/tires/fastRepair/tearoff/clear) and `pitCommands`; send through `RunnerControl::pit_command`; pressed/sent feedback shown in the Pit stop panel | ✅ `controls/pit.rs` `PitControl::run_action`, `pit_commands`; sent through `RunnerControl::pit_command`; lit key, last-sent footer and AUTO paused shown in the Pit stop panel |
+| Auto fuel to finish (`keepFuelSet`, 10 s throttle, pause on manual change, tankful cap) and set-fuel-at-pit-entry (`autoFuel`) | ✅ `PitControl::update`: 10 s throttle, new field payload only, not on pit road, paused by hand / clear, tankful cap; set-fuel-at-pit-entry with the by-hand skip. Case tests in `controls/pit.rs` |
 
 ## G2. Displays and the overlay windows — `src-tauri/src/displays.rs`, `src/overlay/*`, `src/lib/displays.ts`
 
