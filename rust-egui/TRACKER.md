@@ -121,9 +121,9 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 
 | Feature / option | Status |
 |---|---|
-| Cue text and colour from `tick.coach` (`cueText`, `issueText` port) | ⬜ |
-| Reason line (`showDetail`), delta and speed (`showStats`), focus corner (`showFocus`) | ⬜ |
-| No-reference state ("Import a reference lap…") | ⬜ |
+| Cue text and colour from `tick.coach` (`cueText`, `issueText` port) | ✅ |
+| Reason line (`showDetail`), delta and speed (`showStats`), focus corner (`showFocus`) | ✅ |
+| No-reference state ("Import a reference lap…") | ✅ |
 
 ## 8. Car dynamics — `src/widgets/Dynamics.tsx`
 
