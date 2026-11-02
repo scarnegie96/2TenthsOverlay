@@ -48,7 +48,7 @@ Work starts once the panel agents are merged (these touch the shared files:
 
 | Item | Status |
 |---|---|
-| Tray icon and menu: Open settings, Edit layout, Show/hide overlays, Next layout, Check for updates, Quit (`tray-icon` crate) | ✅ tray-icon, Windows only (stub elsewhere, untested on Windows); Next layout is a no-op until G2/G3 adds layout switching; Check for updates ⏭️ (G7) |
+| Tray icon and menu: Open settings, Edit layout, Show/hide overlays, Next layout, Check for updates, Quit (`tray-icon` crate) | ✅ tray-icon, Windows only (stub elsewhere, untested on Windows); Next layout switches saved layouts (wired at the G2/G3 merge); Check for updates ⏭️ (G7) |
 | Single instance (a second launch focuses the first) | ✅ |
 | Demo toggle (`general.demo`) switching the runner live | ✅ |
 | Corrupt config: keep it aside and show a notice (as `config_notice`) | ✅ |
@@ -62,7 +62,7 @@ A second egui viewport (normal window, not an overlay).
 | Item | Status |
 |---|---|
 | General: demo, units, show-when, shortcuts list, controls button, corrupt-config notice | ✅ |
-| Controls pane: every action, key capture and wheel-button capture (suspends hotkeys while capturing), reset | ✅ key capture and reset; ⏭️ wheel-button capture UI (bindings keep and show `button`; capture needs the G1 input thread to call `feed_button`) |
+| Controls pane: every action, key capture and wheel-button capture (suspends hotkeys while capturing), reset | ✅ key capture, wheel-button capture (controller presses reach Settings through `Controls` output, and shortcuts pause while capturing: wired at the G4 merge) and reset |
 | Layouts pane: save, switch, rename, delete, import/export, shortcut numbers | ✅ files in `layouts/`; applying a switch live is G2/G3 |
 | Appearance: theme, every colour token with reset, follows rules | ✅ |
 | A pane per widget generated from `schema.rs` options (toggle / number with min/max/step/suffix / select with help / text with maxLength), enable, scale, opacity, display | ✅ |
