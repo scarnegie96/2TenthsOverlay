@@ -1,12 +1,12 @@
 //! The tray icon and its menu (`build_tray` in `src-tauri/src/lib.rs`): Open
-//! settings, Edit layout, Show / hide overlays, Next layout, Check for
+//! settings, Edit layout, Show / hide overlays, Next layout, Stream window, Check for
 //! updates, Quit. A left click opens Settings.
 //!
 //! Windows only: the `tray-icon` crate needs the thread's message loop,
 //! which eframe's event loop provides. Not compiled on other platforms, where
 //! `Shell` has no tray.
 
-use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
+use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 use super::Request;
@@ -19,6 +19,8 @@ pub struct Tray {
     edit: MenuId,
     toggle: MenuId,
     next: MenuId,
+    /// "Stream window", ticked while the OBS window is open.
+    stream: CheckMenuItem,
     update: MenuId,
     quit: MenuId,
     /// Items whose text gets the action's shortcut: `(action id, item, plain text)`.
@@ -38,11 +40,12 @@ impl Tray {
         let edit = MenuItem::new("Edit layout", true, None);
         let toggle = MenuItem::new("Show / hide overlays", true, None);
         let next = MenuItem::new("Next layout", true, None);
+        let stream = CheckMenuItem::new("Stream window", true, false, None);
         // Relabelled "Update to 0.x.y…" when a check finds one (the updater is not ported yet).
         let update = MenuItem::new("Check for updates", true, None);
         let quit = MenuItem::new("Quit Tenths", true, None);
         let menu = Menu::new();
-        menu.append_items(&[&open, &edit, &toggle, &next, &PredefinedMenuItem::separator(), &update, &quit]).map_err(|e| e.to_string())?;
+        menu.append_items(&[&open, &edit, &toggle, &next, &stream, &PredefinedMenuItem::separator(), &update, &quit]).map_err(|e| e.to_string())?;
         let tray = TrayIconBuilder::new()
             .with_tooltip("Tenths")
             .with_menu(Box::new(menu))
@@ -56,6 +59,7 @@ impl Tray {
             edit: edit.id().clone(),
             toggle: toggle.id().clone(),
             next: next.id().clone(),
+            stream,
             update: update.id().clone(),
             quit: quit.id().clone(),
             shortcut_items: vec![
@@ -78,6 +82,8 @@ impl Tray {
                 out.push(Request::ToggleOverlays);
             } else if *id == self.next {
                 out.push(Request::NextLayout);
+            } else if id == self.stream.id() {
+                out.push(Request::ToggleStream);
             } else if *id == self.update {
                 out.push(Request::OpenAbout);
             } else if *id == self.quit {
@@ -90,6 +96,11 @@ impl Tray {
             }
         }
         out
+    }
+
+    /// Ticks or clears "Stream window" to match the setting (the click toggled it already; the setting has the last word).
+    pub fn set_stream(&self, on: bool) {
+        self.stream.set_checked(on);
     }
 
     pub fn set_shortcuts(&self, shortcuts: &[(&str, Option<String>)]) {

@@ -1,4 +1,4 @@
-//! About (version and updates) and the Streaming page.
+//! About (version and updates). (The Streaming page is streaming.rs.)
 //!
 //! The updater is not part of the egui build yet (it waits until this build
 //! becomes the release), so the update rows say so. The setting itself,
@@ -39,17 +39,4 @@ pub fn show(ui: &mut Ui, th: &Theme, env: &mut Env<'_>, ed: &mut Editor) {
         ui::field(ui, th, "Settings", Some(&show(p.config.clone())), |_| {});
         ui::field(ui, th, "Laps and reports", Some(&show(p.data.clone())), |_| {});
     });
-}
-
-pub fn streaming(ui: &mut Ui, th: &Theme) {
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("Streaming").font(th.bold(30.0)).color(th.ink));
-        ui.label(egui::RichText::new(" EXPERIMENTAL ").font(th.bold(12.0)).color(th.panel_solid).background_color(th.attention));
-    });
-    ui.add_space(6.0);
-    ui.scope(|ui| {
-        ui.set_max_width(560.0);
-        ui.add(egui::Label::new(ui::text(th, "Show the widgets on stream without capturing your screen: Tenths serves each one as a web page for an OBS Browser Source, with a transparent background and the same live data as the overlay.", 16.0, th.ink2)).wrap());
-    });
-    ui::note(ui, th, "The native build doesn't serve these pages yet: they are web pages, and the way to feed OBS from native widgets (window capture, off-screen images or Spout) is still to be decided. The Tauri app's Streaming page keeps working with the same settings file.");
 }

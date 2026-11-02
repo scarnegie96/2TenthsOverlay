@@ -35,6 +35,7 @@ mod layouts;
 mod races;
 pub mod reports_io;
 pub mod specs;
+mod streaming;
 mod timefmt;
 pub mod ui;
 mod widget;
@@ -262,7 +263,7 @@ impl SettingsWindow {
             Pane::Layouts => self.layouts.show(ui, th, env, &mut self.editor, &self.tasks.tx),
             Pane::Appearance => appearance::show(ui, th, env, &mut self.editor),
             Pane::Controls => self.controls.show(ui, th, env, &mut self.editor),
-            Pane::Streaming => about::streaming(ui, th),
+            Pane::Streaming => streaming::show(ui, th, env, &mut self.editor),
             Pane::About => about::show(ui, th, env, &mut self.editor),
             Pane::Widget(id) => widget::show(ui, th, env, &mut self.editor, &mut self.reference, &self.tasks.tx, id),
         }
@@ -324,7 +325,7 @@ impl SettingsWindow {
                         ("Layouts", Pane::Layouts, false),
                         ("Appearance", Pane::Appearance, false),
                         ("Controls", Pane::Controls, false),
-                        ("Streaming", Pane::Streaming, true),
+                        ("Streaming", Pane::Streaming, false),
                         ("About", Pane::About, false),
                     ];
                     for (label, pane, exp) in items {

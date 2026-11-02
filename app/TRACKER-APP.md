@@ -68,7 +68,7 @@ A second egui viewport (normal window, not an overlay).
 | A pane per widget generated from `schema.rs` options (toggle / number with min/max/step/suffix / select with help / text with maxLength), enable, scale, opacity, display | ✅ |
 | Delta pane: reference lap import (file picker via `rfd`), lap list, clear | ✅ |
 | About: version, release notes, updates status | ✅ version and credits; ⏭️ release notes and updates status (G7) |
-| Streaming pane | ⏭️ the OBS pages are web pages; decide later (window capture, off-screen images or Spout) |
+| Streaming pane | ✅ a stream window for OBS Window Capture (`stream.rs`, `settings/streaming.rs`); the web pages are not ported |
 
 ## G6. Race reports — `crates/telemetry/src/report.rs`, `src-tauri/src/reports.rs`, `src/settings/Races.tsx`
 
