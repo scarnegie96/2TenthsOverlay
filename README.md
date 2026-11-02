@@ -530,7 +530,8 @@ them; there's no Save button.
 
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
-with its current key), Stream window (on or off), and Quit Tenths. Starting Tenths again while it's
+with its current key), Stream window (on or off), Check for updates (it says
+"Update to 0.5.1…" once a newer version is found) and Quit Tenths. Starting Tenths again while it's
 running opens its settings window. Closing the settings window only hides
 it; Tenths keeps running until you quit it from the tray.
 
@@ -649,6 +650,21 @@ Each widget has its own page, opening with what it shows:
 The Delta page also has **Reference lap and coaching**, for importing the lap
 the Delta, Coach and Inputs widgets compare you with (see below).
 
+### About and updates
+
+The About page shows the version and checks for a newer one: a little after
+Tenths starts and then every six hours (switch that off with **Check
+automatically**), or when you press **Check now**. When there is one, the page
+lists what's new, About gets a dot in the list, and the tray item changes to
+"Update to x.y.z…". Nothing installs until you press **Update to x.y.z**: Tenths
+downloads the installer, checks its signature against the key the releases are
+signed with (anything that doesn't match is refused), runs it and closes; the
+installer puts the new version in the same place and opens Tenths again. Your
+settings, layouts, laps and reports aren't touched.
+
+Updates come from this project's GitHub releases. If Tenths says it couldn't
+check, the usual reasons are no internet connection or no public release yet.
+
 ## Reference laps
 
 The Delta, Coach and Inputs widgets can compare you with a lap you import
@@ -686,10 +702,21 @@ A reference is only used when its track and layout match the session.
 
 ## Install and run (Windows)
 
-There are no releases of this version yet. Every push to `development` builds
-it on GitHub: open **Actions → Windows build**, pick the latest run and
-download **tenths-windows** (one file, `tenths.exe`, no installer). Put it
-anywhere and run it.
+**Releases:** download `Tenths_<version>_x64-setup.exe` from the project's
+Releases page and run it. It installs for your user only (no administrator
+rights, in `%LOCALAPPDATA%\Tenths`) with a Start menu shortcut, and appears in
+Windows' Apps list for uninstalling; uninstalling leaves your settings and laps
+alone. If you have a 0.4 (Tauri) version installed, its own **Update** button
+brings you to this one, replacing it in place, and everything you set up
+carries over. The installer takes `/S` (no windows), `/P` (progress only) and
+`/R` (start Tenths afterwards).
+
+There are no releases of this version yet. Until then every push to
+`development` builds it on GitHub: open **Actions → Windows build**, pick the
+latest run and download **tenths-windows** (one file, `tenths.exe`, no
+installer: put it anywhere and run it) or **tenths-installer-unsigned** (the
+installer, to try the install; it isn't signed, so an installed Tenths won't
+take it as an update).
 
 In iRacing, set the display mode to **borderless windowed**. No overlay can draw
 over exclusive fullscreen.
@@ -833,6 +860,7 @@ cargo run -p telemetry --example compass_check -- race.ibt # check the compass h
 ```
 crates/telemetry/     Pure Rust: everything about iRacing data (the reader, the
                       session parser, every tracker, the demo race, the runner)
+crates/release/       tenths-release: signs the installer and writes latest.json (used by the release workflow)
 app/                  The app (egui)
   src/main.rs         Windows per display and per widget, edit mode, stats
   src/frame.rs        Laying out, dragging and snapping widgets; edit chrome
@@ -849,6 +877,9 @@ app/                  The app (egui)
   src/layouts.rs      Saved layouts
   src/settings/       The settings window, including the Races page
   src/shell/          Tray, one copy at a time, file locations
+  src/updates.rs      Looking for, downloading, verifying and starting an update
+  installer/          The NSIS installer script and the script that builds it
+  build.rs            The icon and version information inside tenths.exe
   TRACKER*.md         What was ported from the Tauri version, item by item
 archive/tauri/        The previous Tauri + React version, as it was
 archive/pyside-port/  A plan for a Python/Qt version (not pursued)

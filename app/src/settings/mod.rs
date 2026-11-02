@@ -76,6 +76,8 @@ pub struct Env<'a> {
     pub live: &'a Live,
     pub control: &'a RunnerControl,
     pub shell: &'a Shell,
+    /// Looks for and installs newer releases (About page, nav dot).
+    pub updates: &'a crate::updates::Updates,
     /// The settings in force: the config's, over the command line's theme and units.
     pub general: &'a General,
     pub editing: bool,
@@ -328,8 +330,11 @@ impl SettingsWindow {
                         ("Streaming", Pane::Streaming, false),
                         ("About", Pane::About, false),
                     ];
+                    // A dot on About while a newer version is waiting.
+                    let update_waiting = env.updates.status().available.is_some();
                     for (label, pane, exp) in items {
-                        if self.nav_item(ui, th, label, pane, exp, None) {
+                        let dot = (pane == Pane::About && update_waiting).then_some(true);
+                        if self.nav_item(ui, th, label, pane, exp, dot) {
                             self.pane = pane;
                         }
                     }

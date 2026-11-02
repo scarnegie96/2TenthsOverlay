@@ -1,7 +1,7 @@
 [workspace]
 # The app (egui) and the telemetry core it runs on. The previous Tauri app is
 # kept in archive/tauri with its own workspace.
-members = ["app", "crates/telemetry"]
+members = ["app", "crates/telemetry", "crates/release"]
 resolver = "2"
 
 [profile.release]

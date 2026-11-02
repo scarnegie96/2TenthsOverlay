@@ -1,0 +1,23 @@
+[package]
+name = "tenths-release"
+version = "0.1.0"
+edition = "2021"
+description = "Release tool: signs the installer and writes latest.json for the updater"
+publish = false
+
+[lib]
+name = "tenths_release"
+
+[[bin]]
+name = "tenths-release"
+path = "src/main.rs"
+
+[dependencies]
+# Signing: reads the secret key (a minisign encrypted key file, the same one Tauri's updater used).
+minisign = "0.10"
+base64 = "0.22"
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[dev-dependencies]
+# Round trip in the tests: what the app verifies with.
+minisign-verify = "0.3"

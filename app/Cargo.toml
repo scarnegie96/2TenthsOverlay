@@ -19,6 +19,15 @@ ureq = { version = "2", default-features = false, features = ["tls"] }
 egui_plot = "0.38"
 # Local dates and times on the Races and Layouts pages.
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Updates (src/updates.rs): the release feed's versions, and its minisign signatures (base64 as in Tauri's latest.json).
+semver = "1"
+base64 = "0.22"
+minisign-verify = "0.3"
+
+[dev-dependencies]
+# The update tests sign with the release tool's own code and key format.
+tenths-release = { path = "../crates/release" }
+minisign = "0.10"
 
 [target.'cfg(not(windows))'.dependencies]
 rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
@@ -45,3 +54,7 @@ windows-sys = { version = "0.59", features = [
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
 ] }
+
+[target.'cfg(windows)'.build-dependencies]
+# build.rs: the icon and version info inside tenths.exe.
+winresource = "0.1"
