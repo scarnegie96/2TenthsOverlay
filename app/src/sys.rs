@@ -12,10 +12,43 @@ pub fn memory_bytes() -> Option<u64> {
     (ok != 0).then_some(c.WorkingSetSize as u64)
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn memory_bytes() -> Option<u64> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     let line = status.lines().find(|l| l.starts_with("VmRSS:"))?;
     let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
     Some(kb * 1024)
+}
+
+/// macOS has no /proc: ask `ps` for this process's resident set (kilobytes). Called once a second.
+#[cfg(target_os = "macos")]
+pub fn memory_bytes() -> Option<u64> {
+    let out = std::process::Command::new("/bin/ps").args(["-o", "rss=", "-p", &std::process::id().to_string()]).output().ok()?;
+    parse_ps_rss(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// `ps -o rss=` prints just the number of kilobytes.
+#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
+fn parse_ps_rss(output: &str) -> Option<u64> {
+    output.trim().parse::<u64>().ok().filter(|&kb| kb > 0).map(|kb| kb * 1024)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_ps_output() {
+        assert_eq!(parse_ps_rss("  123456\n"), Some(123456 * 1024));
+        assert_eq!(parse_ps_rss(""), None);
+        assert_eq!(parse_ps_rss("ps: illegal option"), None);
+        assert_eq!(parse_ps_rss("0\n"), None);
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn this_process_has_memory() {
+        // Linux (and Windows) read it directly.
+        assert!(memory_bytes().is_some_and(|b| b > 1_000_000));
+    }
 }

@@ -1,6 +1,7 @@
 //! Standings (`src/widgets/Standings.tsx`): the field by class, your class
 //! around you, with places gained, iRating and its estimated change, gaps,
-//! laps, and where you'd rejoin after a stop.
+//! laps, and where you'd rejoin after a stop. Outside a race it's cut down to
+//! laps, gap to the class best, last and best lap, ranked by best lap.
 
 use std::collections::HashMap;
 
@@ -82,12 +83,14 @@ fn class_irating_changes(rows: &[&StandingRow]) -> HashMap<i32, f64> {
     ir::changes(&entries)
 }
 
-fn gap_cell(r: &StandingRow, interval: bool) -> (String, bool) {
+/// A race gap is "6.2"; in practice and qualifying the gap is a lap-time difference: "+0.269".
+fn gap_cell(r: &StandingRow, interval: bool, race: bool) -> (String, bool) {
     if r.laps_down > 0 {
         return (format!("+{}L", r.laps_down), false);
     }
     match if interval { r.interval } else { r.gap } {
-        Some(v) => (fmt_gap(Some(v), 1), false),
+        Some(v) if race => (fmt_gap(Some(v), 1), false),
+        Some(v) => (format!("+{}", fmt_gap(Some(v), 3)), false),
         None if r.class_position == 1 => ("Leader".into(), true),
         None => (String::new(), false),
     }
@@ -142,8 +145,10 @@ impl Widget for Standings {
         let my_rows = o.int("rows", 1);
         let other_rows = o.int("otherClassRows", 1);
         let interval_mode = o.s("gapMode") == "interval";
-        let (show_last, show_best, show_ir, show_sof, show_marks) = (o.b("showLast"), o.b("showBest"), o.b("showIRating"), o.b("showSoF"), o.b("showRatings"));
         let race = cx.live.race();
+        // Practice and qualifying: a cut-down table (laps, gap, last, best) without the race's iRating.
+        let (show_last, show_best, show_ir, show_sof, show_marks) = (o.b("showLast"), o.b("showBest"), o.b("showIRating") && race, o.b("showSoF"), o.b("showRatings"));
+        let show_laps = !race && o.b("showLaps");
         let show_ir_change = show_ir && o.b("showIRatingChange") && race && session.is_some_and(|s| s.official);
         let all: &[StandingRow] = field.map(|f| f.standings.as_slice()).unwrap_or(&[]);
         let show_change = o.b("showChange") && all.iter().any(|r| r.start_position.is_some());
@@ -181,7 +186,8 @@ impl Widget for Standings {
         };
         let c_change = push(show_change, Col::Px(34.0));
         let c_ir = push(show_ir, Col::Px(if show_ir_change { 74.0 } else { 40.0 }));
-        let c_gap = push(true, Col::Px(54.0)).unwrap();
+        let c_laps = push(show_laps, Col::Px(40.0));
+        let c_gap = push(true, Col::Px(if race { 54.0 } else { 66.0 })).unwrap();
         let c_last = push(show_last, Col::Px(62.0));
         let c_best = push(show_best, Col::Px(62.0));
         let c_rate = push(voting, Col::Px(52.0));
@@ -207,6 +213,7 @@ impl Widget for Standings {
         };
         label(c_change, "+/−");
         label(c_ir, "iR");
+        label(c_laps, "Laps");
         label(Some(c_gap), if interval_mode { "Int" } else { "Gap" });
         label(c_last, "Last");
         label(c_best, "Best");
@@ -280,7 +287,7 @@ impl Widget for Standings {
                     Item::Row(r) => {
                         let rect = Rect::from_min_size(Pos2::new(full.min, y), Vec2::new(full.span(), rh));
                         y += rh;
-                        row(p, th, cx, &x, rect, r, RowCols { c_change, c_ir, c_gap, c_last, c_best, c_rate, interval_mode, race, show_marks }, changes.get(&r.driver.car_idx).copied());
+                        row(p, th, cx, &x, rect, r, RowCols { c_change, c_ir, c_laps, c_gap, c_last, c_best, c_rate, interval_mode, race, show_marks }, changes.get(&r.driver.car_idx).copied());
                     }
                 }
             }
@@ -294,6 +301,7 @@ impl Widget for Standings {
 struct RowCols {
     c_change: Option<usize>,
     c_ir: Option<usize>,
+    c_laps: Option<usize>,
     c_gap: usize,
     c_last: Option<usize>,
     c_best: Option<usize>,
@@ -381,7 +389,11 @@ fn row(p: &Painter, th: &Theme, cx: &Ctx, x: &[egui::Rangef], rect: Rect, r: &St
     if let Some(col) = c.c_ir {
         kit::ir_badge(p, th, x[col], cy, Align::Center, r.driver.irating, change.map(|v| v as f32));
     }
-    let (g, leader) = gap_cell(r, c.interval_mode);
+    if let Some(col) = c.c_laps {
+        let laps = if r.lap > 0 { r.lap.to_string() } else { "–".into() };
+        kit::cell(p, x[col], cy, Align::Center, &laps, th.semi(15.0), th.ink2);
+    }
+    let (g, leader) = gap_cell(r, c.interval_mode, c.race);
     let (font, color) = if leader { (th.medium(15.0), th.ink3) } else { (th.semi(15.0), th.ink) };
     kit::cell(p, x[c.c_gap], cy, Align::Center, &g, font, color);
     if let Some(col) = c.c_last {
@@ -449,12 +461,15 @@ mod tests {
     #[test]
     fn gaps() {
         let mut r = mk(1, 1, None, false);
-        assert_eq!(gap_cell(&r, false), ("Leader".into(), true));
+        assert_eq!(gap_cell(&r, false, true), ("Leader".into(), true));
         r.class_position = 2;
         r.gap = Some(6.25);
-        assert_eq!(gap_cell(&r, false).0, "6.2");
+        assert_eq!(gap_cell(&r, false, true).0, "6.2");
+        // Practice: the difference in best laps, to the thousandth.
+        r.gap = Some(0.2689);
+        assert_eq!(gap_cell(&r, false, false).0, "+0.269");
         r.laps_down = 11;
-        assert_eq!(gap_cell(&r, false).0, "+11L");
+        assert_eq!(gap_cell(&r, false, true).0, "+11L");
         assert_eq!(fmt_secs(62.34), "1:02.3");
         assert_eq!(fmt_secs(9.44), "9.4");
     }

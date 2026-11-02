@@ -29,8 +29,13 @@ minisign-verify = "0.3"
 tenths-release = { path = "../crates/release" }
 minisign = "0.10"
 
-[target.'cfg(not(windows))'.dependencies]
+# The file picker: GTK on Linux and the BSDs (the feature does nothing elsewhere), the native
+# panel on macOS (rfd's own AppKit code), the Win32 dialogs on Windows (below).
+[target.'cfg(all(not(windows), not(target_os = "macos")))'.dependencies]
 rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rfd = { version = "0.17", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 rfd = "0.17"

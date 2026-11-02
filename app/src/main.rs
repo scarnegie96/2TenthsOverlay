@@ -21,6 +21,9 @@
 //!                                 with --shot the window is drawn inside the overlay window,
 //!                                 which is what a screenshot can capture)
 //!   tenths-egui --data-dir <dir>  laps, race reports and the reference lap in another folder
+//!   tenths-egui --replay <file>   play an iRacing .ibt telemetry file as if it were the sim (any
+//!                                 platform; --speed N runs it N times faster, --loop starts it
+//!                                 over at the end). Other cars show only if the file recorded them.
 //!
 //!   tenths-egui --press pit.fuel  run an action 4 s in (--press-at N), as if its key was pressed
 //!
@@ -86,6 +89,12 @@ struct Args {
     vsync: bool,
     /// The old overlay: one full-screen window per display instead of a window per panel.
     fullscreen_overlay: bool,
+    /// Play an iRacing .ibt telemetry file instead of the sim or the demo (`--replay FILE`).
+    replay: Option<PathBuf>,
+    /// How much faster than real time the replay runs (`--speed`, default 1).
+    replay_speed: f64,
+    /// Start the replay again when it ends (`--loop`).
+    replay_loop: bool,
 }
 
 fn args() -> Args {
@@ -113,6 +122,9 @@ fn args() -> Args {
         vsync: has("--vsync"),
         // A screenshot only sees the root window, so it needs the full-screen one.
         fullscreen_overlay: has("--fullscreen-overlay") || value("--shot").is_some(),
+        replay: value("--replay").map(PathBuf::from),
+        replay_speed: value("--speed").and_then(|v| v.parse().ok()).filter(|s: &f64| (0.0..=1000.0).contains(s)).unwrap_or(1.0),
+        replay_loop: has("--loop"),
     }
 }
 
@@ -120,7 +132,7 @@ fn main() -> eframe::Result {
     let args = args();
     // One copy at a time: a second launch asks the first to open Settings. Runs
     // with their own config, a screenshot or a benchmark are never "the app".
-    let single = args.config.is_none() && args.shot.is_none() && args.bench.is_none() && !args.offline;
+    let single = args.config.is_none() && args.shot.is_none() && args.bench.is_none() && !args.offline && args.replay.is_none();
     let listener = if single {
         match shell::instance::claim() {
             shell::instance::Instance::AlreadyRunning => {
@@ -238,8 +250,16 @@ impl App {
         let notice = paths.config.as_deref().and_then(shell::keep_corrupt_config);
         let store = config::Store::open(paths.config.clone());
         // The Tauri app's "demo" setting counts too.
-        let demo = args.demo || store.config.general.demo;
-        let (shared, control) = data::start_with(cc.egui_ctx.clone(), demo, args.offline, |c| shell::setup_runner(&paths, c));
+        // A replay is its own source: no demo race under it.
+        let demo = args.replay.is_none() && (args.demo || store.config.general.demo);
+        let (shared, control) = data::start_with(cc.egui_ctx.clone(), demo, args.offline, |c| {
+            shell::setup_runner(&paths, c);
+            if let Some(file) = &args.replay {
+                c.replay = Some(file.clone());
+                c.replay_speed.store((args.replay_speed * 1000.0).round() as u32, std::sync::atomic::Ordering::Relaxed);
+                c.replay_loop.store(args.replay_loop, std::sync::atomic::Ordering::Relaxed);
+            }
+        });
         let layouts = layouts::Layouts::open(paths.config.as_deref(), &store);
         let shell = shell::Shell::new(paths, notice);
         let updates = updates::Updates::new(shell.sender());
@@ -257,13 +277,13 @@ impl App {
         Self {
             controls: controls::Controls::new(cc.egui_ctx.clone(), control.clone()),
             control,
-            force_demo: args.demo,
+            force_demo: args.demo && args.replay.is_none(),
             shell,
             settings,
             tray_synced: false,
             updates,
             // (TENTHS_UPDATE_URL: trying a release by hand, screenshots included.)
-            auto_updates: std::env::var_os("TENTHS_UPDATE_URL").is_some() || (!args.offline && !args.demo && args.shot.is_none()),
+            auto_updates: std::env::var_os("TENTHS_UPDATE_URL").is_some() || (!args.offline && !args.demo && args.replay.is_none() && args.shot.is_none()),
             panel_mode: !args.fullscreen_overlay,
             panels: Default::default(),
             stream: Default::default(),

@@ -275,6 +275,7 @@ impl SettingsWindow {
         let (label, tone) = match env.live.status.as_deref() {
             None => ("Starting".to_string(), th.attention),
             Some(s) if s.connected && s.source == telemetry::model::SourceKind::Demo => ("Demo race running".into(), th.fastest),
+            Some(s) if s.source == telemetry::model::SourceKind::Replay => (s.message.clone(), if s.connected { th.fastest } else { th.attention }),
             Some(s) if s.connected => ("Connected to iRacing".into(), th.gain),
             Some(s) if !s.message.is_empty() => (s.message.clone(), th.attention),
             Some(_) => ("Waiting for iRacing".into(), th.attention),

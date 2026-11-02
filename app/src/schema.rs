@@ -60,6 +60,7 @@ pub const WIDGETS: &[Meta] = &[
             ("showIRatingChange", B(true)),
             ("showLast", B(true)),
             ("showBest", B(true)),
+            ("showLaps", B(true)),
             ("showSoF", B(true)),
             ("rateDrivers", B(true)),
             ("showRatings", B(true)),
