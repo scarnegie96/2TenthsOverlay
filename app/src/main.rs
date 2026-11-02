@@ -45,6 +45,7 @@ mod ratings;
 mod schema;
 mod settings;
 mod shell;
+mod stream;
 mod svg;
 mod sys;
 mod theme;
@@ -202,6 +203,8 @@ struct App {
     /// A window per panel (false: `--fullscreen-overlay`), and their state (panels.rs).
     panel_mode: bool,
     panels: panels::Panels,
+    /// The OBS stream window (stream.rs).
+    stream: stream::Stream,
 }
 
 /// Frame timing and memory, averaged over a second.
@@ -254,6 +257,7 @@ impl App {
             tray_synced: false,
             panel_mode: !args.fullscreen_overlay,
             panels: Default::default(),
+            stream: Default::default(),
             shared,
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
@@ -483,9 +487,14 @@ impl eframe::App for App {
         }
         self.placers.retain(|id, _| *id == egui::ViewportId::ROOT || live_ids.contains(id));
 
+        // The OBS stream window, when it's on: shown whenever the overlay would be, whatever the hide hotkey says.
+        let stream_show = self.editing || (live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
+        self.stream_window(ctx, &th, &live, general.units, stream_show, now);
+
         self.stats(ctx, live.ticks, frame_start, live.status.as_deref());
 
         // The Settings window, when it's open.
+        let screens: Vec<(String, String)> = self.displays.iter().map(|d| (d.key.clone(), d.name())).collect();
         let requests = self.settings.show(
             ctx,
             settings::Env {
@@ -496,7 +505,7 @@ impl eframe::App for App {
                 general: &general,
                 editing: self.editing,
                 overlays_visible: self.visible,
-                displays: &[],
+                displays: &screens,
             },
         );
         for r in requests {
@@ -545,6 +554,10 @@ impl App {
             ToggleEdit => self.set_editing(ctx, !self.editing),
             ToggleOverlays => self.visible = !self.visible,
             NextLayout => self.next_layout(1),
+            ToggleStream => {
+                let on = !self.store.config.general.streaming.window;
+                self.store.set_stream_window(on);
+            }
             Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
         }
     }

@@ -83,10 +83,10 @@ cheaply, so it gets what OBS captures well: a **stream window**.
 
 | # | Piece |
 |---|---|
-| S1 | Settings → Streaming (replaces the placeholder): **Stream window** on/off; **Background**: green `#00FF00`, magenta `#FF00FF`, black or transparent-looking dark grey; **Shows**: the layout of display 1, 2… (widgets where they are on that screen) or chosen widgets only (a checklist); **Size**: 50 / 75 / 100 % of that display; a short how-to for OBS (Window Capture → the window "Tenths stream", Capture method "Windows 10 (1903 and up)", add a Chroma Key filter for the background colour). Saved in `general.streaming` (keep the Tauri fields `enabled`/`port`, add `window`, `background`, `display`, `widgets`, `scale`). |
-| S2 | The window: a normal (decorated, not topmost, not click-through, in the taskbar) egui viewport titled "Tenths stream", drawing the chosen widgets at their layout positions scaled, on the solid background, at the app's redraw rate; it works while covered by iRacing (OBS captures it anyway). Closing it turns the option off. |
-| S3 | Tray item "Stream window" (on/off). README section rewritten. |
-| S4 | Off by default; costs nothing when off. |
+| S1 ✅ | Settings → Streaming (replaces the placeholder): **Stream window** on/off; **Background**: green `#00FF00`, magenta `#FF00FF`, black or transparent-looking dark grey; **Shows**: the layout of display 1, 2… (widgets where they are on that screen) or chosen widgets only (a checklist); **Size**: 50 / 75 / 100 % of that display; a short how-to for OBS (Window Capture → the window "Tenths stream", Capture method "Windows 10 (1903 and up)", add a Chroma Key filter for the background colour). Saved in `general.streaming` (keep the Tauri fields `enabled`/`port`, add `window`, `background`, `display`, `widgets`, `scale`). |
+| S2 ✅ | The window: a normal (decorated, not topmost, not click-through, in the taskbar) egui viewport titled "Tenths stream", drawing the chosen widgets at their layout positions scaled, on the solid background, at the app's redraw rate; it works while covered by iRacing (OBS captures it anyway). Closing it turns the option off. |
+| S3 ✅ | Tray item "Stream window" (on/off). README section rewritten. |
+| S4 ✅ | Off by default; costs nothing when off. |
 
 ## 4. Twitch emotes as images
 

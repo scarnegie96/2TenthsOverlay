@@ -495,10 +495,29 @@ they're yours to keep, share or delete.
 
 ## Streaming
 
-The Tauri version could serve every widget as a web page for an OBS Browser
-Source. That isn't in this version yet; until it is, an OBS **Window Capture**
-of a widget's window works (each widget has its own window, titled
-"Tenths · relative" and so on).
+For OBS, Tenths can open a **stream window**: an ordinary window called
+"Tenths stream" that draws your widgets where your layout has them, on a plain
+background, with the same theme, options and opacity as on screen. OBS captures
+that window, so you don't capture your screen, and it works while iRacing
+covers it. It's off by default, and costs nothing while it's off.
+
+Turn it on in **Settings → Streaming** or with **Stream window** in the tray
+menu; closing the window turns it off again. There you choose:
+
+- **Background**: green (`#00FF00`) or magenta (`#FF00FF`) to key out, or black or dark grey.
+- **Screen**: on several monitors, which one's layout and size it follows.
+- **Size**: 50, 75 or 100% of that screen.
+- **Widgets**: everything the layout has on that screen, or only the ones you
+  tick (placed where the layout puts them, even a widget you have off on screen).
+
+In OBS: add a **Window Capture** source and pick "Tenths stream", set Capture
+Method to "Windows 10 (1903 and up)", then add a **Chroma Key** filter with the
+background colour (a **Color Key** filter for black or grey). Widgets with
+an opacity under 100% blend with the background colour, so key out a colour your
+widgets don't use, or set those widgets to 100%.
+
+The OBS Browser Source pages of the Tauri version (the port in the settings
+file) are not part of this version.
 
 ## The app
 
@@ -511,7 +530,7 @@ them; there's no Save button.
 
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
-with its current key), and Quit Tenths. Starting Tenths again while it's
+with its current key), Stream window (on or off), and Quit Tenths. Starting Tenths again while it's
 running opens its settings window. Closing the settings window only hides
 it; Tenths keeps running until you quit it from the tray.
 
@@ -818,6 +837,7 @@ app/                  The app (egui)
   src/main.rs         Windows per display and per widget, edit mode, stats
   src/frame.rs        Laying out, dragging and snapping widgets; edit chrome
   src/panels.rs       One small window per widget outside edit mode
+  src/stream.rs       The stream window for OBS
   src/displays.rs     Monitors, DPI, window placement, click-through
   src/config.rs       config.json (shared with the Tauri version), watched for changes
   src/schema.rs       Every widget's options and defaults
