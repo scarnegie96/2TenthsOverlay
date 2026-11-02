@@ -162,6 +162,21 @@ impl SettingsWindow {
         }
     }
 
+    /// Gets Settings out of the way (the overlay is live in iRacing). To the tray when there is
+    /// one: closed, and the tray's item opens it again. Otherwise minimised, where the Dock or
+    /// taskbar brings it back.
+    pub fn hide(&mut self, ctx: &egui::Context, to_tray: bool) {
+        if !self.open {
+            return;
+        }
+        if to_tray {
+            self.open = false;
+            self.controls.cancel();
+        } else {
+            ctx.send_viewport_cmd_to(ViewportId::from_hash_of(ID), egui::ViewportCommand::Minimized(true));
+        }
+    }
+
     /// Waiting for a key or a button: the hotkeys and wheel buttons should do nothing meanwhile.
     pub fn capturing(&self) -> bool {
         self.open && self.controls.capturing()
@@ -190,12 +205,22 @@ impl SettingsWindow {
             .with_min_inner_size([760.0, 480.0]);
         let id = ViewportId::from_hash_of(ID);
         if std::mem::take(&mut self.focus) {
+            // (Brings it back from the Dock or taskbar if it was minimised.)
+            ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
         }
         ctx.show_viewport_immediate(id, builder, |ui, _class| {
             if ui.ctx().input(|i| i.viewport().close_requested()) {
-                self.open = false;
-                self.controls.cancel();
+                if cfg!(windows) {
+                    // The tray's Settings item opens it again.
+                    self.open = false;
+                    self.controls.cancel();
+                } else {
+                    // No tray to come back from: closing would leave no way to reopen Settings,
+                    // so the close button minimises it, and the Dock brings it back. (Quit is in the top bar.)
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
                 return;
             }
             ui::apply_style(ui, &th);
@@ -305,6 +330,10 @@ impl SettingsWindow {
                         let hide = if env.overlays_visible { "Hide overlays" } else { "Show overlays" };
                         if ui::button(ui, th, hide, Look::Normal).clicked() {
                             out.push(Request::ToggleOverlays);
+                        }
+                        // Closing Settings leaves Tenths running (in the tray, or minimised), so quitting is here too.
+                        if ui::button(ui, th, "Quit", Look::Normal).clicked() {
+                            out.push(Request::Quit);
                         }
                     });
                 });

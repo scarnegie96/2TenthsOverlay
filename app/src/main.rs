@@ -21,6 +21,8 @@
 //!                                 with --shot the window is drawn inside the overlay window,
 //!                                 which is what a screenshot can capture)
 //!   tenths-egui --data-dir <dir>  laps, race reports and the reference lap in another folder
+//!   tenths-egui --background      start without opening Settings (a normal start opens it; it
+//!                                 steps out of the way when iRacing connects)
 //!   tenths-egui --replay <file>   play an iRacing .ibt telemetry file as if it were the sim (any
 //!                                 platform; --speed N runs it N times faster, --loop starts it
 //!                                 over at the end). Other cars show only if the file recorded them.
@@ -95,10 +97,17 @@ struct Args {
     replay_speed: f64,
     /// Start the replay again when it ends (`--loop`).
     replay_loop: bool,
+    /// Don't open Settings at start (`--background`), for starting with the computer.
+    background: bool,
 }
 
 fn args() -> Args {
-    let all: Vec<String> = std::env::args().skip(1).collect();
+    args_from(&std::env::args().collect::<Vec<_>>())
+}
+
+/// `args` for a given command line (the first item is the program).
+fn args_from(command_line: &[String]) -> Args {
+    let all: Vec<String> = command_line.iter().skip(1).cloned().collect();
     let value = |name: &str| all.iter().position(|a| a == name).and_then(|i| all.get(i + 1)).cloned();
     let has = |name: &str| all.iter().any(|a| a == name);
     Args {
@@ -125,7 +134,22 @@ fn args() -> Args {
         replay: value("--replay").map(PathBuf::from),
         replay_speed: value("--speed").and_then(|v| v.parse().ok()).filter(|s: &f64| (0.0..=1000.0).contains(s)).unwrap_or(1.0),
         replay_loop: has("--loop"),
+        background: has("--background"),
     }
+}
+
+/// A normal start opens Settings, the app itself; the overlay panels are only part of it. Runs
+/// for screenshots, benchmarks, editing and the empty-state check don't, and neither does
+/// `--background`. `--settings` always does.
+fn opens_settings_at_start(args: &Args) -> bool {
+    args.settings || !(args.background || args.shot.is_some() || args.bench.is_some() || args.edit || args.offline)
+}
+
+/// Whether iRacing is connected, and whether that's new since last frame: Settings steps aside
+/// the moment the overlay goes live in the sim, and not again until the sim has gone and come back.
+fn sim_connected(was: bool, status: Option<&telemetry::model::StatusPayload>) -> (bool, bool) {
+    let now = status.is_some_and(|s| s.connected && s.source == telemetry::model::SourceKind::Iracing);
+    (now, now && !was)
 }
 
 fn main() -> eframe::Result {
@@ -213,6 +237,8 @@ struct App {
     shell: shell::Shell,
     settings: settings::SettingsWindow,
     tray_synced: bool,
+    /// iRacing was connected last frame (`sim_connected`).
+    in_sim: bool,
     /// Looks for newer releases (updates.rs); automatic checks are off for `--offline`, `--demo` and screenshots.
     updates: updates::Updates,
     auto_updates: bool,
@@ -268,7 +294,7 @@ impl App {
             l.serve(shell.sender(), cc.egui_ctx.clone());
         }
         let launch = settings::Launch {
-            open: args.settings,
+            open: opens_settings_at_start(&args),
             pane: args.pane.as_deref().and_then(settings::Pane::parse),
             report: args.report.clone(),
         };
@@ -281,6 +307,7 @@ impl App {
             shell,
             settings,
             tray_synced: false,
+            in_sim: false,
             updates,
             // (TENTHS_UPDATE_URL: trying a release by hand, screenshots included.)
             auto_updates: std::env::var_os("TENTHS_UPDATE_URL").is_some() || (!args.offline && !args.demo && args.replay.is_none() && args.shot.is_none()),
@@ -464,6 +491,12 @@ impl eframe::App for App {
 
         let live = data::Live::take(&self.shared);
         let now = self.started.elapsed().as_secs_f64();
+        // The overlay is live in iRacing: Settings goes to the tray (minimised where there's none).
+        let (in_sim, entered) = sim_connected(self.in_sim, live.status.as_deref());
+        self.in_sim = in_sim;
+        if entered {
+            self.settings.hide(ctx, self.shell.has_tray());
+        }
 
         // Hotkeys, wheel buttons and pit commands (controls/).
         if !self.press.is_empty() && now >= self.press_at {
@@ -970,5 +1003,46 @@ mod tests {
         assert_eq!(click_at(&clicks, Pos2::new(33.0, 12.0)), None);
         assert_eq!(click_at(&clicks, Pos2::new(12.0, 31.0)), None);
         assert_eq!(click_at(&[], Pos2::ZERO), None);
+    }
+
+    fn status(source: telemetry::model::SourceKind, connected: bool) -> telemetry::model::StatusPayload {
+        telemetry::model::StatusPayload { source, connected, message: String::new() }
+    }
+
+    #[test]
+    fn settings_steps_aside_once_when_iracing_connects() {
+        use telemetry::model::SourceKind as K;
+        // Starting up, waiting for the sim: nothing.
+        assert_eq!(sim_connected(false, None), (false, false));
+        assert_eq!(sim_connected(false, Some(&status(K::None, false))), (false, false));
+        // It connects: the moment to hide.
+        assert_eq!(sim_connected(false, Some(&status(K::Iracing, true))), (true, true));
+        // Still connected: don't hide again, so a Settings window opened since stays.
+        assert_eq!(sim_connected(true, Some(&status(K::Iracing, true))), (true, false));
+        // The sim closes and comes back: hide again.
+        assert_eq!(sim_connected(true, Some(&status(K::Iracing, false))), (false, false));
+        assert_eq!(sim_connected(false, Some(&status(K::Iracing, true))), (true, true));
+        // The demo race and a replay are not "in the sim": Settings stays for designing layouts.
+        assert_eq!(sim_connected(false, Some(&status(K::Demo, true))), (false, false));
+        assert_eq!(sim_connected(false, Some(&status(K::Replay, true))), (false, false));
+    }
+
+    #[test]
+    fn a_normal_start_opens_settings() {
+        let none = |extra: &[&str]| {
+            let mut a = vec!["tenths".to_string()];
+            a.extend(extra.iter().map(|s| s.to_string()));
+            args_from(&a)
+        };
+        assert!(opens_settings_at_start(&none(&[])));
+        assert!(opens_settings_at_start(&none(&["--demo"])));
+        assert!(opens_settings_at_start(&none(&["--replay", "x.ibt"])));
+        assert!(!opens_settings_at_start(&none(&["--background"])));
+        assert!(!opens_settings_at_start(&none(&["--shot", "a.png"])));
+        assert!(!opens_settings_at_start(&none(&["--bench", "10"])));
+        assert!(!opens_settings_at_start(&none(&["--edit"])));
+        assert!(!opens_settings_at_start(&none(&["--offline"])));
+        // Asking for Settings wins.
+        assert!(opens_settings_at_start(&none(&["--background", "--settings"])));
     }
 }

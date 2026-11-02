@@ -16,6 +16,7 @@ when you bump the version.
 - `tenths.exe` now has the Tenths icon and version information.
 - Replay: `tenths --replay race.ibt` plays an iRacing telemetry file as if it were the sim, on any platform (`--speed 2` for twice as fast, `--loop` to start over). Your own car's channels always come through; other cars (Relative, Standings, Radar, Stints, Race pace, Battle) only if the file recorded them. `cargo run -p telemetry --example make_replay_ibt` writes a demo-race file to try it with.
 - Standings in practice and qualifying: ranked by best lap, with laps, the gap to the class best (to the thousandth), last and best lap, and no iRating columns. It reads iRacing's session results, which fill in as cars set laps. (Settings → Standings → Show laps.)
+- Starting Tenths opens Settings, the app itself, and steps aside when iRacing connects: to the tray on Windows, minimised to the Dock where there's no tray. `--background` starts without it. Settings has a Quit button now, and on macOS its close button minimises it.
 - macOS: the stats line shows memory, and the file picker is the native one. (Builds are for designing layouts and working on the code; iRacing doesn't run there.)
 - The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
 

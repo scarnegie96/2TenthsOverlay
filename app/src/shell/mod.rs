@@ -189,6 +189,19 @@ impl Shell {
         }
     }
 
+    /// Whether there's a tray icon to come back from: Settings goes there when the overlay goes
+    /// live in iRacing. Without one (macOS, Linux, or no tray available) it minimises instead.
+    pub fn has_tray(&self) -> bool {
+        #[cfg(windows)]
+        {
+            self.tray.is_some()
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
     /// A sender for threads that ask the app to do something (a second launch).
     pub fn sender(&self) -> Sender<Request> {
         self.tx.clone()
