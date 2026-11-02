@@ -7,6 +7,7 @@ when you bump the version.
 ## 0.5.0 (in development, no release yet)
 
 - Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with each widget in its own small window over the game. Settings, layouts, laps, ratings and race reports carry over.
+- Twitch chat shows emotes as pictures, inline with the words.
 - Every widget, the settings window (including the Races page), hotkeys and wheel buttons, pit commands and auto fuel, several monitors, saved layouts and the tray are ported. Not yet: updates, an installer and OBS streaming.
 - Redraws up to 60 times a second (`--fps` to lower it), without waiting for the screen refresh (`--vsync` to).
 - The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.

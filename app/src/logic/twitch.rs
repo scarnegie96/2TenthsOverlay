@@ -453,6 +453,114 @@ const DEMO: [(&str, &str, &str); 6] = [
     ("CurbHopper", "#00CED1", "send it"),
 ];
 
+// --- Laying a message out with emote images ------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Token {
+    Word(String),
+    /// An emote: its id and its code (the text it replaces).
+    Emote { id: String, code: String },
+}
+
+/// A word or emote, and whether whitespace came before it (a space is drawn there).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Piece {
+    pub token: Token,
+    pub gap: bool,
+}
+
+/// A message's text as words and emotes, left to right. Emote ranges count code points;
+/// ones that overlap, run backwards or go past the text are ignored. With `show` off
+/// every emote is just a word. The first piece counts as having a gap (it follows the name).
+pub fn pieces(text: &str, emotes: &[ChatEmote], show: bool) -> Vec<Piece> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = Vec::new();
+    let mut ws = true;
+    let words = |s: &[char], ws: &mut bool, out: &mut Vec<Piece>| {
+        let mut word = String::new();
+        for &c in s {
+            if c.is_whitespace() {
+                if !word.is_empty() {
+                    out.push(Piece { token: Token::Word(std::mem::take(&mut word)), gap: *ws });
+                    *ws = false;
+                }
+                *ws = true;
+            } else {
+                word.push(c);
+            }
+        }
+        if !word.is_empty() {
+            out.push(Piece { token: Token::Word(word), gap: *ws });
+            *ws = false;
+        }
+    };
+    let mut at = 0;
+    if show {
+        for e in emotes {
+            if e.start < at || e.start > e.end || e.end >= chars.len() {
+                continue;
+            }
+            words(&chars[at..e.start], &mut ws, &mut out);
+            out.push(Piece { token: Token::Emote { id: e.id.clone(), code: chars[e.start..=e.end].iter().collect() }, gap: ws });
+            ws = false;
+            at = e.end + 1;
+        }
+    }
+    words(&chars[at..], &mut ws, &mut out);
+    out
+}
+
+/// Cuts `word` into chunks that each measure at most `max` (one char at least), for words
+/// wider than a line.
+pub fn split_to_fit(word: &str, max: f32, measure: impl Fn(&str) -> f32) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for c in word.chars() {
+        cur.push(c);
+        if cur.chars().count() > 1 && measure(&cur) > max {
+            cur.pop();
+            out.push(std::mem::take(&mut cur));
+            cur.push(c);
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+/// One thing to place: its width and the space before it.
+#[derive(Debug, Clone, Copy)]
+pub struct Item {
+    pub w: f32,
+    pub gap: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Placed {
+    pub x: f32,
+    pub line: usize,
+}
+
+/// Items left to right, wrapping to a new line when the next doesn't fit in `max`. A gap is
+/// dropped at the start of a line; an item wider than a line sits alone on one.
+pub fn flow(items: &[Item], max: f32) -> Vec<Placed> {
+    let mut out = Vec::with_capacity(items.len());
+    let (mut x, mut line, mut first) = (0.0_f32, 0, true);
+    for it in items {
+        if !first && x + it.gap + it.w > max + 0.001 {
+            line += 1;
+            x = 0.0;
+            first = true;
+        }
+        let at = if first { 0.0 } else { x + it.gap };
+        out.push(Placed { x: at, line });
+        x = at + it.w;
+        first = false;
+    }
+    out
+}
+
 /// The `k`th demo message. Every so often one has an emote or is a /me, so
 /// those render too.
 pub fn demo_message(k: usize, at: Instant) -> ChatMessage {
@@ -602,6 +710,65 @@ mod tests {
         assert_eq!(log.messages.len(), KEEP);
         assert_eq!(log.messages.back().unwrap().id, "demo-249");
         assert_eq!(log.messages.front().unwrap().id, "demo-150");
+    }
+
+    #[test]
+    fn pieces_split_text_and_emotes() {
+        let em = |id: &str, start, end| ChatEmote { id: id.into(), start, end };
+        let w = |s: &str, gap| Piece { token: Token::Word(s.into()), gap };
+        let e = |id: &str, code: &str, gap| Piece { token: Token::Emote { id: id.into(), code: code.into() }, gap };
+        // "Kappa hi LUL!x": emotes at 0-4 and 9-11, text around them.
+        let p = pieces("Kappa hi LUL!x", &[em("25", 0, 4), em("425618", 9, 11)], true);
+        assert_eq!(p, [e("25", "Kappa", true), w("hi", true), e("425618", "LUL", true), w("!x", false)]);
+        // Off: the codes are plain words.
+        let p = pieces("Kappa hi", &[em("25", 0, 4)], false);
+        assert_eq!(p, [w("Kappa", true), w("hi", true)]);
+        // Code points, not bytes: "é😀 Kappa" has the emote at 3-7.
+        let p = pieces("é😀 Kappa", &[em("25", 3, 7)], true);
+        assert_eq!(p, [w("é😀", true), e("25", "Kappa", true)]);
+        // Touching text keeps no gap; extra spaces collapse to one.
+        let p = pieces("a  Kappab", &[em("25", 3, 7)], true);
+        assert_eq!(p, [w("a", true), e("25", "Kappa", true), w("b", false)]);
+        assert!(pieces("", &[], true).is_empty());
+    }
+
+    #[test]
+    fn bad_emote_ranges_are_ignored() {
+        let em = |start, end| ChatEmote { id: "1".into(), start, end };
+        let emotes = |p: &[Piece]| p.iter().filter(|p| matches!(p.token, Token::Emote { .. })).count();
+        // Past the end, backwards, overlapping the previous, out of order.
+        assert_eq!(emotes(&pieces("abc def", &[em(4, 9)], true)), 0);
+        assert_eq!(emotes(&pieces("abc def", &[em(5, 4)], true)), 0);
+        assert_eq!(emotes(&pieces("abc def", &[em(0, 2), em(1, 3)], true)), 1);
+        assert_eq!(emotes(&pieces("abc def", &[em(4, 6), em(0, 2)], true)), 1);
+        // Nothing is lost: the text is all still there.
+        let p = pieces("abc def", &[em(0, 2), em(1, 3)], true);
+        assert_eq!(p.len(), 2);
+        assert_eq!(p[1].token, Token::Word("def".into()));
+    }
+
+    #[test]
+    fn flow_wraps_at_the_width() {
+        let it = |w, gap| Item { w, gap };
+        // Width 100: 40 + 4 + 40 fits, the next 30 wraps; its gap is dropped at the line start.
+        let p = flow(&[it(40.0, 0.0), it(40.0, 4.0), it(30.0, 4.0), it(20.0, 4.0)], 100.0);
+        let xs: Vec<(f32, usize)> = p.iter().map(|p| (p.x, p.line)).collect();
+        assert_eq!(xs, [(0.0, 0), (44.0, 0), (0.0, 1), (34.0, 1)]);
+        // Exactly full still fits.
+        assert_eq!(flow(&[it(60.0, 0.0), it(40.0, 0.0)], 100.0)[1].line, 0);
+        // Wider than a line: alone on its own line, the next goes below it.
+        let p = flow(&[it(10.0, 0.0), it(150.0, 4.0), it(10.0, 4.0)], 100.0);
+        assert_eq!(p.iter().map(|p| p.line).collect::<Vec<_>>(), [0, 1, 2]);
+        assert!(flow(&[], 100.0).is_empty());
+    }
+
+    #[test]
+    fn long_words_split_to_fit() {
+        let m = |s: &str| s.chars().count() as f32 * 10.0;
+        assert_eq!(split_to_fit("abcdefgh", 30.0, m), ["abc", "def", "gh"]);
+        assert_eq!(split_to_fit("ab", 30.0, m), ["ab"]);
+        // Narrower than one char still makes progress.
+        assert_eq!(split_to_fit("abc", 5.0, m), ["a", "b", "c"]);
     }
 
     #[test]

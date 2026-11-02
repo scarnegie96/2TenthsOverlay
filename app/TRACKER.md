@@ -231,7 +231,7 @@ Legend: ⬜ to do · 🟨 in progress · ✅ done (built, screenshot checked) ·
 |---|---|
 | Anonymous IRC over WebSocket (`tungstenite` on a thread), tags, PRIVMSG/CLEARMSG/CLEARCHAT/RECONNECT, back-off, status | ✅ |
 | `channel` (name or link via `channelName`), `rows`, `fadeAfter`, name colours, /me actions | ✅ |
-| Emotes (`showEmotes`): images fetched and cached | ⏭️ shown as their code in text (no image fetching/caching); the code is highlighted when `showEmotes` is on |
+| Emotes (`showEmotes`): images fetched and cached | ✅ static PNGs from Twitch's CDN, fetched once each in the background (2x above 125% on screen), at most 200 kept as textures, placed inline with wrapping; the code shows until the picture arrives or if it can't be fetched. The Windows network path is untested here |
 | Port `check-twitch.ts` tests | ✅ |
 
 ---

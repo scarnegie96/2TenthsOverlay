@@ -3,31 +3,47 @@
 //! while if asked, so it stays quiet when chat is. The connection and parser
 //! are in `logic/twitch.rs`.
 //!
-//! Emotes are shown as their codes (text), not images.
+//! Emotes are pictures (fetched once each in the background, see
+//! `logic/emotes.rs`), placed inline with the words; until one arrives, or if
+//! it can't, its code shows as text.
 //!
 //! Demo: a made-up chat plays instead of connecting when `TENTHS_CHAT_DEMO`
 //! is set (on any channel, or none), or when the channel is `tenths_racing`
 //! and the app runs with `--demo` (the default off Windows), like the web
 //! `?chat` preview.
 
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use egui::text::{LayoutJob, TextFormat, TextWrapping};
-use egui::{Align, Painter, Pos2, Vec2};
+use egui::epaint::Galley;
+use egui::text::{LayoutJob, TextFormat};
+use egui::{Color32, Painter, Pos2, Rect, TextureHandle, TextureId, TextureOptions, Vec2};
 
 use super::{Ctx, Widget};
 use crate::kit::{self, seg};
-use crate::logic::twitch::{channel_name, demo_message, Chat, ChatLog, ChatMessage, ChatStatus};
+use crate::logic::emotes::{self, Emotes};
+use crate::logic::twitch::{channel_name, demo_message, flow, pieces, split_to_fit, Chat, ChatLog, ChatMessage, ChatStatus, Item, Token};
 use crate::theme::{hex_or, Theme};
 
 const W: f32 = 340.0;
 const LINE_H: f32 = 14.0 * 1.3;
+const EMOTE_H: f32 = 18.0;
 const DEMO_EVERY: f64 = 2.5;
+/// Emote textures kept (about 3 KB each at 1x, 12 KB at 2x).
+const MAX_TEXTURES: usize = 200;
+/// The demo chat's emote (Kappa, id 25), from a bundled picture so it shows without the network.
+const DEMO_EMOTE: (&str, &[u8]) = ("25", include_bytes!("../../assets/emotes/demo-face.png"));
 
 #[derive(Default)]
 pub struct Twitch {
     /// The channel we're connected to (or playing the demo for) and how.
     source: Option<(String, Source)>,
+    /// Emote pictures for this source, and the textures made from them.
+    emotes: Option<Emotes>,
+    tex: HashMap<emotes::Key, Tex>,
+    /// Frames drawn, for dropping the least recently used texture.
+    tick: u64,
 }
 
 enum Source {
@@ -65,6 +81,16 @@ impl Widget for Twitch {
                 };
                 (c.clone(), source)
             });
+            // Fresh pictures per channel; the demo's one is bundled.
+            self.tex.clear();
+            let ctx = cx.ctx.clone();
+            let e = Emotes::new(move || ctx.request_repaint());
+            if demo.is_some() {
+                for size in [1, 2] {
+                    e.seed(DEMO_EMOTE.0, size, DEMO_EMOTE.1);
+                }
+            }
+            self.emotes = Some(e);
         }
         let log = match &mut self.source {
             Some((_, Source::Live(chat))) => chat.snapshot(),
@@ -134,44 +160,121 @@ impl Widget for Twitch {
 
         let left = panel.x().min + 10.0;
         let width = panel.x().span() - 20.0;
+        let on_screen = cx.cfg.widget("twitch").scale * cx.ctx.pixels_per_point();
+        let size = emotes::size_for(on_screen);
+        self.tick += 1;
+        let space = {
+            let w = |t: &str| p.layout_no_wrap(t.to_string(), th.medium(14.0), th.ink).size().x;
+            w("a a") - w("aa")
+        };
         let mut y = panel.body_top + 8.0;
         for m in visible {
-            let galley = p.layout_job(message_job(th, m, show_emotes, width));
-            let h = galley.size().y;
-            p.galley(Pos2::new(left, y), galley, th.ink);
-            y += h + 3.0;
+            let ents = self.entries(p, cx, th, m, show_emotes, size, space, width);
+            let items: Vec<Item> = ents.iter().map(|e| Item { w: e.w(), gap: e.gap }).collect();
+            let placed = flow(&items, width);
+            let lines = placed.last().map_or(1, |l| l.line + 1);
+            for (e, at) in ents.into_iter().zip(&placed) {
+                let top = y + at.line as f32 * LINE_H;
+                match e.what {
+                    What::Text(g) => {
+                        let off = (LINE_H - g.size().y) / 2.0;
+                        p.galley(Pos2::new(left + at.x, top + off), g, th.ink);
+                    }
+                    What::Image(id, w) => {
+                        let r = Rect::from_min_size(Pos2::new(left + at.x, top + (LINE_H - EMOTE_H) / 2.0), Vec2::new(w, EMOTE_H));
+                        p.image(id, r, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+                    }
+                }
+            }
+            y += lines as f32 * LINE_H + 3.0;
         }
         panel.finish(p, th, y - 3.0 + 10.0)
     }
 }
 
-/// One message: bold coloured name, then the text (italic for /me), wrapped
-/// anywhere. Emote codes (text, not images) stand out a little.
-fn message_job(th: &Theme, m: &ChatMessage, show_emotes: bool, width: f32) -> LayoutJob {
-    let mut job = LayoutJob { wrap: TextWrapping { max_width: width, max_rows: usize::MAX, break_anywhere: true, overflow_character: None }, ..Default::default() };
-    let fmt = |font, color, italics| TextFormat { font_id: font, color, italics, line_height: Some(LINE_H), valign: Align::Center, ..Default::default() };
-    job.append(&m.name, 0.0, fmt(th.bold(14.0), m.color.as_deref().map(|c| hex_or(c, th.ink)).unwrap_or(th.ink), false));
-    job.append(if m.action { " " } else { ": " }, 0.0, fmt(th.medium(14.0), th.ink, false));
+/// One placed thing in a message: a word (laid out) or an emote picture.
+struct Entry {
+    what: What,
+    gap: f32,
+}
 
-    // Emote positions count code points, not bytes.
-    let chars: Vec<char> = m.text.chars().collect();
-    let text_fmt = fmt(th.medium(14.0), th.ink, m.action);
-    let emote_fmt = fmt(th.semi(14.0), th.ink2, m.action);
-    let mut at = 0;
-    if show_emotes {
-        for e in &m.emotes {
-            if e.start < at || e.end >= chars.len() {
-                continue;
-            }
-            if e.start > at {
-                job.append(&chars[at..e.start].iter().collect::<String>(), 0.0, text_fmt.clone());
-            }
-            job.append(&chars[e.start..=e.end].iter().collect::<String>(), 0.0, emote_fmt.clone());
-            at = e.end + 1;
+enum What {
+    Text(Arc<Galley>),
+    Image(TextureId, f32),
+}
+
+impl Entry {
+    fn w(&self) -> f32 {
+        match &self.what {
+            What::Text(g) => g.size().x,
+            What::Image(_, w) => *w,
         }
     }
-    if at < chars.len() {
-        job.append(&chars[at..].iter().collect::<String>(), 0.0, text_fmt);
+}
+
+/// An emote's texture, and when it was last drawn (for dropping the least recent).
+struct Tex {
+    handle: TextureHandle,
+    /// Width over height.
+    aspect: f32,
+    used: u64,
+}
+
+impl Twitch {
+    /// The picture for an emote if it's here, asking for it if not.
+    fn emote_tex(&mut self, cx: &Ctx, id: &str, size: u8) -> Option<(TextureId, f32)> {
+        let key = (id.to_string(), size);
+        if let Some(t) = self.tex.get_mut(&key) {
+            t.used = self.tick;
+            return Some((t.handle.id(), t.aspect));
+        }
+        let emotes = self.emotes.as_ref()?;
+        let emotes::Poll::Ready(img) = emotes.poll(id, size) else { return None };
+        let color = egui::ColorImage::from_rgba_unmultiplied([img.w, img.h], &img.rgba);
+        let handle = cx.ctx.load_texture(format!("emote-{id}-{size}"), color, TextureOptions::LINEAR);
+        let (aspect, tid) = (img.w as f32 / img.h as f32, handle.id());
+        self.tex.insert(key, Tex { handle, aspect, used: self.tick });
+        // Bounded: drop the least recently drawn (never one used this frame).
+        while self.tex.len() > MAX_TEXTURES {
+            let Some(old) = self.tex.iter().filter(|(_, t)| t.used != self.tick).min_by_key(|(_, t)| t.used).map(|(k, _)| k.clone()) else { break };
+            self.tex.remove(&old);
+            emotes.forget(&old.0, old.1);
+        }
+        Some((tid, aspect))
     }
-    job
+
+    /// A message as things to place: bold coloured name, ":", then its words and emotes
+    /// (italic for /me). An emote without its picture (yet, or ever) is its code in text.
+    #[allow(clippy::too_many_arguments)]
+    fn entries(&mut self, p: &Painter, cx: &Ctx, th: &Theme, m: &ChatMessage, show_emotes: bool, size: u8, space: f32, width: f32) -> Vec<Entry> {
+        let text = |t: &str, font: egui::FontId, color: Color32, italics: bool| {
+            let fmt = TextFormat { font_id: font, color, italics, ..Default::default() };
+            p.layout_job(LayoutJob::single_section(t.to_string(), fmt))
+        };
+        let mut out = Vec::new();
+        let name_color = m.color.as_deref().map(|c| hex_or(c, th.ink)).unwrap_or(th.ink);
+        out.push(Entry { what: What::Text(text(&m.name, th.bold(14.0), name_color, false)), gap: 0.0 });
+        if !m.action {
+            out.push(Entry { what: What::Text(text(":", th.medium(14.0), th.ink, false)), gap: 0.0 });
+        }
+        for piece in pieces(&m.text, &m.emotes, show_emotes) {
+            let gap = if piece.gap { space } else { 0.0 };
+            let (word, font, color) = match &piece.token {
+                Token::Emote { id, code } => {
+                    if let Some((tid, aspect)) = self.emote_tex(cx, id, size) {
+                        out.push(Entry { what: What::Image(tid, (EMOTE_H * aspect).min(EMOTE_H * 3.0)), gap });
+                        continue;
+                    }
+                    (code.as_str(), th.semi(14.0), th.ink2)
+                }
+                Token::Word(w) => (w.as_str(), th.medium(14.0), th.ink),
+            };
+            let measure = |t: &str| p.layout_no_wrap(t.to_string(), font.clone(), color).size().x;
+            let chunks = if measure(word) > width { split_to_fit(word, width, measure) } else { vec![word.to_string()] };
+            for (i, c) in chunks.iter().enumerate() {
+                out.push(Entry { what: What::Text(text(c, font.clone(), color, m.action)), gap: if i == 0 { gap } else { 0.0 } });
+            }
+        }
+        out
+    }
 }

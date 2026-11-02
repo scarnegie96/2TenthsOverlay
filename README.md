@@ -450,7 +450,7 @@ A Twitch channel's live chat, so you can read it without leaving the car. Set
 your channel name (or paste its twitch.tv link) in the widget's settings. No
 login is needed: Tenths reads chat the way anyone watching can, and can't post.
 Newest messages are at the bottom, with names in their Twitch colours and
-emotes as pictures. Messages hide after a minute by default, so the panel goes
+emotes as pictures (if one can't be loaded, its name shows instead). Messages hide after a minute by default, so the panel goes
 quiet when chat does, and anything a moderator deletes (or a timed-out user's
 messages) disappears here too. The dot by the channel is green when connected.
 Off by default.

@@ -13,5 +13,6 @@ pub mod race_history;
 pub mod race_report;
 pub mod rejoin;
 pub mod settings_bindings;
+pub mod emotes;
 pub mod twitch;
 pub mod weather;
