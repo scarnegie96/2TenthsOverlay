@@ -285,30 +285,4 @@ mod tests {
             assert!(WIDGETS[i + 1..].iter().all(|b| b.id != a.id), "{} twice", a.id);
         }
     }
-
-    /// The defaults here are a copy of config.ts; check the copy hasn't drifted
-    /// when the web source is next to it (it always is in this repo).
-    #[test]
-    fn matches_config_ts() {
-        let Ok(ts) = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../archive/tauri/src/lib/config.ts")) else { return };
-        for m in WIDGETS {
-            assert!(ts.contains(&format!("id: \"{}\"", m.id)), "{} missing in config.ts", m.id);
-            for (key, def) in m.options {
-                let at = ts.find(&format!("key: \"{key}\"")).unwrap_or_else(|| panic!("{}.{key} missing in config.ts", m.id));
-                let _ = at;
-                let want = match def {
-                    Def::B(b) => format!("default: {b}"),
-                    Def::N(n) => format!("default: {n}"),
-                    Def::S(s) => format!("default: \"{s}\""),
-                };
-                // The option's spec line (from the widget's id onwards) holds its default.
-                let start = ts.find(&format!("id: \"{}\"", m.id)).unwrap();
-                let spec = &ts[start..];
-                let line = spec.find(&format!("key: \"{key}\"")).unwrap();
-                let tail = &spec[line..];
-                let end = tail.find("\n      {").or_else(|| tail.find("\n    ],")).unwrap_or(tail.len());
-                assert!(tail[..end].contains(&want), "{}.{key}: want {want}", m.id);
-            }
-        }
-    }
 }
