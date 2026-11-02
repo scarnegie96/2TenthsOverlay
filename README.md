@@ -5,8 +5,7 @@ drawn with [egui](https://github.com/emilk/egui), that reads the iRacing SDK
 directly and draws a set of configurable widgets over the sim: no
 subscriptions, no third-party services, and every line of it is yours to change.
 
-It runs as one small program (about 120 MB with every widget on), with each
-widget in its own small window over the game, so iRacing gives up as little
+It runs as one small program with each widget in its own small window over the game, so iRacing gives up as little
 as possible to it. The previous version, a Tauri app with the widgets drawn as
 web pages, is kept in [`archive/tauri/`](archive/tauri) and on the
 `archive/tauri` branch.
