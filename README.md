@@ -1,4 +1,4 @@
-# Tenths (porting to Rust + eGui - development pausing for the next day or so)
+# Tenths (Very Early and Active Development)
 
 iRacing overlays you own. Tenths is a native Windows app, written in Rust and
 drawn with [egui](https://github.com/emilk/egui), that reads the iRacing SDK
