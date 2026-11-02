@@ -25,14 +25,17 @@
 //!   panel windows are closed; they are made again when editing ends.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportId};
 
 use crate::anchor;
-use crate::config::WidgetCfg;
+use crate::config::{Store, Units, WidgetCfg};
+use crate::data::Live;
 use crate::displays::{self, Display, PhysRect, Placer};
-use crate::frame::PanelFrame;
+use crate::frame::{Layout, PanelFrame};
+use crate::ratings::Ratings;
 use crate::schema::WIDGETS;
 use crate::theme::Theme;
 use crate::widgets::ClickAction;
@@ -77,23 +80,190 @@ pub fn settle(prev: Option<PhysRect>, next: PhysRect) -> PhysRect {
     PhysRect { w: keep(prev.w, next.w), h: keep(prev.h, next.h), ..next }
 }
 
-/// What a panel window needs to remember between frames.
+/// What a panel window needs to remember between repaints.
 #[derive(Default)]
-struct State {
+struct Win {
     placer: Placer,
     /// Where it was last asked to be (size settled).
     at: Option<PhysRect>,
     shown: bool,
+    /// Whether it is click-through now (a new window is).
+    passthrough: Option<bool>,
+    /// Whether it refuses the keyboard now.
+    no_activate: bool,
+}
+
+/// How often each panel repaints. A window is repainted on its own timer (deferred
+/// viewports), not with every frame of the root: a panel is a whole egui pass,
+/// tessellation, GL paint and buffer swap each time, so this is the main cost.
+/// The fast ones are the live traces and gauges; the lists change a few times a second.
+pub fn refresh(id: &str) -> Duration {
+    Duration::from_millis(match id {
+        "inputs" | "dynamics" | "delta" | "radar" | "instruments" => 16,
+        "flags" | "pitstop" | "battle" | "coach" => 33,
+        "weather" | "twitch" => 500,
+        // relative, standings (gap included), session, fuel, tires, laplog, stints, racepace
+        _ => 250,
+    })
+}
+
+/// What the panel windows draw from: copied by the root each frame (the config and
+/// ratings only when they change, or every `SNAP_EVERY`).
+struct Snapshot {
+    store: Arc<Store>,
+    ratings: Arc<Ratings>,
+    th: Theme,
+    live: Arc<Live>,
+    units: Units,
+    now: f64,
+}
+
+const SNAP_EVERY: Duration = Duration::from_millis(100);
+
+/// Shared between the root (which feeds it) and the panel windows (which repaint from it).
+pub struct Host {
+    layout: Arc<Mutex<Layout>>,
+    snap: Mutex<Option<Arc<Snapshot>>>,
+    cached: Mutex<Option<(Arc<Store>, Arc<Ratings>, Instant, u64)>>,
+    wins: Mutex<HashMap<&'static str, Win>>,
+    /// Clicks on thumbs, for the root to carry out.
+    clicked: Mutex<Vec<ClickAction>>,
+    /// Draw time per panel since the last `take_costs` (`--bench`): total and repaints.
+    cost: Mutex<HashMap<&'static str, (Duration, u32)>>,
+}
+
+impl Host {
+    pub fn new(layout: Arc<Mutex<Layout>>) -> Self {
+        Self { layout, snap: Mutex::new(None), cached: Mutex::new(None), wins: Mutex::new(HashMap::new()), clicked: Mutex::new(Vec::new()), cost: Mutex::new(HashMap::new()) }
+    }
+
+    /// Called by the root each frame, before the windows are asked for.
+    pub fn publish(&self, store: &Store, ratings: &Ratings, th: &Theme, live: &Arc<Live>, units: Units, now: f64) {
+        let (st, rt) = {
+            let mut c = self.cached.lock().unwrap();
+            let stale = c.as_ref().is_none_or(|(_, _, at, edits)| at.elapsed() >= SNAP_EVERY || *edits != store.edits);
+            if stale {
+                *c = Some((Arc::new(store.clone()), Arc::new(ratings.clone()), Instant::now(), store.edits));
+            }
+            let (st, rt, _, _) = c.as_ref().unwrap();
+            (st.clone(), rt.clone())
+        };
+        *self.snap.lock().unwrap() = Some(Arc::new(Snapshot { store: st, ratings: rt, th: th.clone(), live: live.clone(), units, now }));
+    }
+
+    /// Thumb clicks since the last call.
+    pub fn take_clicks(&self) -> Vec<ClickAction> {
+        std::mem::take(&mut *self.clicked.lock().unwrap())
+    }
+
+    /// Next publish copies the ratings and config again.
+    pub fn refresh_soon(&self) {
+        *self.cached.lock().unwrap() = None;
+    }
+
+    /// Average milliseconds a repaint of each panel's widget took since the last call, biggest first. Resets.
+    pub fn take_costs(&self) -> Vec<(&'static str, f64, u32)> {
+        let mut v: Vec<_> = self.cost.lock().unwrap().drain().map(|(k, (t, n))| (k, t.as_secs_f64() * 1000.0 / n.max(1) as f64, n)).collect();
+        v.sort_by(|a, b| b.1.total_cmp(&a.1));
+        v
+    }
+
+    /// How many panel windows are on screen.
+    pub fn visible(&self) -> usize {
+        self.wins.lock().unwrap().values().filter(|w| w.shown).count()
+    }
+
+    /// Forgets the windows of panels no longer asked for.
+    pub fn keep(&self, ids: &[&'static str]) {
+        self.wins.lock().unwrap().retain(|k, _| ids.contains(k));
+    }
+
+    /// One repaint of a panel's window, from inside it: draws the widget, then sizes,
+    /// places and shows or hides the window, and says when to come back.
+    fn repaint(&self, ctx: &egui::Context, idx: usize, d: &Display) {
+        let id = WIDGETS[idx].id;
+        let Some(snap) = self.snap.lock().unwrap().clone() else { return };
+        let started = Instant::now();
+        let (natural, clicks, over) = self.layout.lock().unwrap().draw_panel(idx, PanelFrame { ctx, store: &snap.store, th: &snap.th, live: &snap.live, ratings: &snap.ratings, units: snap.units, now: snap.now });
+        {
+            let mut c = self.cost.lock().unwrap();
+            let c = c.entry(id).or_default();
+            c.0 += started.elapsed();
+            c.1 += 1;
+        }
+        let mut wins = self.wins.lock().unwrap();
+        let win = wins.entry(id).or_default();
+        let mut period = refresh(id);
+        if natural.x <= 0.0 || natural.y <= 0.0 {
+            // Draws nothing now: hide the window and keep it for when it does (looked at less often).
+            if std::mem::take(&mut win.shown) {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+            }
+            period = period.max(Duration::from_millis(33));
+        } else {
+            let cfg = snap.store.config.widget(id);
+            // The widget's own box is placed as usual; the part that sticks out above it is extra window.
+            let mut want = place(d, cfg, Vec2::new(natural.x, (natural.y - over).max(1.0))).phys;
+            if over > 0.0 {
+                let up = (over as f64 * cfg.scale as f64 * d.scale).round() as i32;
+                want.y -= up;
+                want.h += up as u32;
+            }
+            self.manage(ctx, win, id, d, want, &clicks, snap.now);
+        }
+        ctx.request_repaint_after(period);
+    }
+
+    /// From inside a window: moves and sizes it to `want` (when it isn't there), keeps it
+    /// click-through except over the clickable parts (`clicks`, in its points), and shows it
+    /// once it's in place and refuses the keyboard. `want`'s size is settled first.
+    #[allow(clippy::too_many_arguments)]
+    fn manage(&self, ctx: &egui::Context, win: &mut Win, key: &'static str, d: &Display, want: PhysRect, clicks: &[(Rect, ClickAction)], now: f64) {
+        let want = settle(win.at, want);
+        win.at = Some(want);
+        let placed = win.placer.update_rect(ctx, want, now);
+        // The pointer maths for the thumbs works on a "display" that is just this window.
+        let me = Display { key: key.to_string(), number: 0, primary: false, x: want.x, y: want.y, width: want.w, height: want.h, scale: d.scale };
+        self.click_through(ctx, win, &me, clicks, &title(key));
+        // Never show it before it can't be activated, or it would take iRacing's focus once.
+        if !win.shown && placed && win.no_activate {
+            ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+            win.shown = true;
+        }
+    }
+
+    /// Outside edit mode every click goes through to iRacing, except over a thumb (see `App::click_through`).
+    fn click_through(&self, ctx: &egui::Context, win: &mut Win, d: &Display, clicks: &[(Rect, ClickAction)], title: &str) {
+        let mut over = false;
+        if !clicks.is_empty() {
+            let pos = displays::pointer().map(|p| displays::to_client(d, p.x, p.y)).or_else(|| ctx.input(|i| i.pointer.hover_pos()));
+            over = pos.is_some_and(|p| crate::click_at(clicks, p).is_some());
+            if over && ctx.input(|i| i.pointer.primary_pressed()) {
+                if let Some(at) = ctx.input(|i| i.pointer.interact_pos()) {
+                    if let Some(action) = crate::click_at(clicks, at).cloned() {
+                        self.clicked.lock().unwrap().push(action);
+                    }
+                }
+            }
+            // Keep following the mouse (CLICKABLE_POLL_MS in the Tauri overlay).
+            ctx.request_repaint_after(Duration::from_millis(50));
+        }
+        let want = !over && std::env::var_os("TENTHS_EGUI_VOTING").is_none();
+        if win.passthrough.unwrap_or(true) != want {
+            win.passthrough = Some(want);
+            ctx.send_viewport_cmd(ViewportCommand::MousePassthrough(want));
+        }
+        if !win.no_activate && displays::set_no_activate(title, true) {
+            win.no_activate = true;
+        }
+    }
 }
 
 /// The panel windows.
 #[derive(Default)]
 pub struct Panels {
-    states: HashMap<&'static str, State>,
     /// The windows asked for this frame.
     pub seen: Vec<ViewportId>,
-    /// How many of them are on screen (the others are hidden: they draw nothing).
-    pub visible: usize,
 }
 
 impl Panels {
@@ -127,12 +297,21 @@ const TOAST_KEY: &str = "layout-toast";
 
 impl App {
     /// Outside edit mode: the root window out of the way, and a window for each shown widget.
-    pub(crate) fn panel_windows(&mut self, ctx: &egui::Context, th: &Theme, live: &crate::data::Live, units: crate::config::Units, show: bool, now: f64) {
+    pub(crate) fn panel_windows(&mut self, ctx: &egui::Context, th: &Theme, live: &Arc<Live>, units: crate::config::Units, show: bool, now: f64) {
         let displays: Arc<Vec<Display>> = self.displays.clone();
         let Some(primary) = displays.iter().find(|d| d.primary).or(displays.first()).cloned() else { return };
-        self.layout.stop_editing();
+        self.layout.lock().unwrap().stop_editing();
         self.panels.seen.clear();
-        self.panels.visible = 0;
+
+        // Thumbs clicked in the panel windows since the last frame.
+        let clicks = self.host.take_clicks();
+        if !clicks.is_empty() {
+            for action in clicks {
+                self.perform(action);
+            }
+            self.host.refresh_soon();
+        }
+        self.host.publish(&self.store, &self.ratings, th, live, units, now);
 
         // The root window: 1×1 in the corner, click-through, never the active one.
         self.placers.entry(ViewportId::ROOT).or_default().update_rect(ctx, PhysRect { x: primary.x, y: primary.y, w: 1, h: 1 }, now);
@@ -150,6 +329,7 @@ impl App {
                 PhysRect { x: primary.x + (at.min.x as f64 * s).round() as i32, y: primary.y + (at.min.y as f64 * s).round() as i32, w: (TOAST_W as f64 * s).ceil() as u32, h: (TOAST_H as f64 * s).ceil() as u32 }
             };
             let d = &primary;
+            let host = self.host.clone();
             ctx.show_viewport_immediate(id, builder(title(TOAST_KEY), d), |ui, class| {
                 if class == egui::ViewportClass::EmbeddedWindow {
                     return;
@@ -157,10 +337,13 @@ impl App {
                 let ctx = ui.ctx().clone();
                 let screen = ctx.content_rect();
                 self.layout_toast(&ctx, th, now, screen, screen.top());
-                self.manage_window(&ctx, TOAST_KEY, d, want, &[], now);
+                let mut wins = host.wins.lock().unwrap();
+                let win = wins.entry(TOAST_KEY).or_default();
+                host.manage(&ctx, win, TOAST_KEY, d, want, &[], now);
             });
         }
 
+        let mut keep: Vec<&'static str> = vec![TOAST_KEY];
         for (idx, meta) in WIDGETS.iter().enumerate() {
             let cfg = self.store.config.widget(meta.id);
             if !show || !cfg.enabled {
@@ -170,61 +353,21 @@ impl App {
             let Some(d) = displays.iter().find(|d| d.key == key) else { continue };
             let id = viewport_id(meta.id);
             self.panels.seen.push(id);
-            ctx.show_viewport_immediate(id, builder(title(meta.id), d), |ui, class| {
+            keep.push(meta.id);
+            // Each panel window repaints on its own timer (`refresh`), not with this frame.
+            let host = self.host.clone();
+            let d = d.clone();
+            ctx.show_viewport_deferred(id, builder(title(meta.id), &d), move |ui, class| {
                 if class == egui::ViewportClass::EmbeddedWindow {
                     return;
                 }
                 let ctx = ui.ctx().clone();
-                self.panel_window(&ctx, idx, d, th, live, units, now);
+                host.repaint(&ctx, idx, &d);
             });
         }
 
         // Panels no longer wanted lose their windows (egui closes what isn't shown): forget them.
-        let seen = self.panels.seen.clone();
-        self.panels.states.retain(|k, _| seen.contains(&viewport_id(k)));
-    }
-
-    /// One panel's window, from inside it: draws the widget, then sizes, places and shows or hides the window.
-    #[allow(clippy::too_many_arguments)]
-    fn panel_window(&mut self, ctx: &egui::Context, idx: usize, d: &Display, th: &Theme, live: &crate::data::Live, units: crate::config::Units, now: f64) {
-        let id = WIDGETS[idx].id;
-        let (natural, clicks) = self.layout.draw_panel(idx, PanelFrame { ctx, store: &self.store, th, live, ratings: &self.ratings, units, now });
-        if natural.x <= 0.0 || natural.y <= 0.0 {
-            // Draws nothing now: hide the window and keep it for when it does.
-            let st = self.panels.states.entry(id).or_default();
-            if std::mem::take(&mut st.shown) {
-                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
-            }
-            return;
-        }
-        let want = place(d, self.store.config.widget(id), natural).phys;
-        self.manage_window(ctx, id, d, want, &clicks, now);
-    }
-
-    /// From inside a window: moves and sizes it to `want` (when it isn't there), keeps it
-    /// click-through except over the clickable parts (`clicks`, in its points), and shows it
-    /// once it's in place and refuses the keyboard. `want`'s size is settled first.
-    fn manage_window(&mut self, ctx: &egui::Context, key: &'static str, d: &Display, want: PhysRect, clicks: &[(Rect, ClickAction)], now: f64) {
-        let vid = ctx.viewport_id();
-        let st = self.panels.states.entry(key).or_default();
-        let want = settle(st.at, want);
-        st.at = Some(want);
-        let placed = st.placer.update_rect(ctx, want, now);
-        let shown = st.shown;
-        // The pointer maths for the thumbs works on a "display" that is just this window.
-        let me = Display { key: key.to_string(), number: 0, primary: false, x: want.x, y: want.y, width: want.w, height: want.h, scale: d.scale };
-        self.click_through(ctx, &me, clicks, &title(key));
-        // Never show it before it can't be activated, or it would take iRacing's focus once.
-        let ready = self.no_activate.get(&vid) == Some(&true);
-        if !shown && placed && ready {
-            ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-            if let Some(st) = self.panels.states.get_mut(key) {
-                st.shown = true;
-            }
-        }
-        if self.panels.states.get(key).is_some_and(|s| s.shown) {
-            self.panels.visible += 1;
-        }
+        self.host.keep(&keep);
     }
 }
 

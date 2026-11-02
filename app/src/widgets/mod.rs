@@ -42,6 +42,8 @@ pub struct Ctx<'a> {
     pub live: &'a Live,
     pub ratings: &'a Ratings,
     pub editing: bool,
+    /// Drawn in a window of its own (the default), whose size is the widget's: nothing may stick out of it.
+    pub windowed: bool,
     /// Seconds since the app started, for flashing and fading.
     pub now: f64,
     pub ctx: &'a egui::Context,
@@ -66,7 +68,7 @@ pub enum ClickAction {
     Rate { user_id: i64, name: String, rating: Option<Thumb> },
 }
 
-pub trait Widget {
+pub trait Widget: Send {
     /// Called every frame for every widget, shown or not, so histories (race
     /// pace, delta trace, weather trends) keep filling while it's hidden.
     fn observe(&mut self, _live: &Live, _now: f64) {}
@@ -74,6 +76,12 @@ pub trait Widget {
     /// Draws at the origin, in CSS px, and returns the size used. A zero size
     /// draws nothing (a radar with no cars near, no flag out).
     fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2;
+
+    /// How much of the size `draw` returned lies above the widget's own top edge (a strip that
+    /// sticks out of it, drawn in the window), as of the last draw. The window grows upward by it.
+    fn overhang(&self) -> f32 {
+        0.0
+    }
 }
 
 pub fn make(id: &str) -> Box<dyn Widget> {
@@ -83,7 +91,7 @@ pub fn make(id: &str) -> Box<dyn Widget> {
         "session" => Box::new(session::Session),
         "inputs" => Box::<inputs::Inputs>::default(),
         "delta" => Box::<delta::Delta>::default(),
-        "laplog" => Box::new(laplog::LapLog),
+        "laplog" => Box::<laplog::LapLog>::default(),
         "coach" => Box::new(coach::Coach),
         "dynamics" => Box::<dynamics::Dynamics>::default(),
         "instruments" => Box::<instruments::Instruments>::default(),

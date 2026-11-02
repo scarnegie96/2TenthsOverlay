@@ -11,7 +11,13 @@ use crate::kit::{self, seg, Col};
 use crate::logic::format::{fixed, fuel, fuel_unit, js_round, lap_time, signed};
 use crate::theme::{alpha, Theme};
 
-pub struct LapLog;
+/// Older laps are scrolled to with the wheel while editing the layout (the overlay lets the
+/// mouse through to the game otherwise, as in the Tauri version).
+#[derive(Default)]
+pub struct LapLog {
+    /// Rows scrolled down from the newest lap (fractional while the wheel turns).
+    scroll: f32,
+}
 
 /// "today", "yesterday", "12 days ago"
 pub fn age(unix: u64, now: u64) -> String {
@@ -103,9 +109,18 @@ impl Widget for LapLog {
             return panel.finish(p, th, y + h);
         }
         let rh = th.row_h;
-        let more = laps.len() > rows;
+        let hidden = laps.len().saturating_sub(rows);
         let list_top = y;
-        for (k, l) in laps.iter().take(rows).enumerate() {
+        let list = Rect::from_min_size(Pos2::new(x.min, list_top), Vec2::new(x.span(), rh * rows as f32));
+        if cx.editing && cx.pointer.is_some_and(|q| list.contains(q)) {
+            // Wheel up shows older laps. Points per notch vary by system; a row per ~rh of scroll.
+            let d = cx.ctx.input(|i| i.smooth_scroll_delta.y);
+            self.scroll -= d / rh;
+        }
+        self.scroll = self.scroll.clamp(0.0, hidden as f32);
+        let first = self.scroll.round() as usize;
+        let more_below = first < hidden;
+        for (k, l) in laps.iter().skip(first).take(rows).enumerate() {
             let rect = Rect::from_min_size(Pos2::new(x.min, y), Vec2::new(x.span(), rh));
             if k % 2 == 1 {
                 kit::fill(p, rect, 0.0, alpha(th.ink, 0.03));
@@ -114,11 +129,22 @@ impl Widget for LapLog {
             y += rh;
         }
         // A fade at the bottom says there's more below.
-        if more {
+        if more_below {
             let fade = Rect::from_min_max(Pos2::new(x.min, y - 14.0), Pos2::new(x.max, y));
             kit::vgradient(p, fade, alpha(th.panel_solid, 0.0), alpha(th.panel_solid, 0.8));
         }
-        let _ = list_top;
+        if first > 0 {
+            let fade = Rect::from_min_max(Pos2::new(x.min, list_top), Pos2::new(x.max, list_top + 14.0));
+            kit::vgradient(p, fade, alpha(th.panel_solid, 0.8), alpha(th.panel_solid, 0.0));
+        }
+        if hidden > 0 {
+            // A thin scroll thumb on the right edge.
+            let track = Rect::from_min_max(Pos2::new(x.max - 4.0, list_top + 2.0), Pos2::new(x.max - 1.0, y - 2.0));
+            let frac = rows as f32 / laps.len() as f32;
+            let th_h = (track.height() * frac).max(12.0);
+            let top = track.top() + (track.height() - th_h) * (self.scroll / hidden as f32);
+            kit::fill(p, Rect::from_min_size(Pos2::new(track.left(), top), Vec2::new(track.width(), th_h)), 1.5, alpha(th.ink, 0.25));
+        }
         panel.finish(p, th, y)
     }
 }

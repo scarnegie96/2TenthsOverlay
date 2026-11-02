@@ -23,6 +23,9 @@
 //!   tenths-egui --data-dir <dir>  laps, race reports and the reference lap in another folder
 //!   tenths-egui --background      start without opening Settings (a normal start opens it; it
 //!                                 steps out of the way when iRacing connects)
+//!   tenths-egui --heap-profile [f] record every allocation and write them to f (default
+//!                                 tenths-heap.json) on quit; needs a build with the heap-profile
+//!                                 feature (heap.rs). With --bench N the line gains the live heap.
 //!   tenths-egui --replay <file>   play an iRacing .ibt telemetry file as if it were the sim (any
 //!                                 platform; --speed N runs it N times faster, --loop starts it
 //!                                 over at the end). Other cars show only if the file recorded them.
@@ -42,6 +45,7 @@ mod controls;
 mod data;
 mod displays;
 mod frame;
+mod heap;
 mod kit;
 mod layouts;
 mod logic;
@@ -59,7 +63,7 @@ mod widgets;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use egui::{Align2, Color32, Id, LayerId, Order, Pos2, Rect, Stroke, Vec2};
@@ -99,6 +103,8 @@ struct Args {
     replay_loop: bool,
     /// Don't open Settings at start (`--background`), for starting with the computer.
     background: bool,
+    /// Record the heap and write it to this file on quit (`--heap-profile`; see heap.rs).
+    heap_profile: Option<String>,
 }
 
 fn args() -> Args {
@@ -135,6 +141,7 @@ fn args_from(command_line: &[String]) -> Args {
         replay_speed: value("--speed").and_then(|v| v.parse().ok()).filter(|s: &f64| (0.0..=1000.0).contains(s)).unwrap_or(1.0),
         replay_loop: has("--loop"),
         background: has("--background"),
+        heap_profile: has("--heap-profile").then(|| heap::file_arg(value("--heap-profile").as_deref())),
     }
 }
 
@@ -154,6 +161,10 @@ fn sim_connected(was: bool, status: Option<&telemetry::model::StatusPayload>) ->
 
 fn main() -> eframe::Result {
     let args = args();
+    // First, so everything the app allocates from here on is counted.
+    if let Some(file) = &args.heap_profile {
+        heap::start(file);
+    }
     // One copy at a time: a second launch asks the first to open Settings. Runs
     // with their own config, a screenshot or a benchmark are never "the app".
     let single = args.config.is_none() && args.shot.is_none() && args.bench.is_none() && !args.offline && args.replay.is_none();
@@ -198,7 +209,10 @@ struct App {
     store: config::Store,
     ratings: ratings::Ratings,
     layouts: layouts::Layouts,
-    layout: frame::Layout,
+    /// Shared with the panel windows, which draw it from their own repaints (panels.rs).
+    layout: Arc<Mutex<frame::Layout>>,
+    /// What those windows draw from, and the state they keep between repaints.
+    host: Arc<panels::Host>,
     /// The connected displays (one overlay window each), re-read every couple of seconds.
     displays: Arc<Vec<displays::Display>>,
     displays_at: Option<Instant>,
@@ -300,6 +314,7 @@ impl App {
         };
         let settings = settings::SettingsWindow::new(&shell, launch);
         let settings_shot = args.settings && args.shot.is_some();
+        let layout = Arc::new(Mutex::new(frame::Layout::new()));
         Self {
             controls: controls::Controls::new(cc.egui_ctx.clone(), control.clone()),
             control,
@@ -318,7 +333,8 @@ impl App {
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
             layouts,
-            layout: frame::Layout::new(),
+            layout: layout.clone(),
+            host: Arc::new(panels::Host::new(layout)),
             displays: Arc::new(Vec::new()),
             displays_at: None,
             placers: HashMap::new(),
@@ -436,6 +452,11 @@ impl App {
 }
 
 impl eframe::App for App {
+    /// eframe exits the process after this, so it's where the heap profile is written.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        heap::finish();
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         [0.0, 0.0, 0.0, 0.0]
     }
@@ -489,7 +510,7 @@ impl eframe::App for App {
         let general = self.general();
         let th = theme::Theme::from_general(&general);
 
-        let live = data::Live::take(&self.shared);
+        let live = Arc::new(data::Live::take(&self.shared));
         let now = self.started.elapsed().as_secs_f64();
         // The overlay is live in iRacing: Settings goes to the tray (minimised where there's none).
         let (in_sim, entered) = sim_connected(self.in_sim, live.status.as_deref());
@@ -521,7 +542,7 @@ impl eframe::App for App {
         }
         let on_track = live.tick.as_ref().is_some_and(|t| t.is_on_track);
         let show = self.editing || (self.visible && live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
-        self.layout.observe(&live, now);
+        self.layout.lock().unwrap().observe(&live, now);
         // Each display's window draws the widgets placed on it.
         let displays = self.displays.clone();
         let windows_per_panel = self.panel_mode && !self.editing;
@@ -530,7 +551,8 @@ impl eframe::App for App {
             self.panel_windows(ctx, &th, &live, general.units, show, now);
         } else {
             self.panels.seen.clear();
-            self.panels.visible = 0;
+            // Their windows are closed while editing: they start again hidden.
+            self.host.keep(&[]);
         }
         for d in displays.iter().filter(|_| !windows_per_panel) {
             if d.primary {
@@ -685,16 +707,19 @@ impl App {
         if self.bench.is_some() && s.last_print.is_none_or(|t| now - t >= Duration::from_secs(10)) && s.fps > 0.0 {
             s.last_print = Some(now);
             println!(
-                "{:>5.0}s  memory {:>6.1} MB  {:>5.1} fps  telemetry {:>5.1} Hz  UI {:.2} ms/frame  panel windows {} ({} visible)  {}",
+                "{:>5.0}s  memory {:>6.1} MB  {:>5.1} fps  telemetry {:>5.1} Hz  UI {:.2} ms/frame  panel windows {} ({} visible)  {}{}",
                 self.started.elapsed().as_secs_f64(),
                 s.memory_mb,
                 s.fps,
                 s.tick_hz,
                 s.cpu_ms,
                 self.panels.windows(),
-                self.panels.visible,
-                status.map(|s| s.message.as_str()).unwrap_or("")
+                self.host.visible(),
+                status.map(|s| s.message.as_str()).unwrap_or(""),
+                heap::stats().map(|h| format!("  {h}")).unwrap_or_default()
             );
+            let costs: Vec<String> = self.host.take_costs().iter().take(12).map(|(id, ms, n)| format!("{id} {ms:.2}ms x{:.0}/s", *n as f64 / 10.0)).collect();
+            println!("         draw per panel: {}", costs.join(", "));
         }
         let _ = ctx;
     }
@@ -715,7 +740,9 @@ impl App {
         }
         let displays = self.displays.clone();
         let mut clicks = Vec::new();
-        self.layout.run(frame::Frame {
+        let layout = self.layout.clone();
+        let mut layout = layout.lock().unwrap();
+        layout.run(frame::Frame {
             ctx,
             store: &mut self.store,
             th,

@@ -32,6 +32,8 @@ pub struct TracePoint {
     pub t: f64,
     pub throttle: f32,
     pub brake: f32,
+    /// The ABS was working on the brakes.
+    pub abs: bool,
     pub clutch: f32,
     /// The reference lap's pedals at the same point, when one is loaded.
     pub ref_throttle: Option<f32>,
@@ -81,6 +83,7 @@ impl Sink for UiSink {
                     t: tick.session_time,
                     throttle: tick.throttle,
                     brake: tick.brake,
+                    abs: tick.abs_active,
                     clutch: tick.clutch,
                     ref_throttle: tick.coach.as_ref().and_then(|c| c.ref_throttle),
                     ref_brake: tick.coach.as_ref().and_then(|c| c.ref_brake),

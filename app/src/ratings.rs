@@ -9,7 +9,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use crate::kit::Thumb;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Ratings {
     path: Option<PathBuf>,
     mtime: Option<SystemTime>,

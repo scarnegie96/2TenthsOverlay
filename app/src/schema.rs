@@ -184,6 +184,7 @@ pub const WIDGETS: &[Meta] = &[
         enabled: true,
         options: &[
             ("showCaption", B(true)),
+            ("showBlueDriver", B(true)),
             ("greenSeconds", N(5.0)),
             ("scBoard", S("SC")),
             ("textYellow", S("Accident ahead")),

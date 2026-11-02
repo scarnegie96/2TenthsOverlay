@@ -62,6 +62,11 @@ impl Widget for Fuel {
             ("Laps in tank", laps(f.and_then(|f| f.laps_of_fuel))),
             ("Laps to go", laps(f.and_then(|f| f.laps_to_go))),
         ];
+        // Least and most used on a clean lap this session, when there are two to tell apart.
+        let mut rows = rows.to_vec();
+        if let (Some(lo), Some(hi)) = (f.and_then(|f| f.min_per_lap), f.and_then(|f| f.max_per_lap)) {
+            rows.insert(1, ("Min / max lap", format!("{} / {}", v(Some(lo), 2), v(Some(hi), 2))));
+        }
         for (label, value) in rows {
             let cy = y + 9.0;
             kit::text(p, Pos2::new(x.min + 10.0, cy), Align2::LEFT_CENTER, label, th.medium(15.0), th.ink2);
@@ -88,7 +93,7 @@ mod tests {
     use super::*;
 
     fn f(to_finish: Option<f32>, per_lap: Option<f32>) -> FuelPayload {
-        FuelPayload { level: 30.0, max: 60.0, per_lap, last_lap_used: None, laps_of_fuel: None, laps_to_go: None, to_finish, samples: 3 }
+        FuelPayload { level: 30.0, max: 60.0, per_lap, last_lap_used: None, min_per_lap: None, max_per_lap: None, laps_of_fuel: None, laps_to_go: None, to_finish, samples: 3 }
     }
 
     #[test]

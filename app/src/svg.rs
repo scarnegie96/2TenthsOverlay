@@ -3,6 +3,8 @@
 //! relative), flatten curves, and triangulate each subpath once (ear
 //! clipping), so drawing is a transform of cached vertices.
 
+use std::sync::{Arc, Mutex};
+
 use egui::epaint::Mesh;
 use egui::{Color32, Painter, Pos2, Shape, Stroke};
 
@@ -17,7 +19,29 @@ pub struct Sub {
 #[derive(Debug, Clone, Default)]
 pub struct Path {
     pub subs: Vec<Sub>,
+    /// The last few fills (where, how big, which colour) as ready meshes, so a drawing
+    /// that hasn't moved is not rebuilt each frame.
+    fills: FillCache,
 }
+
+/// A few recent fills of one path. Copying a path starts with an empty cache.
+#[derive(Default)]
+struct FillCache(Mutex<Vec<([u32; 8], Arc<Mesh>)>>);
+
+impl Clone for FillCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for FillCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("FillCache")
+    }
+}
+
+/// Fills kept per path: enough for a drawing used in a few colours or places.
+const FILLS_KEPT: usize = 4;
 
 /// Where the drawing goes: SVG units scaled by `k`, turned by `angle`
 /// (radians, clockwise on screen) about the SVG point `pivot`, which lands on `at`.
@@ -51,11 +75,49 @@ impl Path {
             // Fill as SVG would: an open subpath is filled as if closed.
             s.tris = triangulate(&s.pts);
         }
-        Self { subs }
+        Self { subs, fills: FillCache::default() }
     }
 
     pub fn fill(&self, p: &Painter, xf: Xf, color: Color32) {
+        let key = [
+            xf.at.x.to_bits(),
+            xf.at.y.to_bits(),
+            xf.pivot[0].to_bits(),
+            xf.pivot[1].to_bits(),
+            xf.k.to_bits(),
+            xf.angle.to_bits(),
+            u32::from_le_bytes(color.to_array()),
+            0,
+        ];
+        let cached = {
+            let mut c = self.fills.0.lock().unwrap();
+            match c.iter().position(|(k, _)| *k == key) {
+                Some(i) => {
+                    // Most recent last.
+                    let hit = c.remove(i);
+                    let mesh = hit.1.clone();
+                    c.push(hit);
+                    Some(mesh)
+                }
+                None => None,
+            }
+        };
+        let mesh = cached.unwrap_or_else(|| {
+            let mesh = Arc::new(self.build(xf, color));
+            let mut c = self.fills.0.lock().unwrap();
+            if c.len() >= FILLS_KEPT {
+                c.remove(0);
+            }
+            c.push((key, mesh.clone()));
+            mesh
+        });
+        p.add(Shape::mesh(mesh));
+    }
+
+    fn build(&self, xf: Xf, color: Color32) -> Mesh {
         let mut mesh = Mesh::default();
+        mesh.reserve_vertices(self.subs.iter().map(|s| s.pts.len()).sum());
+        mesh.reserve_triangles(self.subs.iter().map(|s| s.tris.len() / 3).sum());
         for s in &self.subs {
             let base = mesh.vertices.len() as u32;
             for q in &s.pts {
@@ -65,7 +127,7 @@ impl Path {
                 mesh.add_triangle(base + t[0], base + t[1], base + t[2]);
             }
         }
-        p.add(Shape::mesh(mesh));
+        mesh
     }
 
     pub fn stroke(&self, p: &Painter, xf: Xf, width: f32, color: Color32) {

@@ -76,15 +76,17 @@ impl Widget for Twitch {
                 let source = if demo.is_some() {
                     Source::Demo { log: ChatLog { status: ChatStatus::Connected, ..Default::default() }, next: 0, next_at: cx.now }
                 } else {
-                    let ctx = cx.ctx.clone();
-                    Source::Live(Chat::connect(c, move || ctx.request_repaint()))
+                    // Wake this panel's own window: a plain request_repaint() from the chat thread
+                    // would only repaint the root, and panels repaint on their own timers.
+                    let (ctx, vid) = (cx.ctx.clone(), cx.ctx.viewport_id());
+                    Source::Live(Chat::connect(c, move || ctx.request_repaint_of(vid)))
                 };
                 (c.clone(), source)
             });
             // Fresh pictures per channel; the demo's one is bundled.
             self.tex.clear();
-            let ctx = cx.ctx.clone();
-            let e = Emotes::new(move || ctx.request_repaint());
+            let (ctx, vid) = (cx.ctx.clone(), cx.ctx.viewport_id());
+            let e = Emotes::new(move || ctx.request_repaint_of(vid));
             if demo.is_some() {
                 for size in [1, 2] {
                     e.seed(DEMO_EMOTE.0, size, DEMO_EMOTE.1);

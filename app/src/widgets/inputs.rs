@@ -13,7 +13,15 @@ use crate::logic::format::{gear, speed};
 use crate::theme::{alpha, mix, Theme};
 
 #[derive(Default)]
-pub struct Inputs;
+pub struct Inputs {
+    /// Height of the reference strip above the panel, when it is drawn inside the window.
+    over: (f32, f32),
+    /// Room above the panel, to see whether the strip fits there (unknown until placed).
+    room: Option<f32>,
+}
+
+/// The reference strip's height, less the pixel it overlaps the panel by.
+const GHOST_H: f32 = 82.0;
 
 const TRACE_W: f32 = 300.0;
 const TRACE_H: f32 = 92.0;
@@ -95,6 +103,7 @@ struct Strip<'a> {
     steering_note: Option<&'a str>,
     throttle: f32,
     brake: f32,
+    abs: bool,
     /// None keeps the clutch bar's space empty so columns stay aligned.
     clutch: Option<f32>,
     shift: bool,
@@ -147,8 +156,16 @@ impl Widget for Inputs {
         let h = 112.0 + 2.0;
 
         // Your strip.
-        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(w, h));
-        panel_bg(p, th, rect, false);
+        // The reference strip sticks out above the panel. In a window of its own that is part of the
+        // window: the panel moves down by it and the window is placed that much higher.
+        let ghost = tick.and_then(|t| t.coach.as_ref()).filter(|_| o.b("showGhost"));
+        let extra = GHOST_H - 1.0;
+        // Above if it fits on the display, else below.
+        let below = cx.windowed && ghost.is_some() && self.room.is_some_and(|r| r < extra);
+        let dy = if cx.windowed && ghost.is_some() && !below { extra } else { 0.0 };
+        self.over = if below { (0.0, extra) } else { (dy, 0.0) };
+        let rect = Rect::from_min_size(Pos2::new(0.0, dy), Vec2::new(w, h));
+        panel_bg(p, th, rect, false, false);
         let mine = Strip {
             ghost: false,
             label: None,
@@ -158,17 +175,22 @@ impl Widget for Inputs {
             steering_note: None,
             throttle: tick.map(|t| t.throttle).unwrap_or(0.0),
             brake: tick.map(|t| t.brake).unwrap_or(0.0),
+            abs: tick.is_some_and(|t| t.abs_active),
             clutch: Some(tick.map(|t| t.clutch).unwrap_or(0.0)),
             shift: shift_rpm.is_some_and(|s| rpm >= s),
             leds,
         };
-        strip(p, th, &layout, &mine, Rect::from_min_size(Pos2::new(1.0 + 18.0, 1.0 + 10.0), Vec2::new(w - 2.0 - 32.0, 92.0)), &cx.live.trace);
+        strip(p, th, &layout, &mine, Rect::from_min_size(Pos2::new(1.0 + 18.0, dy + 1.0 + 10.0), Vec2::new(w - 2.0 - 32.0, 92.0)), &cx.live.trace);
 
         // The reference's strip, growing upwards out of the top.
-        if let Some(coach) = tick.and_then(|t| t.coach.as_ref()).filter(|_| o.b("showGhost")) {
-            let gh = 82.0;
-            let g = Rect::from_min_max(Pos2::new(12.0, 1.0 - gh), Pos2::new(w - 12.0, 1.0));
-            panel_bg(p, th, g, true);
+        if let Some(coach) = ghost {
+            let gh = GHOST_H;
+            let g = if below {
+                Rect::from_min_max(Pos2::new(12.0, h - 1.0), Pos2::new(w - 12.0, h - 1.0 + gh))
+            } else {
+                Rect::from_min_max(Pos2::new(12.0, dy + 1.0 - gh), Pos2::new(w - 12.0, dy + 1.0))
+            };
+            panel_bg(p, th, g, true, below);
             let s = Strip {
                 ghost: true,
                 label: Some("Ref"),
@@ -178,6 +200,7 @@ impl Widget for Inputs {
                 steering_note: coach.ref_steering.is_none().then_some("No wheel data"),
                 throttle: coach.ref_throttle.unwrap_or(0.0),
                 brake: coach.ref_brake.unwrap_or(0.0),
+                abs: false,
                 clutch: None,
                 shift: false,
                 leds: 0.0,
@@ -185,19 +208,37 @@ impl Widget for Inputs {
             // Same columns as yours: 12 px inset plus 6 px padding = 18.
             strip(p, th, &layout, &s, Rect::from_min_max(Pos2::new(19.0, g.top() + 10.0), Pos2::new(w - 15.0, g.bottom() - 10.0)), &cx.live.trace);
         }
-        Vec2::new(w, h)
+        Vec2::new(w, h + self.over.0 + self.over.1)
+    }
+
+    fn overhang(&self) -> (f32, f32) {
+        self.over
+    }
+
+    fn set_room_above(&mut self, px: f32) {
+        self.room = Some(px);
     }
 }
 
-fn panel_bg(p: &Painter, th: &Theme, r: Rect, ghost: bool) {
+fn panel_bg(p: &Painter, th: &Theme, r: Rect, ghost: bool, flipped: bool) {
     let rad = th.radius as u8;
     if ghost {
-        p.rect_filled(r, CornerRadius { nw: rad, ne: rad, sw: 0, se: 0 }, th.panel);
-        let pts = vec![r.left_bottom(), r.left_top(), r.right_top(), r.right_bottom()];
+        // The reference strip: rounded on the free edge (top when above the panel, bottom when below), accent line there.
+        let (round, edge) = if flipped {
+            (CornerRadius { nw: 0, ne: 0, sw: rad, se: rad }, Rect::from_min_max(Pos2::new(r.left(), r.bottom() - 2.0), r.max))
+        } else {
+            (CornerRadius { nw: rad, ne: rad, sw: 0, se: 0 }, Rect::from_min_size(r.min, Vec2::new(r.width(), 2.0)))
+        };
+        p.rect_filled(r, round, th.panel);
+        let pts = if flipped {
+            vec![r.left_top(), r.left_bottom(), r.right_bottom(), r.right_top()]
+        } else {
+            vec![r.left_bottom(), r.left_top(), r.right_top(), r.right_bottom()]
+        };
         if !th.f1() {
             p.add(Shape::line(pts, Stroke::new(1.0, th.line)));
         }
-        p.rect_filled(Rect::from_min_size(r.min, Vec2::new(r.width(), 2.0)), CornerRadius { nw: rad, ne: rad, sw: 0, se: 0 }, th.fastest);
+        p.rect_filled(edge, round, th.fastest);
     } else if th.f1() {
         let sh = egui::epaint::Shadow { offset: [0, 2], blur: 12, spread: 0, color: Color32::from_black_alpha(89) };
         p.add(sh.as_shape(r, CornerRadius::ZERO));
@@ -294,15 +335,15 @@ fn strip(p: &Painter, th: &Theme, l: &Layout, s: &Strip, area: Rect, trace: &[Tr
     x += 16.0;
     let bars_h = if s.ghost { 62.0 } else { 92.0 };
     let top = cy - bars_h / 2.0;
-    let mut bars: Vec<Option<(f32, Color32)>> = Vec::new();
+    let mut bars: Vec<Option<(f32, Color32, bool)>> = Vec::new();
     if l.show_clutch {
-        bars.push(s.clutch.map(|c| (c, pal.clutch)));
+        bars.push(s.clutch.map(|c| (c, pal.clutch, false)));
     }
-    bars.push(Some((s.brake, pal.brake)));
-    bars.push(Some((s.throttle, pal.throttle)));
+    bars.push(Some((s.brake, pal.brake, s.abs)));
+    bars.push(Some((s.throttle, pal.throttle, false)));
     let pct_size = if s.ghost { 12.0 } else { 14.0 };
     for b in bars {
-        if let Some((v, color)) = b {
+        if let Some((v, color, abs)) = b {
             let pct = (v.clamp(0.0, 1.0) * 100.0).round();
             let pct_c = if pct > 0.0 { pal.active_pct } else { th.ink3 };
             kit::text(p, Pos2::new(x + 12.0, top), Align2::CENTER_TOP, &format!("{pct:.0}"), th.bold(pct_size), pct_c);
@@ -311,6 +352,12 @@ fn strip(p: &Painter, th: &Theme, l: &Layout, s: &Strip, area: Rect, trace: &[Tr
             if pct > 0.0 {
                 let fh = track.height() * pct / 100.0;
                 kit::fill(p, Rect::from_min_max(Pos2::new(track.left(), track.bottom() - fh), track.max), 3.0, color);
+            }
+            if abs {
+                // The ABS is working: an amber tag on the bar.
+                let tag = Rect::from_center_size(Pos2::new(track.center().x, track.top() + 9.0), Vec2::new(22.0, 13.0));
+                kit::fill(p, tag, 3.0, th.attention);
+                kit::text(p, tag.center(), Align2::CENTER_CENTER, "ABS", th.heavy(9.0), th.panel_solid);
             }
             kit::outline(p, track, 3.0, 1.0, th.line);
         }
@@ -363,6 +410,8 @@ fn trace_view(p: &Painter, th: &Theme, pal: &Palette, r: Rect, trace: &[TracePoi
         } else {
             line(&|s| Some(s.throttle), pal.throttle);
             line(&|s| Some(s.brake), pal.brake);
+            // Where the ABS was working, the brake line is amber over the top.
+            line(&|s| s.abs.then_some(s.brake), th.attention);
         }
     }
     kit::outline(p, r, 4.0, 1.0, th.line);

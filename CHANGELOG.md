@@ -9,6 +9,7 @@ when you bump the version.
 - Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with each widget in its own small window over the game. Settings, layouts, laps, ratings and race reports carry over.
 - Twitch chat shows emotes as pictures, inline with the words.
 - OBS streaming is a **stream window** now: Settings → Streaming (or the tray's Stream window) opens a window called "Tenths stream" with your widgets on a green, magenta, black or grey background, for OBS's Window Capture. The Tauri version's web pages for Browser Sources are gone.
+- Lighter on the CPU and GPU: each panel window now repaints on its own timer instead of every frame. Inputs, G-force, Delta, Radar and Instruments stay at 60 Hz, Flags, Pit stop, Battle and Coach run at 30 Hz, and Relative, Standings (gap included) and the other panels at 4 Hz. Car drawings are kept as ready meshes instead of rebuilt each frame.
 - Every widget, the settings window (including the Races page), hotkeys and wheel buttons, pit commands and auto fuel, several monitors, saved layouts and the tray are ported.
 - Redraws up to 60 times a second (`--fps` to lower it), without waiting for the screen refresh (`--vsync` to).
 - Updates: Settings → About (and the tray) check GitHub for a newer version, show what's new and install it when you press Update. Downloads are checked against the release signing key, the same one the Tauri version used, so a 0.4 install can update straight into this version.
@@ -17,7 +18,12 @@ when you bump the version.
 - Replay: `tenths --replay race.ibt` plays an iRacing telemetry file as if it were the sim, on any platform (`--speed 2` for twice as fast, `--loop` to start over). Your own car's channels always come through; other cars (Relative, Standings, Radar, Stints, Race pace, Battle) only if the file recorded them. `cargo run -p telemetry --example make_replay_ibt` writes a demo-race file to try it with.
 - Standings in practice and qualifying: ranked by best lap, with laps, the gap to the class best (to the thousandth), last and best lap, and no iRating columns. It reads iRacing's session results, which fill in as cars set laps. (Settings → Standings → Show laps.)
 - Starting Tenths opens Settings, the app itself, and steps aside when iRacing connects: to the tray on Windows, minimised to the Dock where there's no tray. `--background` starts without it. Settings has a Quit button now, and on macOS its close button minimises it.
+- Heap profiling for developers: `cargo build --profile heap --features heap-profile`, then `tenths --replay race.ibt --bench 60 --heap-profile` records every allocation with its call stack; `python3 tools/heap_top.py tenths-heap.json` lists the biggest sites (at the peak, at the end, and total churn). The `--bench` line gains the live heap.
 - macOS: the stats line shows memory, and the file picker is the native one. (Builds are for designing layouts and working on the code; iRacing doesn't run there.)
+- Inputs: the brake trace turns amber while ABS is working, and the brake bar shows an ABS tag. The ghost strip goes below the widget when there's no room above it.
+- Fuel: a "Min / max lap" row shows the least and most fuel used on any clean green lap of the session.
+- Flags: under a blue flag a second box shows who is behind you (position, number, name and gap), the nearest car behind that is a lap or more ahead, else the nearest behind. Switch it off with "Show who is behind under a blue flag".
+- Lap log: scroll the mouse wheel over it in edit mode to see older laps.
 - The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
 
 ## 0.4.13

@@ -123,7 +123,7 @@ impl App {
             let k = st.scale * d.scale as f32 / ppp;
             let screen = ctx.content_rect();
             ctx.layer_painter(egui::LayerId::background()).rect_filled(Rect::from_min_size(screen.min, screen.size().max(size)), 0.0, background_color(st.background));
-            self.layout.draw_stream(StreamFrame { ctx: &ctx, store: &self.store, th, live, ratings: &self.ratings, units, now, want: &want, k });
+            self.layout.lock().unwrap().draw_stream(StreamFrame { ctx: &ctx, store: &self.store, th, live, ratings: &self.ratings, units, now, want: &want, k });
         });
         if closed {
             self.store.set_stream_window(false);

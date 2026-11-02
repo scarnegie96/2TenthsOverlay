@@ -364,6 +364,8 @@ impl DemoSource {
         f.gear = gear;
         f.throttle = throttle;
         f.brake = brake;
+        // The ABS chatters when the brakes are pushed hard at speed.
+        f.brake_abs_active = brake > 0.85 && speed > 15.0 && (self.t * 14.0).fract() < 0.6;
         f.clutch = 0.0;
         f.steering = steering_at(pct);
         // Roughly: the car turns at a rate set by steering and speed.

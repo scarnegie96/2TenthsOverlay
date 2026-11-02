@@ -381,6 +381,7 @@ pub fn default_path() -> Option<PathBuf> {
 // --- Reading, watching and writing back --------------------------------------------
 
 /// The config file and what was last read from it.
+#[derive(Clone)]
 pub struct Store {
     pub path: Option<PathBuf>,
     pub config: Config,

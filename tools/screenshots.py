@@ -71,7 +71,7 @@ def config(widgets, theme="dark", scale=1.0, extra=None):
     }
 
 
-def run(cfg, out, size=(2560, 1440), args=(), env=None, warmup=WARMUP, shot_after=SHOT_AFTER):
+def run(cfg, out, size=(2560, 1440), args=(), env=None, warmup=WARMUP, shot_after=SHOT_AFTER, flag=16384):
     """Runs the app on the demo race and saves its window as `out` (transparent PNG)."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "config.json"
@@ -84,7 +84,7 @@ def run(cfg, out, size=(2560, 1440), args=(), env=None, warmup=WARMUP, shot_afte
         if warmup:
             cmd += ["--warmup", str(warmup)]
         # A safety car out on the flag board, as the old overview had (the demo only waves flags now and then).
-        cmd += ["--flag", "16384"]
+        cmd += ["--flag", str(flag)]
         cmd += list(args)
         full_env = dict(os.environ, TENTHS_CHAT_DEMO="1", **(env or {}))
         subprocess.run(cmd, check=True, env=full_env, stdout=subprocess.DEVNULL, timeout=shot_after + 120)
@@ -170,6 +170,10 @@ def widgets(tmp, only_wheels=False):
     jobs += [(f"wheel-{w}", "inputs", {"inputs": {"wheel": w}}) for w in ("round", "gt", "formula", "oval")]
     if only_wheels:
         jobs = [j for j in jobs if j[0].startswith("wheel-")]
+    # TENTHS_ONLY=inputs,fuel retakes just those pictures.
+    only = [n for n in os.environ.get("TENTHS_ONLY", "").split(",") if n]
+    if only:
+        jobs = [j for j in jobs if j[0] in only]
     # Inputs: room above for the reference strip.
     top = {"inputs": 260}
     crops = {}
@@ -191,13 +195,22 @@ def widgets(tmp, only_wheels=False):
                 continue
             l, t, r, b = box
             crops[name] = full.crop((max(l - pad, 0), max(t - pad, 0), r + pad, b + pad))
+    if not only_wheels and (not only or "flags" in only):
+        # The flag board under a blue flag, with the driver panel for the car behind.
+        out = tmp / "flags-blue.png"
+        run(config({"flags": (100, 100)}, "dark", scale=2.0, extra={"flags": {"alwaysShow": True}}), out, size=(W // 2, H // 2), flag=32)
+        alpha = np.array(Image.open(out).convert("RGBA"))[..., 3]
+        box = bbox(alpha, (0, 0, W // 2, H // 2))
+        if box:
+            l, t, r, b = box
+            crops["flags"] = composite(out).crop((max(l - pad, 0), max(t - pad, 0), r + pad, b + pad))
     for wid in ([] if only_wheels else ALL):
         if wid in crops:
             save(crops[wid], f"widgets/{wid}.png")
     # The four steering wheels side by side.
     wheels = [crops.get(f"wheel-{w}") for w in ("round", "gt", "formula", "oval")]
     wheels = [w for w in wheels if w is not None]
-    if wheels:
+    if wheels and not only:
         wsz = sum(w.width for w in wheels)
         sheet = Image.new("RGBA", (wsz, max(w.height for w in wheels)))
         x = 0
@@ -205,7 +218,7 @@ def widgets(tmp, only_wheels=False):
             sheet.paste(w, (x, 0))
             x += w.width
         save(sheet, "widgets/wheels.png")
-    if only_wheels:
+    if only_wheels or only:
         return
     # Standings with the thumbs shown after the flag.
     out = tmp / "rate.png"

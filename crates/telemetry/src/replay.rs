@@ -132,6 +132,7 @@ pub fn read_frame(vars: &HashMap<String, VarHeader>, row: &[u8], tick: i32, f: &
     f.gear = i32_("Gear");
     f.throttle = f32_("Throttle");
     f.brake = f32_("Brake");
+    f.brake_abs_active = bool_("BrakeABSactive");
     // A missing clutch reads as released, not as fully pressed.
     f.clutch = opt("Clutch").map(|c| 1.0 - c).unwrap_or(0.0);
     f.steering = f32_("SteeringWheelAngle");
@@ -291,6 +292,7 @@ pub fn record_full_ibt(demo: &mut crate::demo::DemoSource, laps: f32) -> Vec<u8>
         ("Gear", Int, 1, |f| vec![f.gear as f64]),
         ("Throttle", Float, 1, |f| vec![f.throttle as f64]),
         ("Brake", Float, 1, |f| vec![f.brake as f64]),
+        ("BrakeABSactive", Bool, 1, |f| vec![f.brake_abs_active as u8 as f64]),
         ("Clutch", Float, 1, |f| vec![1.0 - f.clutch as f64]),
         ("SteeringWheelAngle", Float, 1, |f| vec![f.steering as f64]),
         ("YawRate", Float, 1, |f| vec![f.yaw_rate as f64]),

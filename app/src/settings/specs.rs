@@ -237,6 +237,7 @@ pub const SPECS: &[WidgetSpec] = &[
         experimental: false,
         options: &[
             OptionSpec { key: "showCaption", label: "Show text under the board", help: None, kind: Kind::Toggle },
+            OptionSpec { key: "showBlueDriver", label: "Show who is behind under a blue flag", help: Some("Name, position, number and gap of the nearest car behind"), kind: Kind::Toggle },
             OptionSpec { key: "greenSeconds", label: "Show green for", help: Some("After a start or restart; the board then goes dark"), kind: Kind::Number { min: 0.0, max: 30.0, step: 1.0, suffix: Some("s") } },
             OptionSpec { key: "scBoard", label: "Safety car board", help: Some("Up to 3 letters or numbers, lit on the board under full-course cautions"), kind: Kind::Text { max_length: Some(3) } },
             OptionSpec { key: "textYellow", label: "Yellow", help: None, kind: Kind::Text { max_length: Some(28) } },
@@ -373,6 +374,7 @@ pub const TS_DEFAULTS: &[(&str, &str, &str)] = &[
     ("radar", "classColors", "false"),
     ("tires", "showPressure", "true"),
     ("flags", "showCaption", "true"),
+    ("flags", "showBlueDriver", "true"),
     ("flags", "greenSeconds", "5"),
     ("flags", "scBoard", "\"SC\""),
     ("flags", "textYellow", "\"Accident ahead\""),

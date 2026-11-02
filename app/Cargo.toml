@@ -23,6 +23,13 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 semver = "1"
 base64 = "0.22"
 minisign-verify = "0.3"
+# Heap profiling (src/heap.rs); only built with `--features heap-profile`.
+dhat = { version = "0.3", optional = true }
+
+[features]
+# `cargo build --profile heap --features heap-profile`, then `tenths --replay file.ibt --bench 60 --heap-profile`.
+# Off by default: it slows every allocation.
+heap-profile = ["dep:dhat"]
 
 [dev-dependencies]
 # The update tests sign with the release tool's own code and key format.

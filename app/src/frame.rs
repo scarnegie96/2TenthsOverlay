@@ -148,22 +148,23 @@ impl Layout {
     /// Per-panel windows (not editing): draws widget `idx` at the origin of its own
     /// window, scaled, and returns its unscaled size (zero when it draws nothing)
     /// and the clickable parts in window points.
-    pub fn draw_panel(&mut self, idx: usize, f: PanelFrame) -> (Vec2, Vec<(Rect, ClickAction)>) {
+    pub fn draw_panel(&mut self, idx: usize, f: PanelFrame) -> (Vec2, Vec<(Rect, ClickAction)>, f32) {
         let PanelFrame { ctx, store, th, live, ratings, units, now } = f;
         let slot = &mut self.slots[idx];
         let cfg = store.config.widget(slot.meta.id).clone();
         let hover = ctx.input(|i| i.pointer.hover_pos());
         let prev = Some(Rect::from_min_size(Pos2::ZERO, slot.natural * cfg.scale));
-        let paint = Paint { ctx, th, store, live, ratings, units, editing: false, now, hover };
+        let paint = Paint { ctx, th, store, live, ratings, units, editing: false, windowed: true, now, hover };
         let (size, clicks, layer) = paint_slot(slot, &paint, &cfg, prev);
         slot.natural = size;
         slot.rect = None;
         if size.x <= 0.0 || size.y <= 0.0 {
-            return (Vec2::ZERO, Vec::new());
+            return (Vec2::ZERO, Vec::new(), 0.0);
         }
+        let over = slot.widget.overhang();
         ctx.transform_layer_shapes(layer, TSTransform::new(Vec2::ZERO, cfg.scale));
         let clicks = clicks.into_iter().map(|c| (Rect::from_min_size(c.rect.min * cfg.scale, c.rect.size() * cfg.scale), c.action)).collect();
-        (size, clicks)
+        (size, clicks, over)
     }
 
     /// The stream window: draws each wanted widget where the layout puts it on its
@@ -175,7 +176,7 @@ impl Layout {
         for &(idx, screen) in want {
             let slot = &mut self.slots[idx];
             let cfg = store.config.widget(slot.meta.id).clone();
-            let paint = Paint { ctx, th, store, live, ratings, units, editing: false, now, hover: None };
+            let paint = Paint { ctx, th, store, live, ratings, units, editing: false, windowed: false, now, hover: None };
             let (size, _clicks, layer) = paint_slot(slot, &paint, &cfg, None);
             if size.x <= 0.0 || size.y <= 0.0 {
                 continue;
@@ -232,7 +233,7 @@ impl Layout {
             if !show || !cfg.enabled {
                 continue;
             }
-            let paint = Paint { ctx, th, store, live, ratings, units, editing, now, hover };
+            let paint = Paint { ctx, th, store, live, ratings, units, editing, windowed: false, now, hover };
             let (size, clicks, layer) = paint_slot(slot, &paint, &cfg, prev_rect);
             slot.natural = size;
             if size.x <= 0.0 || size.y <= 0.0 {
@@ -522,6 +523,7 @@ struct Paint<'a> {
     ratings: &'a Ratings,
     units: crate::config::Units,
     editing: bool,
+    windowed: bool,
     now: f64,
     hover: Option<Pos2>,
 }
@@ -529,7 +531,7 @@ struct Paint<'a> {
 /// Draws one widget at its own origin on its own layer (unscaled, untransformed),
 /// catching a panic. Returns its size, the clickable parts and the layer.
 fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, prev_rect: Option<Rect>) -> (Vec2, Vec<widgets::Click>, LayerId) {
-    let Paint { ctx, th, store, live, ratings, units, editing, now, hover } = *paint;
+    let Paint { ctx, th, store, live, ratings, units, editing, windowed, now, hover } = *paint;
     let clicks = RefCell::new(Vec::new());
     let layer = LayerId::new(Order::Middle, Id::unique(("tenths-widget", slot.meta.id)));
     let mut painter = Painter::new(ctx.clone(), layer, Rect::EVERYTHING);
@@ -558,6 +560,7 @@ fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, pr
             live,
             ratings,
             editing,
+            windowed,
             now,
             ctx,
             clicks: &clicks,

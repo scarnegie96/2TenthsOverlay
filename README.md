@@ -268,9 +268,10 @@ lap for this track is loaded.
 
 Gear, speed, a steering wheel that turns with yours, a scrolling throttle and
 brake trace, and throttle, brake and clutch bars. The gear turns red at the
-shift point. With a reference lap loaded, a slimmer strip above shows the
+shift point. When ABS is working the brake trace turns amber and the brake bar
+shows an ABS tag. With a reference lap loaded, a slimmer strip above shows the
 reference's gear, speed, pedals and (for `.ibt` laps) wheel at the same spot on
-track.
+track. If there's no room above the widget on screen, the strip goes below it.
 
 ![Steering wheel styles](docs/widgets/wheels.png)
 
@@ -316,6 +317,7 @@ while editing.
 
 Fuel in the tank, use per lap (the average of your last 5 green laps), laps
 the tank will last, laps to go, and how much to add at your stop to finish.
+A "Min / max lap" row shows the least and most you've used on any clean green lap of the session.
 In timed races, laps to go runs until the overall leader takes the flag (the
 white flag once the clock runs out, then one more lap), so it never leaves you
 a lap short if you're behind the leader.
@@ -412,11 +414,14 @@ black-and-white warning and disqualified each have their own pattern. In
 races, a "1" shows on the lap before the green, and green shows for a few
 seconds after a start or restart; in practice, qualifying and test sessions
 the board stays dark until there's a real flag. Under the lights, a bar in
-the flag's color says what it means.
+the flag's color says what it means. Under a blue flag a second box below shows
+who is behind you: position, number, name and gap. iRacing doesn't say which
+car the flag is for, so it shows the nearest car behind that is a lap or more
+ahead of you, or else the nearest car behind that isn't in the pits.
 
 *Options*: the text for each flag (for example "Accident ahead" for yellow), up
-to three letters for the safety car board, how long green shows, and whether
-the empty board stays visible.
+to three letters for the safety car board, how long green shows, whether
+the empty board stays visible, and whether the blue-flag driver box shows.
 
 ### Battle
 

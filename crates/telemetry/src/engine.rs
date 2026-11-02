@@ -227,6 +227,7 @@ impl Engine {
             gear: f.gear,
             throttle: f.throttle,
             brake: f.brake,
+            abs_active: f.brake_abs_active,
             clutch: f.clutch,
             steering: f.steering,
             lap: f.lap,
@@ -866,6 +867,9 @@ struct FuelTracker {
     last_fuel: f32,
     lap_tainted: bool,
     per_lap: VecDeque<f32>,
+    /// Least and most used on any clean lap this session (not just the last few).
+    min_used: Option<f32>,
+    max_used: Option<f32>,
     lap_times: VecDeque<f32>,
 }
 
@@ -899,6 +903,8 @@ impl FuelTracker {
                     let used = start - f.fuel_level;
                     if used > 0.01 {
                         push_capped(&mut self.per_lap, used, FUEL_WINDOW);
+                        self.min_used = Some(self.min_used.map_or(used, |m| m.min(used)));
+                        self.max_used = Some(self.max_used.map_or(used, |m| m.max(used)));
                     }
                     let lap_time = (f.session_time - self.lap_start_time) as f32;
                     if lap_time > 5.0 {
@@ -936,6 +942,8 @@ impl FuelTracker {
             max: s.fuel_max_ltr,
             per_lap,
             last_lap_used: self.per_lap.back().copied(),
+            min_per_lap: self.min_used,
+            max_per_lap: self.max_used,
             laps_of_fuel: per_lap.filter(|p| *p > 0.0).map(|p| f.fuel_level / p),
             laps_to_go,
             to_finish: match (per_lap, laps_to_go) {
@@ -1123,6 +1131,26 @@ mod tests {
         f.lap_completed = 5;
         t.update(&f);
         assert_eq!(t.per_lap.len(), 2);
+    }
+
+    #[test]
+    fn fuel_min_and_max_cover_the_whole_session() {
+        let mut t = FuelTracker::default();
+        let mut f = RawFrame::with_capacity();
+        f.is_on_track = true;
+        f.fuel_level = 100.0;
+        f.lap_completed = 1;
+        t.update(&f);
+        // Eight clean laps: more than the five the average looks at.
+        for (k, used) in [3.0f32, 2.0, 2.5, 2.5, 2.5, 2.5, 2.5, 2.8].into_iter().enumerate() {
+            f.fuel_level -= used;
+            f.lap_completed = 2 + k as i32;
+            f.session_time += 90.0;
+            t.update(&f);
+        }
+        // The first crossing was a partial lap (3.0 isn't counted).
+        assert!((t.min_used.unwrap() - 2.0).abs() < 1e-3 && (t.max_used.unwrap() - 2.8).abs() < 1e-3);
+        assert_eq!(t.per_lap.len(), 5);
     }
 
     fn two_car_session() -> SessionInfo {

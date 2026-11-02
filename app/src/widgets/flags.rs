@@ -8,7 +8,10 @@ use egui::epaint::{Mesh, Shadow};
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, TextureHandle, TextureId, Vec2};
 
 use super::{Ctx, Widget};
+use telemetry::model::RelativeRow;
+
 use crate::kit;
+use crate::theme::hex_or;
 use crate::logic::flags::{board_for, lit_dots, sc_text, Board, GreenWindow, Pattern, DOTS};
 
 const PITCH: f32 = 5.5;
@@ -69,6 +72,26 @@ fn build(tex: TextureId, dots: &[Option<Color32>]) -> Arc<Mesh> {
 }
 
 /// Greedy word wrap to `width`.
+/// Name, position, number and gap of the car the blue flag is for.
+fn driver_panel(p: &Painter, th: &crate::theme::Theme, r: Rect, car: &RelativeRow) {
+    let rad = kit::radius(8.0);
+    p.add(Shadow { offset: [0, 2], blur: 10, spread: 0, color: Color32::from_black_alpha(115) }.as_shape(r, rad));
+    p.rect_filled(r, rad, HOUSING);
+    p.rect_stroke(r.expand(0.5), kit::radius(8.5), Stroke::new(1.0, Color32::from_white_alpha(15)), StrokeKind::Middle);
+    // P3 ▎#32 ........ 4.0 s
+    // Zoe Clarke (full width)
+    let blue = crate::logic::flags::led::BLUE;
+    let y = r.top() + 16.0;
+    let class = hex_or(&car.driver.class_color, th.ink);
+    let pos = if car.class_position > 0 { car.class_position } else { car.position };
+    let pr = kit::text(p, Pos2::new(r.left() + 12.0, y), Align2::LEFT_CENTER, &format!("P{pos}"), th.bold(15.0), Color32::WHITE);
+    p.rect_filled(Rect::from_min_size(Pos2::new(pr.right() + 7.0, y - 8.0), Vec2::new(3.0, 16.0)), 1.0, class);
+    kit::text(p, Pos2::new(pr.right() + 16.0, y), Align2::LEFT_CENTER, &format!("#{}", car.driver.number), th.bold(15.0), Color32::from_gray(200));
+    let gap = format!("{} s", crate::logic::format::gap(Some(car.gap), 1));
+    kit::text(p, Pos2::new(r.right() - 12.0, y), Align2::RIGHT_CENTER, &gap, th.bold(15.0), blue);
+    kit::text_fit(p, Pos2::new(r.left() + 12.0, r.top() + 37.0), Align2::LEFT_CENTER, &car.driver.name, th.semi(14.0), Color32::from_gray(225), r.width() - 24.0, 0.0);
+}
+
 fn wrap(p: &Painter, s: &str, font: &egui::FontId, width: f32) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for word in s.split_whitespace() {
@@ -97,6 +120,21 @@ fn balanced(p: &Painter, s: &str, font: &egui::FontId, width: f32) -> Vec<String
     }
     wrap(p, s, font, hi)
 }
+
+/// The car the blue flag is for: the nearest one behind on track, preferring a car a lap or more
+/// ahead of you (the one about to lap you), then any faster-looking car behind. iRacing doesn't say
+/// which car it means, so this is the likeliest one.
+pub fn blue_flag_car(rows: &[RelativeRow]) -> Option<&RelativeRow> {
+    let nearest = |lapping: bool| {
+        rows.iter()
+            .filter(|r| !r.is_player && r.gap < 0.0 && !r.on_pit_road && (!lapping || r.lap_status > 0))
+            .max_by(|a, b| a.gap.total_cmp(&b.gap))
+    };
+    nearest(true).or_else(|| nearest(false))
+}
+
+const DRIVER_H: f32 = 52.0;
+const DRIVER_GAP: f32 = 6.0;
 
 impl Widget for Flags {
     fn observe(&mut self, live: &crate::data::Live, now: f64) {
@@ -139,6 +177,11 @@ impl Widget for Flags {
         let cap_h = if lines.is_empty() { 0.0 } else { lines.len() as f32 * 19.2 + 12.0 };
         let size = Vec2::new(w, w + cap_h);
         let rect = Rect::from_min_size(Pos2::ZERO, size);
+        // Under a blue flag: who is behind you.
+        let lapper = board
+            .as_ref()
+            .filter(|b| b.text_key == "textBlue" && o.b("showBlueDriver"))
+            .and_then(|_| cx.live.field.as_ref().and_then(|f| blue_flag_car(&f.relative)));
         let r = kit::radius(8.0);
         p.add(Shadow { offset: [0, 2], blur: 10, spread: 0, color: Color32::from_black_alpha(115) }.as_shape(rect, r));
         p.rect_filled(rect, r, HOUSING);
@@ -155,6 +198,13 @@ impl Widget for Flags {
                 kit::text(p, Pos2::new(w / 2.0, bar.top() + 6.0 + i as f32 * 19.2 + 9.6), Align2::CENTER_CENTER, line, font.clone(), Color32::BLACK);
             }
         }
-        size
+        match lapper {
+            Some(r) => {
+                let top = size.y + DRIVER_GAP;
+                driver_panel(p, th, Rect::from_min_size(Pos2::new(0.0, top), Vec2::new(w, DRIVER_H)), r);
+                Vec2::new(w, top + DRIVER_H)
+            }
+            None => size,
+        }
     }
 }

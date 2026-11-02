@@ -56,6 +56,8 @@ pub struct RawFrame {
     pub gear: i32,
     pub throttle: f32,
     pub brake: f32,
+    /// `BrakeABSactive`: the ABS is working on the brakes.
+    pub brake_abs_active: bool,
     /// Pedal position, 0 = released, 1 = pressed (already inverted from iRacing's `Clutch`).
     pub clutch: f32,
     pub steering: f32,
@@ -268,6 +270,8 @@ pub struct TickPayload {
     pub gear: i32,
     pub throttle: f32,
     pub brake: f32,
+    /// The ABS is working on the brakes.
+    pub abs_active: bool,
     pub clutch: f32,
     /// radians, positive = left
     pub steering: f32,
@@ -446,6 +450,9 @@ pub struct FuelPayload {
     /// Average litres per green lap (last 5).
     pub per_lap: Option<f32>,
     pub last_lap_used: Option<f32>,
+    /// Least and most litres used on a clean green lap this session.
+    pub min_per_lap: Option<f32>,
+    pub max_per_lap: Option<f32>,
     pub laps_of_fuel: Option<f32>,
     /// Laps the player still has to drive, including the rest of this lap.
     pub laps_to_go: Option<f32>,

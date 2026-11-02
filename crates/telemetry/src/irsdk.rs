@@ -343,6 +343,7 @@ impl Irsdk {
         f.gear = self.i32("Gear");
         f.throttle = self.f32("Throttle");
         f.brake = self.f32("Brake");
+        f.brake_abs_active = self.bool("BrakeABSactive");
         f.clutch = 1.0 - self.f32("Clutch");
         f.steering = self.f32("SteeringWheelAngle");
         f.yaw_rate = self.f32("YawRate");
