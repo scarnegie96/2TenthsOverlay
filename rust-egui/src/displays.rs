@@ -145,12 +145,41 @@ pub fn covers(d: &Display, inner: Rect, ppp: f32) -> bool {
     want.iter().zip(have).all(|(w, h)| (w - h).abs() <= 1.5)
 }
 
-/// Moves and sizes one overlay window onto its display, asking again (a few
-/// times) until it's there: the first request can be turned into the wrong
-/// pixels when the window starts on a monitor with another scale.
+/// A window's inner area in physical pixels on the virtual desktop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysRect {
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
+}
+
+impl PhysRect {
+    /// The whole display.
+    pub fn of(d: &Display) -> Self {
+        Self { x: d.x, y: d.y, w: d.width, h: d.height }
+    }
+
+    /// In points at scale `ppp`: what to ask a window for.
+    pub fn in_points(&self, ppp: f32) -> Rect {
+        Rect::from_min_size(Pos2::new(self.x as f32 / ppp, self.y as f32 / ppp), Vec2::new(self.w as f32 / ppp, self.h as f32 / ppp))
+    }
+
+    /// Does a window whose inner area is `inner` (points) at scale `ppp` cover this, give or take a pixel or two?
+    pub fn covered_by(&self, inner: Rect, ppp: f32) -> bool {
+        let want = [self.x as f32, self.y as f32, self.w as f32, self.h as f32];
+        let have = [inner.min.x * ppp, inner.min.y * ppp, inner.width() * ppp, inner.height() * ppp];
+        want.iter().zip(have).all(|(w, h)| (w - h).abs() <= 1.5)
+    }
+}
+
+/// Moves and sizes one overlay window onto its target (a display, or a
+/// panel's rectangle), asking again (a few times) until it's there: the first
+/// request can be turned into the wrong pixels when the window starts on a
+/// monitor with another scale.
 #[derive(Default)]
 pub struct Placer {
-    target: Option<Display>,
+    target: Option<PhysRect>,
     tries: u32,
     last: f64,
 }
@@ -162,21 +191,26 @@ impl Placer {
     /// Call every frame from inside the window. Returns false while it's
     /// still being moved (so the caller can keep repainting).
     pub fn update(&mut self, ctx: &egui::Context, d: &Display, now: f64) -> bool {
-        if self.target.as_ref() != Some(d) {
-            self.target = Some(d.clone());
+        self.update_rect(ctx, PhysRect::of(d), now)
+    }
+
+    /// As `update`, for any rectangle on the desktop. A new target is asked for at once.
+    pub fn update_rect(&mut self, ctx: &egui::Context, want: PhysRect, now: f64) -> bool {
+        if self.target != Some(want) {
+            self.target = Some(want);
             self.tries = 0;
             self.last = f64::NEG_INFINITY;
         }
         let (inner, ppp) = ctx.input(|i| (i.viewport().inner_rect, i.viewport().native_pixels_per_point));
         let ppp = ppp.unwrap_or(1.0);
-        if inner.is_some_and(|r| covers(d, r, ppp)) {
+        if inner.is_some_and(|r| want.covered_by(r, ppp)) {
             self.tries = 0;
             return true;
         }
         if self.tries < PLACE_TRIES && now - self.last >= PLACE_EVERY {
             self.tries += 1;
             self.last = now;
-            let r = window_rect(d, ppp);
+            let r = want.in_points(ppp);
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(r.size()));
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(r.min));
         }

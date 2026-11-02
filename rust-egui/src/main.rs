@@ -13,6 +13,8 @@
 //!   tenths-egui --config <path>   another config.json than the Tauri app's
 //!   tenths-egui --theme f1        dark, light or f1, over the config's
 //!   tenths-egui --imperial        imperial units, over the config's
+//!   tenths-egui --fullscreen-overlay  one full-screen window per display (the old way) instead of a
+//!                                 small window per panel (panels.rs); --shot implies it
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
 //!   tenths-egui --shot out.png    save a screenshot after 5 s (--shot-after N) and quit
 //!   tenths-egui --settings        open the Settings window at start (--pane <name>, --report <id>;
@@ -38,6 +40,7 @@ mod frame;
 mod kit;
 mod layouts;
 mod logic;
+mod panels;
 mod ratings;
 mod schema;
 mod settings;
@@ -77,6 +80,8 @@ struct Args {
     /// Wait for the display's refresh before showing each frame (`--vsync`;
     /// off by default, so the overlay never holds up its frame to line up with the sim's).
     vsync: bool,
+    /// The old overlay: one full-screen window per display instead of a window per panel.
+    fullscreen_overlay: bool,
 }
 
 fn args() -> Args {
@@ -101,6 +106,8 @@ fn args() -> Args {
         data_dir: value("--data-dir").map(PathBuf::from),
         fps: value("--fps").and_then(|v| v.parse().ok()).filter(|f: &u32| (5..=240).contains(f)).unwrap_or(30),
         vsync: has("--vsync"),
+        // A screenshot only sees the root window, so it needs the full-screen one.
+        fullscreen_overlay: has("--fullscreen-overlay") || value("--shot").is_some(),
     }
 }
 
@@ -128,9 +135,14 @@ fn main() -> eframe::Result {
         .with_taskbar(false)
         .with_resizable(false)
         .with_position([0.0, 0.0])
-        // Resized to the whole display on the first frame, once the monitor is known.
-        .with_inner_size([1920.0, 1080.0])
+        // Resized to the whole display on the first frame, once the monitor is known
+        // (or, with a window per panel, left tiny: panels.rs).
+        .with_inner_size(if args.fullscreen_overlay || args.edit { [1920.0, 1080.0] } else { [1.0, 1.0] })
         .with_mouse_passthrough(!args.edit);
+    println!(
+        "[tenths-egui] overlay: {}",
+        if args.fullscreen_overlay { "one full-screen window per display (--fullscreen-overlay)" } else { "one small window per panel (--fullscreen-overlay for the old way)" }
+    );
     data::FRAME_MS.store((1000 / args.fps).max(1) as u64, std::sync::atomic::Ordering::Relaxed);
     let glow_options = eframe::egui_glow::GlowConfiguration { vsync: args.vsync, ..Default::default() };
     let options = eframe::NativeOptions { viewport, glow_options, ..Default::default() };
@@ -179,6 +191,9 @@ struct App {
     shell: shell::Shell,
     settings: settings::SettingsWindow,
     tray_synced: bool,
+    /// A window per panel (false: `--fullscreen-overlay`), and their state (panels.rs).
+    panel_mode: bool,
+    panels: panels::Panels,
 }
 
 /// Frame timing and memory, averaged over a second.
@@ -229,6 +244,8 @@ impl App {
             shell,
             settings,
             tray_synced: false,
+            panel_mode: !args.fullscreen_overlay,
+            panels: Default::default(),
             shared,
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
@@ -420,7 +437,15 @@ impl eframe::App for App {
         self.layout.observe(&live, now);
         // Each display's window draws the widgets placed on it.
         let displays = self.displays.clone();
-        for d in displays.iter() {
+        let windows_per_panel = self.panel_mode && !self.editing;
+        if windows_per_panel {
+            // Outside edit mode: a small window per panel (panels.rs).
+            self.panel_windows(ctx, &th, &live, general.units, show, now);
+        } else {
+            self.panels.seen.clear();
+            self.panels.visible = 0;
+        }
+        for d in displays.iter().filter(|_| !windows_per_panel) {
             if d.primary {
                 self.overlay(ctx, d, &th, &live, general.units, show, now);
             } else {
@@ -435,7 +460,8 @@ impl eframe::App for App {
             }
         }
         // Windows of displays that have gone are closed by egui (no longer shown); forget their state.
-        let live_ids: Vec<egui::ViewportId> = displays.iter().map(|d| egui::ViewportId::from_hash_of(("tenths-overlay", &d.key))).collect();
+        let mut live_ids: Vec<egui::ViewportId> = displays.iter().map(|d| egui::ViewportId::from_hash_of(("tenths-overlay", &d.key))).collect();
+        live_ids.extend(self.panels.seen.iter().copied());
         for map in [&mut self.passthrough, &mut self.no_activate] {
             map.retain(|id, _| *id == egui::ViewportId::ROOT || live_ids.contains(id));
         }
@@ -555,12 +581,14 @@ impl App {
         if self.bench.is_some() && s.last_print.is_none_or(|t| now - t >= Duration::from_secs(10)) && s.fps > 0.0 {
             s.last_print = Some(now);
             println!(
-                "{:>5.0}s  memory {:>6.1} MB  {:>5.1} fps  telemetry {:>5.1} Hz  UI {:.2} ms/frame  {}",
+                "{:>5.0}s  memory {:>6.1} MB  {:>5.1} fps  telemetry {:>5.1} Hz  UI {:.2} ms/frame  panel windows {} ({} visible)  {}",
                 self.started.elapsed().as_secs_f64(),
                 s.memory_mb,
                 s.fps,
                 s.tick_hz,
                 s.cpu_ms,
+                self.panels.windows(),
+                self.panels.visible,
                 status.map(|s| s.message.as_str()).unwrap_or("")
             );
         }
@@ -602,9 +630,11 @@ impl App {
             self.edit_bar(ctx, th, live.status.as_deref(), d, displays.len());
         }
         if d.primary {
-            self.layout_toast(ctx, th, now);
+            let screen = ctx.content_rect();
+            self.layout_toast(ctx, th, now, screen, screen.top() + screen.height() * 0.18);
         }
-        self.click_through(ctx, d, &clicks);
+        let title = if d.primary { PRIMARY_TITLE.to_string() } else { overlay_title(d) };
+        self.click_through(ctx, d, &clicks, &title);
     }
 
     /// Outside edit mode every click goes through to iRacing. The thumbs in the
@@ -613,7 +643,7 @@ impl App {
     /// while click-through, so read it from the system) and take clicks only
     /// while it's over one. Also keeps the window from taking the keyboard when
     /// clicked, so iRacing keeps it.
-    fn click_through(&mut self, ctx: &egui::Context, d: &displays::Display, clicks: &[(egui::Rect, widgets::ClickAction)]) {
+    fn click_through(&mut self, ctx: &egui::Context, d: &displays::Display, clicks: &[(egui::Rect, widgets::ClickAction)], title: &str) {
         let vid = ctx.viewport_id();
         let mut over = false;
         if !self.editing && !clicks.is_empty() {
@@ -635,9 +665,8 @@ impl App {
             self.passthrough.insert(vid, want);
             ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(want));
         }
-        let title = if d.primary { PRIMARY_TITLE.to_string() } else { overlay_title(d) };
         let no_activate = !self.editing;
-        if self.no_activate.get(&vid) != Some(&no_activate) && displays::set_no_activate(&title, no_activate) {
+        if self.no_activate.get(&vid) != Some(&no_activate) && displays::set_no_activate(title, no_activate) {
             self.no_activate.insert(vid, no_activate);
         }
     }
@@ -654,7 +683,8 @@ impl App {
     }
 
     /// "Layout: Night", fading in and out near the top for a moment (`.layout-toast`).
-    fn layout_toast(&mut self, ctx: &egui::Context, th: &theme::Theme, now: f64) {
+    /// `top` is where the toast's band starts (0.18 down a full-screen window; the top of its own window).
+    fn layout_toast(&mut self, ctx: &egui::Context, th: &theme::Theme, now: f64, screen: Rect, top: f32) {
         let Some((name, at)) = self.toast.clone() else { return };
         let t = ((now - at) / TOAST_S) as f32;
         if !(0.0..1.0).contains(&t) {
@@ -662,14 +692,13 @@ impl App {
             return;
         }
         let opacity = toast_opacity(t);
-        let screen = ctx.content_rect();
         let p = ctx.layer_painter(LayerId::new(Order::Tooltip, Id::unique("tenths-layout-toast")));
         let font_regular = th.medium(17.0);
         let font_bold = th.bold(17.0);
         let (a, b) = ("Layout: ", name.as_str());
         let (wa, wb) = (kit::width(&p, a, font_regular.clone()), kit::width(&p, b, font_bold.clone()));
         let rect = Rect::from_center_size(
-            Pos2::new(screen.center().x, screen.top() + screen.height() * 0.18 + 20.0 + (1.0 - (t / 0.1).min(1.0)) * 6.0),
+            Pos2::new(screen.center().x, top + 20.0 + (1.0 - (t / 0.1).min(1.0)) * 6.0),
             Vec2::new(wa + wb + 36.0, 40.0),
         );
         let fade = |c: Color32| c.gamma_multiply(opacity);

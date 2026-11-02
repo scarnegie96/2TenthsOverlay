@@ -97,6 +97,17 @@ pub struct Frame<'a> {
     pub clicks: &'a mut Vec<(Rect, ClickAction)>,
 }
 
+/// What `Layout::draw_panel` needs.
+pub struct PanelFrame<'a> {
+    pub ctx: &'a egui::Context,
+    pub store: &'a Store,
+    pub th: &'a Theme,
+    pub live: &'a Live,
+    pub ratings: &'a Ratings,
+    pub units: crate::config::Units,
+    pub now: f64,
+}
+
 impl Default for Layout {
     fn default() -> Self {
         Self::new()
@@ -117,6 +128,39 @@ impl Layout {
         for s in &mut self.slots {
             s.widget.observe(live, now);
         }
+    }
+
+    /// Per-panel windows (not editing): draws widget `idx` at the origin of its own
+    /// window, scaled, and returns its unscaled size (zero when it draws nothing)
+    /// and the clickable parts in window points.
+    pub fn draw_panel(&mut self, idx: usize, f: PanelFrame) -> (Vec2, Vec<(Rect, ClickAction)>) {
+        let PanelFrame { ctx, store, th, live, ratings, units, now } = f;
+        let slot = &mut self.slots[idx];
+        let cfg = store.config.widget(slot.meta.id).clone();
+        let hover = ctx.input(|i| i.pointer.hover_pos());
+        let prev = Some(Rect::from_min_size(Pos2::ZERO, slot.natural * cfg.scale));
+        let paint = Paint { ctx, th, store, live, ratings, units, editing: false, now, hover };
+        let (size, clicks, layer) = paint_slot(slot, &paint, &cfg, prev);
+        slot.natural = size;
+        slot.rect = None;
+        if size.x <= 0.0 || size.y <= 0.0 {
+            return (Vec2::ZERO, Vec::new());
+        }
+        ctx.transform_layer_shapes(layer, TSTransform::new(Vec2::ZERO, cfg.scale));
+        let clicks = clicks.into_iter().map(|c| (Rect::from_min_size(c.rect.min * cfg.scale, c.rect.size() * cfg.scale), c.action)).collect();
+        (size, clicks)
+    }
+
+    /// Editing is over (or never started): forget any drag or guides.
+    pub fn stop_editing(&mut self) {
+        self.drag = None;
+        self.guides.clear();
+        self.leaving = None;
+    }
+
+    /// The unscaled size widget `idx` had when last drawn.
+    pub fn natural(&self, idx: usize) -> Vec2 {
+        self.slots[idx].natural
     }
 
     /// Where the widget is in the window of display `key` (None if it isn't there).
@@ -154,71 +198,8 @@ impl Layout {
             if !show || !cfg.enabled {
                 continue;
             }
-            let clicks = RefCell::new(Vec::new());
-            let layer = LayerId::new(Order::Middle, Id::unique(("tenths-widget", slot.meta.id)));
-            let mut painter = Painter::new(ctx.clone(), layer, Rect::EVERYTHING);
-            painter.set_opacity(if editing { cfg.opacity.max(0.85) } else { cfg.opacity });
-
-            // A failed widget is tried again when its settings change, or after a while.
-            let fingerprint = format!("{:?}", cfg.options);
-            if let Some((_, at, fp)) = &slot.error {
-                if *fp != fingerprint || now - at > RETRY_S {
-                    slot.error = None;
-                }
-            }
-            let size = if let Some((msg, _, _)) = &slot.error {
-                if editing {
-                    kit::error_note(&painter, th, slot.meta.name, msg)
-                } else {
-                    Vec2::ZERO
-                }
-            } else {
-                let cx = Ctx {
-                    th,
-                    o: Opts::new(&store.config, slot.meta.id),
-                    general: &store.config.general,
-                    cfg: &store.config,
-                    units,
-                    live,
-                    ratings,
-                    editing,
-                    now,
-                    ctx,
-                    clicks: &clicks,
-                    pointer: hover.zip(prev_rect).map(|(h, r)| ((h - r.min) / cfg.scale).to_pos2()),
-                };
-                let widget = &mut slot.widget;
-                let first = ctx.graphics_mut(|g| g.entry(layer).next_idx().0);
-                // TENTHS_EGUI_FAIL=<id> makes that widget fail, to check this path.
-                let fail = std::env::var("TENTHS_EGUI_FAIL").is_ok_and(|v| v == slot.meta.id);
-                match catch_unwind(AssertUnwindSafe(|| {
-                    let size = widget.draw(&painter, &cx);
-                    if fail {
-                        panic!("failing on purpose (TENTHS_EGUI_FAIL)");
-                    }
-                    size
-                })) {
-                    Ok(size) => size,
-                    Err(e) => {
-                        let msg = e
-                            .downcast_ref::<&str>()
-                            .map(|s| s.to_string())
-                            .or_else(|| e.downcast_ref::<String>().cloned())
-                            .unwrap_or_else(|| "it stopped unexpectedly".into());
-                        eprintln!("[tenths-egui] the {} widget failed: {msg}", slot.meta.id);
-                        // Drop whatever it drew before failing.
-                        ctx.graphics_mut(|g| {
-                            let list = g.entry(layer);
-                            for i in first..list.next_idx().0 {
-                                list.reset_shape(egui::layers::ShapeIdx(i));
-                            }
-                        });
-                        let size = if editing { kit::error_note(&painter, th, slot.meta.name, &msg) } else { Vec2::ZERO };
-                        slot.error = Some((msg, now, fingerprint));
-                        size
-                    }
-                }
-            };
+            let paint = Paint { ctx, th, store, live, ratings, units, editing, now, hover };
+            let (size, clicks, layer) = paint_slot(slot, &paint, &cfg, prev_rect);
             slot.natural = size;
             if size.x <= 0.0 || size.y <= 0.0 {
                 continue;
@@ -235,7 +216,7 @@ impl Layout {
             ctx.transform_layer_shapes(layer, TSTransform::new(pos.to_vec2(), scale));
             slot.rect = Some(Rect::from_min_size(pos, size * scale));
             if !editing {
-                for c in clicks.into_inner() {
+                for c in clicks {
                     clicks_out.push((Rect::from_min_size(pos + c.rect.min.to_vec2() * scale, c.rect.size() * scale), c.action));
                 }
             }
@@ -496,6 +477,91 @@ impl Layout {
             kit::fill(&p, Self::handle_rect(r), 3.0, th.attention);
         }
     }
+}
+
+/// What a widget is drawn from (the same for every widget in a frame).
+struct Paint<'a> {
+    ctx: &'a egui::Context,
+    th: &'a Theme,
+    store: &'a Store,
+    live: &'a Live,
+    ratings: &'a Ratings,
+    units: crate::config::Units,
+    editing: bool,
+    now: f64,
+    hover: Option<Pos2>,
+}
+
+/// Draws one widget at its own origin on its own layer (unscaled, untransformed),
+/// catching a panic. Returns its size, the clickable parts and the layer.
+fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, prev_rect: Option<Rect>) -> (Vec2, Vec<widgets::Click>, LayerId) {
+    let Paint { ctx, th, store, live, ratings, units, editing, now, hover } = *paint;
+    let clicks = RefCell::new(Vec::new());
+    let layer = LayerId::new(Order::Middle, Id::unique(("tenths-widget", slot.meta.id)));
+    let mut painter = Painter::new(ctx.clone(), layer, Rect::EVERYTHING);
+    painter.set_opacity(if editing { cfg.opacity.max(0.85) } else { cfg.opacity });
+
+    // A failed widget is tried again when its settings change, or after a while.
+    let fingerprint = format!("{:?}", cfg.options);
+    if let Some((_, at, fp)) = &slot.error {
+        if *fp != fingerprint || now - at > RETRY_S {
+            slot.error = None;
+        }
+    }
+    let size = if let Some((msg, _, _)) = &slot.error {
+        if editing {
+            kit::error_note(&painter, th, slot.meta.name, msg)
+        } else {
+            Vec2::ZERO
+        }
+    } else {
+        let cx = Ctx {
+            th,
+            o: Opts::new(&store.config, slot.meta.id),
+            general: &store.config.general,
+            cfg: &store.config,
+            units,
+            live,
+            ratings,
+            editing,
+            now,
+            ctx,
+            clicks: &clicks,
+            pointer: hover.zip(prev_rect).map(|(h, r)| ((h - r.min) / cfg.scale).to_pos2()),
+        };
+        let widget = &mut slot.widget;
+        let first = ctx.graphics_mut(|g| g.entry(layer).next_idx().0);
+        // TENTHS_EGUI_FAIL=<id> makes that widget fail, to check this path.
+        let fail = std::env::var("TENTHS_EGUI_FAIL").is_ok_and(|v| v == slot.meta.id);
+        match catch_unwind(AssertUnwindSafe(|| {
+            let size = widget.draw(&painter, &cx);
+            if fail {
+                panic!("failing on purpose (TENTHS_EGUI_FAIL)");
+            }
+            size
+        })) {
+            Ok(size) => size,
+            Err(e) => {
+                let msg = e
+                    .downcast_ref::<&str>()
+                    .map(|s| s.to_string())
+                    .or_else(|| e.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "it stopped unexpectedly".into());
+                eprintln!("[tenths-egui] the {} widget failed: {msg}", slot.meta.id);
+                // Drop whatever it drew before failing.
+                ctx.graphics_mut(|g| {
+                    let list = g.entry(layer);
+                    for i in first..list.next_idx().0 {
+                        list.reset_shape(egui::layers::ShapeIdx(i));
+                    }
+                });
+                let size = if editing { kit::error_note(&painter, th, slot.meta.name, &msg) } else { Vec2::ZERO };
+                slot.error = Some((msg, now, fingerprint));
+                size
+            }
+        }
+    };
+    (size, clicks.into_inner(), layer)
 }
 
 impl Slot {
