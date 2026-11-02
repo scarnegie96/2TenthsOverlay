@@ -195,6 +195,8 @@ pub enum SourceKind {
     None,
     Iracing,
     Demo,
+    /// An .ibt file played back (`--replay`).
+    Replay,
 }
 
 #[derive(Debug, Clone, Serialize)]

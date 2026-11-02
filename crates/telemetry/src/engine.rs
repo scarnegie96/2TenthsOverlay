@@ -473,6 +473,16 @@ impl Engine {
 
     fn standings(&self, f: &RawFrame, s: &SessionInfo) -> Vec<StandingRow> {
         let race = self.is_race(f.session_num);
+        // Outside a race iRacing ranks nobody (position 0 for every car) and a recording
+        // has only your own car, so the order, laps and lap times come from the session's
+        // results table, with the live numbers taking over wherever they exist.
+        let merged;
+        let f = if race {
+            f
+        } else {
+            merged = with_results(f, s);
+            &merged
+        };
         let p = f.player_car_idx;
 
         let entrants: Vec<&DriverInfo> = s
@@ -504,6 +514,10 @@ impl Engine {
                 }
             })
             .collect();
+
+        if !race {
+            rank_by_best_lap(&mut rows);
+        }
 
         // Unclassified cars (position 0) go to the back, ordered by best lap.
         rows.sort_by(|a, b| {
@@ -545,6 +559,49 @@ impl Engine {
             class_prev.insert(class, idx);
         }
         rows
+    }
+}
+
+/// `f` with each car's laps, best and last lap filled in from the session's results
+/// table where the live per-car numbers are missing (a recording) or behind.
+fn with_results(f: &RawFrame, s: &SessionInfo) -> RawFrame {
+    let mut m = f.clone();
+    let Some(def) = s.session(f.session_num) else { return m };
+    for r in &def.results {
+        let Some(i) = usize::try_from(r.car_idx).ok().filter(|&i| i < MAX_CARS) else { continue };
+        if m.car_best_lap.get(i).is_some_and(|&t| t <= 0.0) {
+            m.car_best_lap[i] = r.fastest.unwrap_or(-1.0);
+        }
+        if m.car_last_lap.get(i).is_some_and(|&t| t <= 0.0) {
+            m.car_last_lap[i] = r.last.unwrap_or(-1.0);
+        }
+        if let Some(laps) = m.car_lap_completed.get_mut(i) {
+            *laps = (*laps).max(r.laps_complete);
+        }
+    }
+    m
+}
+
+/// Practice and qualifying order: fastest lap first, in the field and within each
+/// class. Cars without a time yet come after, most laps first, and stay unplaced (0).
+fn rank_by_best_lap(rows: &mut [StandingRow]) {
+    rows.sort_by(|a, b| match (a.laps.best_lap, b.laps.best_lap) {
+        (Some(x), Some(y)) => x.total_cmp(&y),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => b.lap.cmp(&a.lap),
+    });
+    let mut in_class: HashMap<i32, i32> = HashMap::new();
+    let mut place = 0;
+    for r in rows.iter_mut() {
+        if r.laps.best_lap.is_some() {
+            place += 1;
+            let c = in_class.entry(r.driver.class_id).or_insert(0);
+            *c += 1;
+            (r.position, r.class_position) = (place, *c);
+        } else {
+            (r.position, r.class_position) = (0, 0);
+        }
     }
 }
 
@@ -1077,6 +1134,85 @@ mod tests {
                 .collect(),
             ..Default::default()
         }
+    }
+
+    /// Cars 0..=2 in class 1 and car 3 in class 2, in a session of the given type with these results.
+    fn session_with_results(kind: &str, results: Vec<crate::session::CarResult>) -> SessionInfo {
+        SessionInfo {
+            player_car_idx: 0,
+            drivers: (0..4)
+                .map(|i| DriverInfo { car_idx: i, class_id: if i == 3 { 2 } else { 1 }, class_color: "#fff".into(), ..Default::default() })
+                .collect(),
+            sessions: vec![crate::session::SessionDef { num: 0, session_type: kind.into(), results, ..Default::default() }],
+            ..Default::default()
+        }
+    }
+
+    fn result(car_idx: i32, laps_complete: i32, fastest: Option<f32>, last: Option<f32>) -> crate::session::CarResult {
+        crate::session::CarResult { car_idx, laps_complete, fastest, last }
+    }
+
+    fn practice_rows(f: &RawFrame, s: &SessionInfo) -> Vec<StandingRow> {
+        let mut e = Engine::new();
+        e.set_session(s.clone());
+        e.standings(f, s)
+    }
+
+    #[test]
+    fn practice_standings_rank_by_best_lap_from_the_results_table() {
+        let s = session_with_results(
+            "Practice",
+            vec![
+                result(0, 5, Some(90.5), Some(91.0)),
+                result(1, 7, Some(90.2), Some(90.4)),
+                result(2, 2, None, None),
+                result(3, 3, Some(95.0), Some(96.1)),
+            ],
+        );
+        // iRacing's own positions are all 0 in practice.
+        let rows = practice_rows(&RawFrame::with_capacity(), &s);
+        let order: Vec<i32> = rows.iter().map(|r| r.driver.car_idx).collect();
+        assert_eq!(order, vec![1, 0, 3, 2], "fastest first, the car with no time last");
+        assert_eq!(rows.iter().map(|r| r.position).collect::<Vec<_>>(), vec![1, 2, 3, 0]);
+        // Class position counts within the class: car 3 leads class 2.
+        assert_eq!(rows.iter().map(|r| r.class_position).collect::<Vec<_>>(), vec![1, 2, 1, 0]);
+        let by = |i: i32| rows.iter().find(|r| r.driver.car_idx == i).unwrap();
+        assert_eq!(by(1).gap, None, "the class leader has no gap");
+        assert!((by(0).gap.unwrap() - 0.3).abs() < 1e-3, "{:?}", by(0).gap);
+        assert!((by(0).interval.unwrap() - 0.3).abs() < 1e-3);
+        assert_eq!(by(3).gap, None, "car 3 leads its own class");
+        assert_eq!((by(0).lap, by(1).lap, by(2).lap), (5, 7, 2), "laps from the results");
+        assert_eq!(by(0).laps.last_lap, Some(91.0));
+        assert_eq!(by(0).laps.best_lap, Some(90.5));
+        assert!(by(1).laps.class_fastest && !by(0).laps.class_fastest);
+    }
+
+    #[test]
+    fn live_lap_data_beats_the_results_table() {
+        let s = session_with_results("Practice", vec![result(0, 5, Some(90.5), Some(91.0)), result(1, 7, Some(90.2), Some(90.4))]);
+        let mut f = RawFrame::with_capacity();
+        // Car 0 has just gone quicker than the table knows, and has done a lap more.
+        f.car_best_lap[0] = 89.9;
+        f.car_last_lap[0] = 89.9;
+        f.car_lap_completed[0] = 6;
+        let rows = practice_rows(&f, &s);
+        assert_eq!(rows[0].driver.car_idx, 0);
+        assert_eq!(rows[0].lap, 6);
+        assert!((rows[1].gap.unwrap() - 0.3).abs() < 1e-3, "{:?}", rows[1].gap);
+    }
+
+    #[test]
+    fn race_standings_keep_iracings_positions() {
+        let s = session_with_results("Race", vec![result(0, 5, Some(90.5), None), result(1, 7, Some(90.2), None)]);
+        let mut f = RawFrame::with_capacity();
+        f.car_position[0] = 1;
+        f.car_position[1] = 2;
+        f.car_class_position[0] = 1;
+        f.car_class_position[1] = 2;
+        let rows = practice_rows(&f, &s);
+        // Car 1 has the quicker lap but car 0 is ahead on the road: a race isn't ranked by best lap.
+        assert_eq!(rows[0].driver.car_idx, 0);
+        assert_eq!(rows[0].laps.best_lap, None, "and the results table isn't used in a race");
     }
 
     #[test]

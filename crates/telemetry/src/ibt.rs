@@ -20,6 +20,7 @@ use crate::vars::{self, VarHeader, VarType, VAR_HEADER_SIZE};
 
 const HEADER_SIZE: usize = 112;
 const SUB_HEADER_SIZE: usize = 32;
+const H_TICK_RATE: usize = 8;
 const H_SESSION_INFO_LEN: usize = 16;
 const H_SESSION_INFO_OFFSET: usize = 20;
 const H_NUM_VARS: usize = 24;
@@ -99,6 +100,25 @@ impl IbtFile {
 
     pub fn session(&self) -> Option<SessionInfo> {
         session::parse(&self.yaml).ok()
+    }
+
+    /// The session info YAML as stored in the file (its state at the end of the recording).
+    pub fn session_yaml(&self) -> &str {
+        &self.yaml
+    }
+
+    /// Samples a second the file was recorded at (iRacing's `tickRate`; 60 unless the header says otherwise).
+    pub fn tick_rate(&self) -> f64 {
+        vars::le_i32(&self.bytes, H_TICK_RATE).filter(|&r| (1..=1000).contains(&r)).unwrap_or(60) as f64
+    }
+
+    /// The variables the file recorded, and sample `i`'s bytes: what `replay` maps into frames.
+    pub(crate) fn vars(&self) -> &HashMap<String, VarHeader> {
+        &self.vars
+    }
+
+    pub(crate) fn row_bytes(&self, i: usize) -> Option<&[u8]> {
+        (i < self.rows).then(|| self.row(i))
     }
 
     /// Number of samples in the file.
@@ -261,11 +281,18 @@ fn finish(lap: i32, s: &[(f64, RefSample)], next: (f32, f64), dirty: bool) -> Op
 /// Writes a minimal .ibt. Used by tests and the `make_ibt` example so the
 /// import path can be exercised without iRacing.
 pub fn write(yaml: &str, columns: &[(&str, VarType)], rows: &[Vec<f64>]) -> Vec<u8> {
+    let counted: Vec<(&str, VarType, usize)> = columns.iter().map(|&(n, t)| (n, t, 1)).collect();
+    write_arrays(yaml, &counted, rows)
+}
+
+/// `write` for columns that hold several values (iRacing's `CarIdx*` arrays have 64).
+/// A row lists each column's values in order, `count` of them per column.
+pub fn write_arrays(yaml: &str, columns: &[(&str, VarType, usize)], rows: &[Vec<f64>]) -> Vec<u8> {
     let mut offsets = Vec::new();
     let mut row_len = 0;
-    for (_, ty) in columns {
+    for (_, ty, count) in columns {
         offsets.push(row_len);
-        row_len += ty.size();
+        row_len += ty.size() * count;
     }
     let var_off = HEADER_SIZE + SUB_HEADER_SIZE;
     let yaml_off = var_off + columns.len() * VAR_HEADER_SIZE;
@@ -286,24 +313,28 @@ pub fn write(yaml: &str, columns: &[(&str, VarType)], rows: &[Vec<f64>]) -> Vec<
     put(H_BUF0_OFFSET, data_off as i32);
     put(SUB_RECORD_COUNT, rows.len() as i32);
 
-    for (k, (name, ty)) in columns.iter().enumerate() {
+    for (k, (name, ty, count)) in columns.iter().enumerate() {
         let at = var_off + k * VAR_HEADER_SIZE;
         out[at..at + 4].copy_from_slice(&ty.to_raw().to_le_bytes());
         out[at + 4..at + 8].copy_from_slice(&(offsets[k] as i32).to_le_bytes());
-        out[at + 8..at + 12].copy_from_slice(&1i32.to_le_bytes());
+        out[at + 8..at + 12].copy_from_slice(&(*count as i32).to_le_bytes());
         out[at + 16..at + 16 + name.len()].copy_from_slice(name.as_bytes());
     }
     out[yaml_off..yaml_off + yaml_bytes.len()].copy_from_slice(&yaml_bytes);
 
     for row in rows {
-        for (k, (_, ty)) in columns.iter().enumerate() {
-            let v = row.get(k).copied().unwrap_or(0.0);
-            match ty {
-                VarType::Char | VarType::Bool => out.push(v as u8),
-                VarType::Int => out.extend_from_slice(&(v as i32).to_le_bytes()),
-                VarType::BitField => out.extend_from_slice(&(v as u32).to_le_bytes()),
-                VarType::Float => out.extend_from_slice(&(v as f32).to_le_bytes()),
-                VarType::Double => out.extend_from_slice(&v.to_le_bytes()),
+        let mut next = 0;
+        for (_, ty, count) in columns {
+            for _ in 0..*count {
+                let v = row.get(next).copied().unwrap_or(0.0);
+                next += 1;
+                match ty {
+                    VarType::Char | VarType::Bool => out.push(v as u8),
+                    VarType::Int => out.extend_from_slice(&(v as i32).to_le_bytes()),
+                    VarType::BitField => out.extend_from_slice(&(v as u32).to_le_bytes()),
+                    VarType::Float => out.extend_from_slice(&(v as f32).to_le_bytes()),
+                    VarType::Double => out.extend_from_slice(&v.to_le_bytes()),
+                }
             }
         }
     }

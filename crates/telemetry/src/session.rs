@@ -39,6 +39,19 @@ pub struct SessionDef {
     pub laps: Option<i32>,
     /// Seconds; None when unlimited.
     pub time: Option<f64>,
+    /// The session's results table (`ResultsPositions`): iRacing keeps it up to
+    /// date while the session runs. Practice standings are built from it.
+    pub results: Vec<CarResult>,
+}
+
+/// One car's line in a session's results.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CarResult {
+    pub car_idx: i32,
+    pub laps_complete: i32,
+    /// Fastest lap, seconds; None until the car has one.
+    pub fastest: Option<f32>,
+    pub last: Option<f32>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -180,6 +193,23 @@ pub fn parse(yaml: &str) -> Result<SessionInfo, serde_yaml::Error> {
                     session_type: text(&s["SessionType"]),
                     laps: int(&s["SessionLaps"]),
                     time: float(&s["SessionTime"]),
+                    results: s["ResultsPositions"]
+                        .as_sequence()
+                        .map(|rows| {
+                            rows.iter()
+                                .filter_map(|r| {
+                                    // -1 stands for "no lap yet".
+                                    let lap = |v: &Value| float(v).filter(|t| *t > 0.0).map(|t| t as f32);
+                                    Some(CarResult {
+                                        car_idx: int(&r["CarIdx"])?,
+                                        laps_complete: int(&r["LapsComplete"]).unwrap_or(0).max(0),
+                                        fastest: lap(&r["FastestTime"]),
+                                        last: lap(&r["LastTime"]),
+                                    })
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 })
                 .collect()
         })
@@ -316,6 +346,19 @@ fn color(v: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_results_table() {
+        let yaml = "---\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionType: Practice\n   ResultsPositions:\n   - Position: 1\n     ClassPosition: 0\n     CarIdx: 3\n     FastestTime: 52.7190\n     LastTime: 52.8859\n     LapsComplete: 20\n   - Position: 2\n     CarIdx: 6\n     FastestTime: -1.0000\n     LastTime: -1.0000\n     LapsComplete: 0\n - SessionNum: 1\n   SessionType: Race\n   ResultsPositions:\n";
+        let info = parse(yaml).unwrap();
+        let practice = info.session(0).unwrap();
+        assert_eq!(practice.results.len(), 2);
+        assert_eq!(practice.results[0], CarResult { car_idx: 3, laps_complete: 20, fastest: Some(52.719), last: Some(52.8859) });
+        // -1 means no lap yet.
+        assert_eq!(practice.results[1], CarResult { car_idx: 6, laps_complete: 0, fastest: None, last: None });
+        // An empty table (iRacing writes the key with nothing under it) is fine.
+        assert!(info.session(1).unwrap().results.is_empty());
+    }
 
     const SAMPLE: &str = r#"---
 WeekendInfo:

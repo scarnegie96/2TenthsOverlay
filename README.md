@@ -1,10 +1,17 @@
 # Tenths (porting to Rust + eGui - development pausing for the next day or so)
 
-iRacing overlays you own. Tenths is a Tauri 2 app for Windows that reads the
-iRacing SDK directly and draws a set of configurable widgets over the sim: no
+iRacing overlays you own. Tenths is a native Windows app, written in Rust and
+drawn with [egui](https://github.com/emilk/egui), that reads the iRacing SDK
+directly and draws a set of configurable widgets over the sim: no
 subscriptions, no third-party services, and every line of it is yours to change.
 
-Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. This tool is currently a webapp but I am transitioning it to Rust and eGUI experimentally.
+It runs as one small program (about 120 MB with every widget on), with each
+widget in its own small window over the game, so iRacing gives up as little
+as possible to it. The previous version, a Tauri app with the widgets drawn as
+web pages, is kept in [`archive/tauri/`](archive/tauri) and on the
+`archive/tauri` branch.
+
+Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. 
 
 ![Every Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
 
@@ -31,9 +38,6 @@ wherever you like.
 - **19 widgets**: timing tables, a battle view of the cars around you, a race pace chart, everyone's stints, a lap
   delta graph, a lap log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
   weather, a radar, an LED flag board and (experimental) Twitch chat. Each one has its own options.
-- **Streaming (experimental)**: every widget as a transparent web page for an OBS
-  Browser Source, fed live by the app, so your stream shows them without screen
-  capture.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
   litres more or less, or let auto fuel keep it at enough to finish), tires, fast repair and a tear-off for your next stop
   without opening iRacing's pit menu, and see what iRacing has ticked.
@@ -65,12 +69,12 @@ wherever you like.
   penalty).
 - **Rate drivers**: after the chequered flag, give other drivers a thumbs up or
   down; a small thumb shows by their name in later races.
-- **Updates itself**: Tenths checks for a new release and, when you say so,
-  downloads it, checks its signature and installs it (Settings → About).
 - **Click-through**: the overlay never takes the mouse from iRacing, except
   while you're editing the layout or over the rating thumbs after a race.
 - **A demo race** with 21 cars in three classes, so you can set everything up
   without iRacing running.
+- **Light on the sim**: native drawing in one process, a small window per
+  widget, and a redraw rate you can lower (`--fps`).
 
 ## Widgets
 
@@ -446,7 +450,7 @@ A Twitch channel's live chat, so you can read it without leaving the car. Set
 your channel name (or paste its twitch.tv link) in the widget's settings. No
 login is needed: Tenths reads chat the way anyone watching can, and can't post.
 Newest messages are at the bottom, with names in their Twitch colours and
-emotes as pictures. Messages hide after a minute by default, so the panel goes
+emotes as pictures (if one can't be loaded, its name shows instead). Messages hide after a minute by default, so the panel goes
 quiet when chat does, and anything a moderator deletes (or a timed-out user's
 messages) disappears here too. The dot by the channel is green when connected.
 Off by default.
@@ -489,51 +493,53 @@ they're yours to keep, share or delete.
 
 ![A race report](docs/settings/races.png)
 
-![Race report: gap to the class leader](docs/settings/races-gap.png)
+## Streaming
 
-## Streaming (experimental)
+For OBS, Tenths can open a **stream window**: an ordinary window called
+"Tenths stream" that draws your widgets where your layout has them, on a plain
+background, with the same theme, options and opacity as on screen. OBS captures
+that window, so you don't capture your screen, and it works while iRacing
+covers it. It's off by default, and costs nothing while it's off.
 
-![Settings: Streaming](docs/settings/streaming.png)
+Turn it on in **Settings → Streaming** or with **Stream window** in the tray
+menu; closing the window turns it off again. There you choose:
 
-Put the widgets on stream without capturing your screen. In **Settings →
-Streaming**, turn on **Serve the widgets to OBS** and Tenths serves each widget
-as a web page with a transparent background and the same live data as the
-overlay. In OBS add a **Browser Source** with one of the addresses listed there:
+- **Background**: green (`#00FF00`) or magenta (`#FF00FF`) to key out, or black or dark grey.
+- **Screen**: on several monitors, which one's layout and size it follows.
+- **Size**: 50, 75 or 100% of that screen.
+- **Widgets**: everything the layout has on that screen, or only the ones you
+  tick (placed where the layout puts them, even a widget you have off on screen).
 
-| Address | Shows |
-| ------- | ----- |
-| `http://127.0.0.1:7457/stream.html?widget=relative` | One widget at the top left; any widget's id works (`standings`, `delta`, `twitch`…). Add `&scale=1.5` to make it bigger |
-| `http://127.0.0.1:7457/stream.html?layout` | Every widget on your main display, where it is on screen. Size the source like the display (1920×1080 for 4K at 200%) |
-| `…?layout&display=2` | The same for display 2 |
+In OBS: add a **Window Capture** source and pick "Tenths stream", set Capture
+Method to "Windows 10 (1903 and up)", then add a **Chroma Key** filter with the
+background colour (a **Color Key** filter for black or grey). Widgets with
+an opacity under 100% blend with the background colour, so key out a colour your
+widgets don't use, or set those widgets to 100%.
 
-Leave "Shutdown source when not visible" off so the page stays connected. The
-pages follow the app's layout, theme and options, and they never take the
-mouse or change anything. The server only listens on `127.0.0.1`, so nothing
-outside your PC can open it; change the port there if another program uses
-7457.
-
-Both are marked experimental in Settings: they're new, so expect rough edges and
-changes.
+The OBS Browser Source pages of the Tauri version (the port in the settings
+file) are not part of this version.
 
 ## The app
 
-Tenths runs in the background with an icon in the system tray. It has two
-windows: the **overlay**, a transparent window over each of your monitors that
-holds the widgets and lets every click through to iRacing, and the **settings**
-window, where everything below is set. Settings apply as soon as you change
+Tenths runs in the background with an icon in the system tray. Each widget
+is its own small transparent window over the game that lets every click
+through to iRacing; while you edit the layout, each monitor gets one
+full-screen overlay instead, for dragging. The **settings** window is where
+everything below is set. Settings apply as soon as you change
 them; there's no Save button.
 
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
-with its current key), Check for updates (Update to … when there's one), and
-Quit Tenths. Closing the settings window only hides
+with its current key), Stream window (on or off), Check for updates (it says
+"Update to 0.5.1…" once a newer version is found) and Quit Tenths. Starting Tenths again while it's
+running opens its settings window. Closing the settings window only hides
 it; Tenths keeps running until you quit it from the tray.
 
 Along the top of the settings window are the connection status (Waiting for
 iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
 **Edit layout**. Down the side are the General, Races, Layouts, Appearance, Controls,
-Streaming and About pages (About has the version and updates, with a dot when there's
-a new one), then a page for each widget with a dot showing whether it's on.
+Streaming and About pages, then a page for each widget with a dot showing
+whether it's on.
 
 ### General
 
@@ -644,6 +650,21 @@ Each widget has its own page, opening with what it shows:
 The Delta page also has **Reference lap and coaching**, for importing the lap
 the Delta, Coach and Inputs widgets compare you with (see below).
 
+### About and updates
+
+The About page shows the version and checks for a newer one: a little after
+Tenths starts and then every six hours (switch that off with **Check
+automatically**), or when you press **Check now**. When there is one, the page
+lists what's new, About gets a dot in the list, and the tray item changes to
+"Update to x.y.z…". Nothing installs until you press **Update to x.y.z**: Tenths
+downloads the installer, checks its signature against the key the releases are
+signed with (anything that doesn't match is refused), runs it and closes; the
+installer puts the new version in the same place and opens Tenths again. Your
+settings, layouts, laps and reports aren't touched.
+
+Updates come from this project's GitHub releases. If Tenths says it couldn't
+check, the usual reasons are no internet connection or no public release yet.
+
 ## Reference laps
 
 The Delta, Coach and Inputs widgets can compare you with a lap you import
@@ -681,76 +702,60 @@ A reference is only used when its track and layout match the session.
 
 ## Install and run (Windows)
 
-One-time setup:
+**Releases:** download `Tenths_<version>_x64-setup.exe` from the project's
+Releases page and run it. It installs for your user only (no administrator
+rights, in `%LOCALAPPDATA%\Tenths`) with a Start menu shortcut, and appears in
+Windows' Apps list for uninstalling; uninstalling leaves your settings and laps
+alone. If you have a 0.4 (Tauri) version installed, its own **Update** button
+brings you to this one, replacing it in place, and everything you set up
+carries over. The installer takes `/S` (no windows), `/P` (progress only) and
+`/R` (start Tenths afterwards).
 
-1. Install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-   with the "Desktop development with C++" workload.
-2. Install Rust from [rustup.rs](https://rustup.rs) (the default MSVC toolchain).
-3. Install [Node.js](https://nodejs.org) 20 or newer, and [Git](https://git-scm.com).
-4. WebView2 is already on Windows 10/11. If it's missing, install the Evergreen runtime.
-
-Then:
-
-```powershell
-git clone https://github.com/scarnegie96/Tenths-iRacing-Overlay.git
-cd Tenths-iRacing-Overlay
-npm install
-npm run tauri dev      # run with hot reload
-npm run tauri build    # installer in target\release\bundle\nsis\
-```
+There are no releases of this version yet. Until then every push to
+`development` builds it on GitHub: open **Actions → Windows build**, pick the
+latest run and download **tenths-windows** (one file, `tenths.exe`, no
+installer: put it anywhere and run it) or **tenths-installer-unsigned** (the
+installer, to try the install; it isn't signed, so an installed Tenths won't
+take it as an update).
 
 In iRacing, set the display mode to **borderless windowed**. No overlay can draw
 over exclusive fullscreen.
 
-Quit Tenths from its tray icon before running `npm run tauri build`. If a copy
-started from `target\release\tenths.exe` is still open, Windows locks the file
-and the build stops with "Access is denied". Running the installer instead
-puts Tenths in its own folder, so it can stay open while you build.
+It reads and writes the same settings, layouts, laps, ratings and race reports
+as the Tauri version (below), so everything you set up there carries over.
+Don't run both at once: they use the same keys.
 
-### Updates
+| Option | Does |
+| ------ | ---- |
+| `--demo` | The demo race, whatever the setting says |
+| `--edit` | Starts in edit mode |
+| `--settings` | Opens the settings window at the start (`--pane controls` for a page) |
+| `--fps 30` | Redraws at most 30 times a second (default 60, iRacing's rate) |
+| `--vsync` | Waits for the screen refresh before showing each frame |
+| `--fullscreen-overlay` | One full-screen overlay per display instead of a window per widget |
+| `--bench 600` | Prints memory, frame rate and frame time every 10 seconds, then quits after 600 |
 
-Tenths checks GitHub for a new release a little after it starts, then every six
-hours. When there is one, **Settings → About** shows the version and its notes
-(the tray's **Check for updates** item becomes **Update to …**). Nothing
-installs until you click **Update to …**: Tenths downloads the installer,
-checks its signature, closes for a few seconds while it installs, then opens
-again. Your settings, layouts and lap history stay where they are. Automatic
-checks can be switched off on the same page.
+### Building it
 
-Only installers signed with the project's private key are accepted, so an
-update can't be swapped for something else on the way. Copies built on your
-own PC still check and install releases the same way.
+1. Install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+   with the "Desktop development with C++" workload, Rust from
+   [rustup.rs](https://rustup.rs) (the default MSVC toolchain) and [Git](https://git-scm.com).
+2. Then:
 
-### Making a release
+```powershell
+git clone https://github.com/scarnegie96/Tenths-iRacing-Overlay.git
+cd Tenths-iRacing-Overlay
+git switch development
+cargo run --release -p tenths -- --demo     # build and run on the demo race
+cargo build --release -p tenths             # target\release\tenths.exe
+```
 
-Releases are built on GitHub (`.github/workflows/release.yml`), so nothing needs
-building locally, and there's no tag to push.
-
-1. Set the same new version in `package.json`, `src-tauri/Cargo.toml` and
-   `src-tauri/tauri.conf.json`.
-2. Add a section for it at the top of `CHANGELOG.md` (`## 0.4.10` and a few
-   lines): that becomes the release notes Tenths shows when it offers the update.
-3. Push to `main`. When the version in `tauri.conf.json` has no release yet,
-   GitHub Actions builds the installer on Windows, signs it for the updater, and
-   publishes the release with `Tenths_<version>_x64-setup.exe`, its `.sig` and
-   `latest.json`, creating the `v<version>` tag as it does. Running copies of
-   Tenths see it at their next check.
-
-Pushes to `main` that don't change the version build nothing. Pushing a
-`v<version>` tag by hand still works too (its message is used if
-`CHANGELOG.md` has no section for that version), and **Run workflow** in the
-Actions tab releases the version on `main` if it hasn't been yet. The build
-stops early if a pushed tag doesn't match the app version, or if the repo's
-signing setup is missing.
-
-The installer isn't code-signed for Windows (that's a separate, paid
-certificate), so SmartScreen asks people to click **More info → Run anyway**
-the first time they install by hand.
+`cargo build --profile fast -p tenths` builds an optimised copy in seconds
+rather than minutes, for trying changes (`target\fast\tenths.exe`).
 
 ## Using it
 
-The overlay covers every monitor and lets every click pass through to
-iRacing (see [The app](#the-app) for the tray icon and settings window). These
+The widgets let every click pass through to iRacing (see [The app](#the-app) for the tray icon and settings window). These
 are the default keys; change them, or put them on wheel buttons, under
 [Controls](#controls).
 
@@ -803,52 +808,42 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 
 If `config.json` can't be read, Tenths keeps it as
 `config.corrupt-<date>.json`, starts with default settings and says so in
-Settings.
+Settings. These are the same files the Tauri version used.
 
 ## Working on it from a Mac or Linux
 
-The front end runs in a normal browser with a fake 21-car, 3-class race, so you
-can work on widgets anywhere:
+The app builds and runs on Linux too (the Windows-only parts, reading iRacing,
+hotkeys, wheel buttons, the tray and click-through, are left out), always on the
+demo race:
 
 ```bash
-npm install
-npm run dev
+cargo run --profile fast -p tenths -- --edit
+cargo test -p tenths -p telemetry
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Open `http://localhost:1420/overlay.html` and `http://localhost:1420/settings.html`
-side by side. The two tabs stay in sync. On the overlay, `E` edits the layout,
-`L` switches saved layouts and `F` steps through every flag. With the Pit stop
-widget on, `Shift` + `F`, `↑`, `↓`, `T`, `R`, `W` or `X` stand in for its keys. These
-URL parameters help too:
+Handy options for working on it:
 
-| Parameter       | Does |
-| --------------- | ---- |
-| `?speed=6`      | Fast-forwards the fake race |
-| `?warmup=150`   | Races 150 seconds before the first frame, so graphs and traces are full |
-| `?reference`    | Starts with a reference lap loaded, for the Coach and reference inputs |
-| `?flag=16384`   | Starts with a flag out (iRacing's flag bits; 16384 is a caution) |
-| `?theme=light`  | Shows the light theme (`?theme=f1` for Box Box) |
-| `?shot=delta`   | Draws one widget on its own, for screenshots |
-| `?pane=controls` | Opens the settings window on a page (`general`, `layouts`, `appearance`, `controls`, `about` or a widget's id) |
-| `?sample`       | Fills the settings window with a few saved layouts, for screenshots |
-| `?all`          | Turns every widget on, laid out for a 2560×1440 window (the overview screenshots) |
-| `?pits`         | Keeps one GT3 car in the pit lane, so the pit symbol shows |
-| `?displays=2`   | Adds a second display; `&display=2` makes the tab that display's overlay |
-| `?finished`    | You've taken the flag: the Standings shows the thumbs for rating drivers |
-| `?pane=races&report=…` | The Races page shows a real report from the Rust demo (`src/lib/fixtures/demo-report.json`) |
-| `?chat`        | The Twitch chat widget plays a made-up chat instead of connecting |
-| `?offline`     | No session or data, like the app waiting for iRacing (for checking empty widgets) |
-| `?update`      | Settings → About: **Check now** finds a pretend newer version, and installing it shows the progress |
-| `?corrupt`     | Settings shows the notice for a settings file that couldn't be read |
+| Option | Does |
+| ------ | ---- |
+| `--config path.json` | Uses that settings file instead of the real one (and doesn't count as "the app" for the one-copy rule) |
+| `--data-dir dir` | Laps, race reports and the reference lap from there |
+| `--theme light` / `--imperial` | Overrides the theme or units |
+| `--offline` | No data at all, like waiting for iRacing (with `--edit`, every widget's empty state) |
+| `--warmup 555` | Fast-forwards the demo race that many seconds first, so every widget is full |
+| `--shot out.png` | Saves the window as a PNG after 5 seconds (`--shot-after N`) and quits |
+| `--flag 16384` | Keeps a flag on the board (iRacing's flag bits; 16384 is a caution) |
+| `--settings --pane races --report <id>` | The settings window on a page, or a race report |
+| `--press overlay.edit,pit.fuel --press-at 4` | Runs actions as if their keys were pressed |
 
-To regenerate the README screenshots, keep `npm run dev` running and run
-`node scripts/screenshots.mjs`. It uses Edge or Chrome, headless.
+To regenerate every README picture (the overviews, each widget at 200%, and
+the settings pages, all from the demo race), build with
+`cargo build --profile fast -p tenths` and run `python3 tools/screenshots.py` on
+Linux (it uses `xvfb-run`, Pillow, NumPy and SciPy).
 
-The Tauri app builds only on Windows, but the core crate builds anywhere:
+The telemetry core's examples work as before:
 
 ```bash
-cargo test -p telemetry                                    # engine and parser tests
-cargo check -p telemetry --features typecheck-windows      # type-check the Windows SDK reader
 cargo run -p telemetry --example dump                      # print demo-race output as JSON
 cargo run -p telemetry --example radar                     # what the radar sees, once a second
 cargo run -p telemetry --example make_ibt -- demo.ibt      # write a demo .ibt to try importing
@@ -857,54 +852,42 @@ cargo run -p telemetry --example coach_demo                # how often each cue 
 cargo run -p telemetry --example stints_demo               # every demo car's stints and pit loss after 12 minutes
 cargo run -p telemetry --example timed_finish -- race.ibt  # flags and time left at the end of a timed race
 cargo run -p telemetry --example report_demo -- out 12     # race the demo 12 laps, wave the flag, save a report
+cargo run -p telemetry --example compass_check -- race.ibt # check the compass heading against GPS in an .ibt
 ```
-
-Before committing, run `npm run build` (type-checks the front end), `npm run lint`
-and `cargo clippy --workspace --all-targets`. Layout validation, the
-iRating estimate, the incident limits, auto fuel, the battle gaps and the Twitch
-chat parser and the race report maths have their own checks: see the top of
-`scripts/check-config.ts`, `scripts/check-irating.ts`, `scripts/check-incidents.ts`,
-`scripts/check-pit.ts`, `scripts/check-battle.ts`, `scripts/check-twitch.ts` and
-`scripts/check-report.ts`.
 
 ## Project layout
 
 ```
-crates/telemetry/     Pure Rust, no Tauri. Everything about iRacing data.
-  irsdk.rs            Shared-memory reader (our own, about 300 lines)
-  session.rs          Session YAML parser, tolerant of iRacing's quirks
-  engine.rs           Relative gaps, standings, fuel maths, SoF, deltas, optimal lap
-  grid.rs             Starting grid for places gained/lost, and each car's pit or garage status
-  stints.rs           Every car's stints: laps between stops, tyre compound, stops
-  pitloss.rs          Times every pit stop: the session's average loss per class
-  laps.rs             Lap log and personal bests, saved per car and track
-  vars.rs             Variable header parsing shared by live data and .ibt files
-  ibt.rs              .ibt telemetry file reader: finds complete laps
-  blap.rs             iRacing .blap/.olap reader (best/optimal lap files)
-  reference.rs        Imported comparison lap: time, speed, pedals, gear, steering, line
-  coach.rs            Corners from the reference and the live coaching cues
-  dynamics.rs         g-forces, slip, pitch, roll and the understeer/oversteer estimate
-  instruments.rs      Engine warning lights, gauges, low fuel and brake bias
-  pit.rs              Pit commands sent to iRacing, and what's ticked for the next stop
-  demo.rs             Fake 21-car, 3-class race with a scripted battle for the radar
-  runner.rs           Telemetry thread: 60 Hz tick, 10 Hz field
-src-tauri/            Windows, tray, hotkeys, click-through, config file
-  controls.rs         Which key or controller button runs which action
-  controllers.rs      Wheel, button box and gamepad buttons, read with Raw Input
-  profiles.rs         Saved layouts: list, save, import and export
-  updates.rs          Checking for and installing new versions (updater plugin)
-src/
-  lib/                Types, config schema, themes, delta and race histories, weather and pit maths,
-                      bridge to Rust (or browser mock)
-  overlay/            Transparent overlay: drag, snap, resize, screen anchoring
-  widgets/            One file per widget
-  settings/           Settings window
-scripts/              README screenshot generator
-docs/ARCHITECTURE.md  How data flows, the maths behind each widget, adding a widget
+crates/telemetry/     Pure Rust: everything about iRacing data (the reader, the
+                      session parser, every tracker, the demo race, the runner)
+crates/release/       tenths-release: signs the installer and writes latest.json (used by the release workflow)
+app/                  The app (egui)
+  src/main.rs         Windows per display and per widget, edit mode, stats
+  src/frame.rs        Laying out, dragging and snapping widgets; edit chrome
+  src/panels.rs       One small window per widget outside edit mode
+  src/stream.rs       The stream window for OBS
+  src/displays.rs     Monitors, DPI, window placement, click-through
+  src/config.rs       config.json (shared with the Tauri version), watched for changes
+  src/schema.rs       Every widget's options and defaults
+  src/theme.rs        Dark, light and Box Box, and custom colours
+  src/kit.rs          Shared drawing: panels, cells, badges, chips
+  src/widgets/        One file per widget
+  src/logic/          Maths from the web front end, with its checks as tests
+  src/controls/       Hotkeys, wheel and button-box buttons, pit commands, auto fuel
+  src/layouts.rs      Saved layouts
+  src/settings/       The settings window, including the Races page
+  src/shell/          Tray, one copy at a time, file locations
+  src/updates.rs      Looking for, downloading, verifying and starting an update
+  installer/          The NSIS installer script and the script that builds it
+  build.rs            The icon and version information inside tenths.exe
+  TRACKER*.md         What was ported from the Tauri version, item by item
+archive/tauri/        The previous Tauri + React version, as it was
+archive/pyside-port/  A plan for a Python/Qt version (not pursued)
+tools/screenshots.py  README pictures
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how data flows, how each
-number is worked out, and how to add a widget.
+The data flow and the maths behind each number are unchanged from the Tauri
+version: see [archive/tauri/docs/ARCHITECTURE.md](archive/tauri/docs/ARCHITECTURE.md).
 
 ## License
 

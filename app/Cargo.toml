@@ -1,0 +1,65 @@
+[package]
+name = "tenths"
+version = "0.5.0"
+edition = "2021"
+description = "Tenths: an iRacing overlay drawn natively with egui"
+publish = false
+
+[dependencies]
+telemetry = { path = "../crates/telemetry" }
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+egui = "0.37"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# Twitch chat: IRC over a secure WebSocket, and emote images.
+tungstenite = { version = "0.24", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+# Settings window: charts on the Races page, and the file picker for reference laps and layouts.
+egui_plot = "0.38"
+# Local dates and times on the Races and Layouts pages.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Updates (src/updates.rs): the release feed's versions, and its minisign signatures (base64 as in Tauri's latest.json).
+semver = "1"
+base64 = "0.22"
+minisign-verify = "0.3"
+
+[dev-dependencies]
+# The update tests sign with the release tool's own code and key format.
+tenths-release = { path = "../crates/release" }
+minisign = "0.10"
+
+# The file picker: GTK on Linux and the BSDs (the feature does nothing elsewhere), the native
+# panel on macOS (rfd's own AppKit code), the Win32 dialogs on Windows (below).
+[target.'cfg(all(not(windows), not(target_os = "macos")))'.dependencies]
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rfd = { version = "0.17", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+rfd = "0.17"
+tray-icon = { version = "0.25", default-features = false }
+global-hotkey = "0.9"
+# Win32_System_ProcessStatus and _Threading: the stats line. Devices_HumanInterfaceDevice,
+# Security, Storage_FileSystem, LibraryLoader, UI_Input: Raw Input and HID for wheel and button-box
+# buttons (src/controls/controllers.rs). Graphics_Gdi, UI_HiDpi, KeyboardAndMouse, WindowsAndMessaging:
+# the display list, cursor and button state, WS_EX_NOACTIVATE (displays.rs) and hotkeys.
+windows-sys = { version = "0.59", features = [
+  "Win32_Devices_HumanInterfaceDevice",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_LibraryLoader",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Threading",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(windows)'.build-dependencies]
+# build.rs: the icon and version info inside tenths.exe.
+winresource = "0.1"

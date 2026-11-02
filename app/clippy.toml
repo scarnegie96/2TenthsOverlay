@@ -1,0 +1,2 @@
+# Painting helpers take a painter, a theme, a place and what to draw.
+too-many-arguments-threshold = 10

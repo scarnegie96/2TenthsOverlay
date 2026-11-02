@@ -1,0 +1,123 @@
+# ARCHIVED: releases of the previous Tauri app (archive/tauri). The app is now
+# the egui one in app/, which doesn't have releases or an updater yet; this
+# workflow only runs when started by hand from the Actions tab.
+#
+# Builds the Windows installer and publishes a GitHub release. The release
+# carries the installer, its signature and latest.json, which the app's
+# updater reads (archive/tauri/src-tauri/src/updates.rs). Signing uses the repository's
+# TAURI_SIGNING_* secrets.
+#
+# It runs when:
+#   - main gets a new version in archive/tauri/src-tauri/tauri.conf.json: if there's no
+#     release for that version yet, it builds one and GitHub creates the tag
+#     (v0.4.9) as it publishes. Pushes that don't change the version build
+#     nothing.
+#   - a version tag is pushed by hand (git push origin v0.4.9), as before.
+#   - it's started from the Actions tab (Run workflow), for the version on main.
+#
+# Release notes, shown in the app: the "## 0.4.9" section of CHANGELOG.md, or
+# for a tag pushed by hand with no such section, the tag's message.
+
+name: Release (Tauri, archived)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One release at a time, so a main push and a hand-pushed tag for the same
+# version don't both build: the second sees the first's release and stops.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the version, and whether it needs a release
+        id: meta
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          version=$(node -p "require('./archive/tauri/src-tauri/tauri.conf.json').version")
+          tag="v$version"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $version in archive/tauri/src-tauri/tauri.conf.json"
+            exit 1
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists: nothing to build."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pubkey=$(node -p "require('./archive/tauri/src-tauri/tauri.conf.json').plugins.updater.pubkey")
+          if [ -z "$pubkey" ]; then
+            echo "::error::No updater public key in archive/tauri/src-tauri/tauri.conf.json (plugins.updater.pubkey)"
+            exit 1
+          fi
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret isn't set"
+            exit 1
+          fi
+          # Notes: this version's CHANGELOG.md section, else a pushed tag's message.
+          notes=$(awk -v v="$version" '
+            $0 ~ "^## " { if (on) exit; on = ($2 == v) ; next }
+            on { print }' CHANGELOG.md 2>/dev/null | sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}')
+          if [ -z "$notes" ] && [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+            notes=$(git tag -l --format='%(contents)' "$tag")
+          fi
+          [ -z "$notes" ] && notes="Tenths $tag"
+          {
+            echo "skip=false"
+            echo "tag=$tag"
+            echo "notes<<TENTHS_NOTES_END"
+            echo "$notes"
+            echo "TENTHS_NOTES_END"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        if: steps.meta.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: archive/tauri/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.meta.outputs.skip != 'true'
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.meta.outputs.skip != 'true'
+        with:
+          workspaces: "archive/tauri/src-tauri -> target"
+
+      - run: npm ci
+        working-directory: archive/tauri
+        if: steps.meta.outputs.skip != 'true'
+
+      - name: Build, sign and publish
+        if: steps.meta.outputs.skip != 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: archive/tauri
+          # GitHub creates this tag on the built commit if it doesn't exist yet.
+          tagName: ${{ steps.meta.outputs.tag }}
+          releaseCommitish: ${{ github.sha }}
+          releaseName: Tenths ${{ steps.meta.outputs.tag }}
+          releaseBody: ${{ steps.meta.outputs.notes }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --config src-tauri/tauri.release.conf.json

@@ -4,6 +4,21 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.5.0 (in development, no release yet)
+
+- Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with each widget in its own small window over the game. Settings, layouts, laps, ratings and race reports carry over.
+- Twitch chat shows emotes as pictures, inline with the words.
+- OBS streaming is a **stream window** now: Settings → Streaming (or the tray's Stream window) opens a window called "Tenths stream" with your widgets on a green, magenta, black or grey background, for OBS's Window Capture. The Tauri version's web pages for Browser Sources are gone.
+- Every widget, the settings window (including the Races page), hotkeys and wheel buttons, pit commands and auto fuel, several monitors, saved layouts and the tray are ported.
+- Redraws up to 60 times a second (`--fps` to lower it), without waiting for the screen refresh (`--vsync` to).
+- Updates: Settings → About (and the tray) check GitHub for a newer version, show what's new and install it when you press Update. Downloads are checked against the release signing key, the same one the Tauri version used, so a 0.4 install can update straight into this version.
+- A proper installer (`Tenths_<version>_x64-setup.exe`): per user, no administrator rights, in the same folder as before, with a Start menu shortcut and an entry in Apps. Settings, layouts, laps and reports are left alone when installing and uninstalling.
+- `tenths.exe` now has the Tenths icon and version information.
+- Replay: `tenths --replay race.ibt` plays an iRacing telemetry file as if it were the sim, on any platform (`--speed 2` for twice as fast, `--loop` to start over). Your own car's channels always come through; other cars (Relative, Standings, Radar, Stints, Race pace, Battle) only if the file recorded them. `cargo run -p telemetry --example make_replay_ibt` writes a demo-race file to try it with.
+- Standings in practice and qualifying: ranked by best lap, with laps, the gap to the class best (to the thousandth), last and best lap, and no iRating columns. It reads iRacing's session results, which fill in as cars set laps. (Settings → Standings → Show laps.)
+- macOS: the stats line shows memory, and the file picker is the native one. (Builds are for designing layouts and working on the code; iRacing doesn't run there.)
+- The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
+
 ## 0.4.13
 
 - Flags: "Green next lap" and the green flag only show in races; in practice and test sessions the board stays dark until there's a real flag.
