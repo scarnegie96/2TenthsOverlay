@@ -4,6 +4,13 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.5.0 (in development, no release yet)
+
+- Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with each widget in its own small window over the game. Settings, layouts, laps, ratings and race reports carry over.
+- Every widget, the settings window (including the Races page), hotkeys and wheel buttons, pit commands and auto fuel, several monitors, saved layouts and the tray are ported. Not yet: updates, an installer and OBS streaming.
+- Redraws up to 60 times a second (`--fps` to lower it), without waiting for the screen refresh (`--vsync` to).
+- The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
+
 ## 0.4.13
 
 - Flags: "Green next lap" and the green flag only show in races; in practice and test sessions the board stays dark until there's a real flag.

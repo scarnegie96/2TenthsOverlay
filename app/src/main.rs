@@ -67,6 +67,8 @@ struct Args {
     bench: Option<f64>,
     shot: Option<String>,
     shot_after: f64,
+    /// Demo race seconds to fast-forward at the start (`--warmup`), so a screenshot shows a race well under way.
+    warmup: f64,
     /// Actions to run once the app has been up `press_at` seconds (--press).
     press: Vec<String>,
     press_at: f64,
@@ -98,6 +100,7 @@ fn args() -> Args {
         bench: value("--bench").and_then(|v| v.parse().ok()),
         shot: value("--shot"),
         shot_after: value("--shot-after").and_then(|v| v.parse().ok()).unwrap_or(5.0),
+        warmup: value("--warmup").and_then(|v| v.parse().ok()).unwrap_or(0.0),
         press: value("--press").map(|v| v.split(',').map(str::to_string).collect()).unwrap_or_default(),
         press_at: value("--press-at").and_then(|v| v.parse().ok()).unwrap_or(4.0),
         settings: has("--settings"),
@@ -140,13 +143,16 @@ fn main() -> eframe::Result {
         .with_inner_size(if args.fullscreen_overlay || args.edit { [1920.0, 1080.0] } else { [1.0, 1.0] })
         .with_mouse_passthrough(!args.edit);
     println!(
-        "[tenths-egui] overlay: {}",
+        "[tenths] overlay: {}",
         if args.fullscreen_overlay { "one full-screen window per display (--fullscreen-overlay)" } else { "one small window per panel (--fullscreen-overlay for the old way)" }
     );
+    if let Some(bits) = std::env::args().skip_while(|a| a != "--flag").nth(1).and_then(|v| v.parse::<u32>().ok()) {
+        widgets::flags::FORCED.store(bits, std::sync::atomic::Ordering::Relaxed);
+    }
     data::FRAME_MS.store((1000 / args.fps).max(1) as u64, std::sync::atomic::Ordering::Relaxed);
     let glow_options = eframe::egui_glow::GlowConfiguration { vsync: args.vsync, ..Default::default() };
     let options = eframe::NativeOptions { viewport, glow_options, ..Default::default() };
-    eframe::run_native("tenths-egui", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args, listener)))))
+    eframe::run_native("tenths", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args, listener)))))
 }
 
 struct App {
@@ -174,6 +180,8 @@ struct App {
     bench: Option<f64>,
     shot: Option<String>,
     shot_after: f64,
+    /// While the demo fast-forwards (`--warmup`): when to drop back to real time.
+    warmup_until: Option<f64>,
     shot_asked: bool,
     shot_done: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// The display (key) whose widget list is open in its edit bar.
@@ -266,6 +274,7 @@ impl App {
             bench: args.bench,
             shot: args.shot,
             shot_after: args.shot_after,
+            warmup_until: (args.warmup > 0.0).then(|| args.warmup / WARMUP_SPEED as f64),
             shot_asked: false,
             shot_done: Default::default(),
             picker: None,
@@ -294,7 +303,7 @@ impl App {
     /// Puts a saved layout on screen and makes it the active one (edits save into it).
     pub fn switch_layout(&mut self, id: &str) {
         if let Err(e) = self.layouts.switch(&mut self.store, id) {
-            eprintln!("[tenths-egui] couldn't switch layout: {e}");
+            eprintln!("[tenths] couldn't switch layout: {e}");
             self.store.error = Some(e);
         }
     }
@@ -374,6 +383,13 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = &ui.ctx().clone();
         let frame_start = Instant::now();
+        if let Some(until) = self.warmup_until {
+            let speed = if self.started.elapsed().as_secs_f64() < until { WARMUP_SPEED } else { 1 };
+            self.control.demo_speed.store(speed, std::sync::atomic::Ordering::Relaxed);
+            if speed == 1 {
+                self.warmup_until = None;
+            }
+        }
 
         // One overlay window per display; wait until the first one's size is known.
         if !self.refresh_displays(ctx) {
@@ -675,7 +691,7 @@ impl App {
         match action {
             widgets::ClickAction::Rate { user_id, name, rating } => {
                 if let Err(e) = self.ratings.set(user_id, &name, rating) {
-                    eprintln!("[tenths-egui] couldn't save the rating: {e}");
+                    eprintln!("[tenths] couldn't save the rating: {e}");
                     self.store.error = Some(format!("Couldn't save the rating: {e}"));
                 }
             }
@@ -830,7 +846,9 @@ impl App {
     }
 }
 
-const PRIMARY_TITLE: &str = "Tenths (egui)";
+const PRIMARY_TITLE: &str = "Tenths";
+/// How much faster than real time `--warmup` runs the demo race.
+const WARMUP_SPEED: u32 = 10;
 /// Seconds the layout toast is up.
 const TOAST_S: f64 = 1.8;
 

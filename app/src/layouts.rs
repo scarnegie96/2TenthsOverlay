@@ -268,7 +268,7 @@ impl Layouts {
                 self.relist();
             }
             Err(e) => {
-                eprintln!("[tenths-egui] couldn't save layout {id}: {e}");
+                eprintln!("[tenths] couldn't save layout {id}: {e}");
                 self.saved.remove(&id);
                 if !self.dir.as_deref().is_some_and(|d| path(d, &id).is_ok_and(|p| p.exists())) {
                     store.set_active_profile(None);

@@ -1,0 +1,32 @@
+# Builds the app (app/, egui) for Windows on every push to development that
+# touches it, and keeps tenths.exe as a workflow artifact to download and try
+# (Actions → Windows build → the run → Artifacts). Never makes a release.
+name: Windows build
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - "app/**"
+      - "crates/telemetry/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release -p tenths
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tenths-windows
+          path: target/release/tenths.exe
+          retention-days: 30
+      - name: Test
+        run: cargo test --release -p tenths -p telemetry

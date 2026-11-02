@@ -1,6 +1,6 @@
 node_modules
 dist
 target
-src-tauri/gen
+archive/tauri/src-tauri/gen
 *.log
 .DS_Store

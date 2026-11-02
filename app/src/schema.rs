@@ -288,7 +288,7 @@ mod tests {
     /// when the web source is next to it (it always is in this repo).
     #[test]
     fn matches_config_ts() {
-        let Ok(ts) = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../src/lib/config.ts")) else { return };
+        let Ok(ts) = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../archive/tauri/src/lib/config.ts")) else { return };
         for m in WIDGETS {
             assert!(ts.contains(&format!("id: \"{}\"", m.id)), "{} missing in config.ts", m.id);
             for (key, def) in m.options {

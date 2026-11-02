@@ -19,6 +19,11 @@ const HOUSING: Color32 = Color32::from_rgb(0x0a, 0x0c, 0x0f);
 /// Seconds per half of a flash.
 const FLASH: f64 = 0.3;
 
+/// Flag bits always shown on the board (`--flag 16384`, iRacing's bits), as
+/// the old browser preview's `?flag=`: for screenshots of a flag that the demo
+/// race only shows now and then.
+pub static FORCED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
 #[derive(Default)]
 pub struct Flags {
     green: GreenWindow,
@@ -101,7 +106,7 @@ impl Widget for Flags {
     fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2 {
         let th = cx.th;
         let o = cx.o;
-        let flags = cx.live.field.as_ref().map(|f| f.clock.flags).unwrap_or(0);
+        let flags = cx.live.field.as_ref().map(|f| f.clock.flags).unwrap_or(0) | FORCED.load(std::sync::atomic::Ordering::Relaxed);
         let race = cx.live.race();
         let show_green = race && self.green.open(cx.now, o.n("greenSeconds"));
         let board: Option<Board> = board_for(flags, show_green, &sc_text(o.s("scBoard")), race);

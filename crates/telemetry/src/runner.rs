@@ -42,6 +42,10 @@ pub struct RunnerControl {
     pub save_reports: Arc<AtomicBool>,
     /// Pit commands waiting to go to the sim (or the demo).
     pub pit: Arc<Mutex<Vec<PitCommand>>>,
+    /// Runs the demo race this many times faster than real time (0 or 1:
+    /// normal). Every simulated frame still goes through the engine; the sink
+    /// gets the last of each batch. For screenshots that need a race well under way.
+    pub demo_speed: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl RunnerControl {
@@ -190,8 +194,22 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
         let (kind, yaml) = match source.as_mut().expect("source set above") {
             Source::Demo(demo) => {
                 let dt = demo_clock.wait();
+                // Fast-forward: the extra frames go through the engine too, so laps,
+                // stints and pit stops are all recorded; only the last reaches the sink.
+                let speed = control.demo_speed.load(Ordering::Relaxed).max(1);
+                let mut yaml = None;
+                for _ in 1..speed {
+                    frame.clone_from(demo.step(dt));
+                    if let Some(text) = demo.take_session_yaml() {
+                        if let Ok(info) = crate::session::parse(&text) {
+                            engine.set_session(info);
+                        }
+                        yaml = Some(text);
+                    }
+                    engine.tick(&frame);
+                }
                 frame.clone_from(demo.step(dt));
-                (SourceKind::Demo, demo.take_session_yaml())
+                (SourceKind::Demo, demo.take_session_yaml().or(yaml))
             }
             #[cfg(windows)]
             Source::Iracing(ir) => {

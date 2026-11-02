@@ -11,7 +11,7 @@ use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, 
 
 use super::Request;
 
-const ICON_PNG: &[u8] = include_bytes!("../../../src-tauri/icons/64x64.png");
+const ICON_PNG: &[u8] = include_bytes!("../../assets/icons/64x64.png");
 
 pub struct Tray {
     _icon: TrayIcon,

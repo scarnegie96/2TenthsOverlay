@@ -1,12 +1,9 @@
 [package]
-name = "tenths-egui"
-version = "0.1.0"
+name = "tenths"
+version = "0.5.0"
 edition = "2021"
-description = "Prototype: Tenths widgets drawn natively with egui, on the same telemetry core"
+description = "Tenths: an iRacing overlay drawn natively with egui"
 publish = false
-
-# Its own workspace: building or testing this never touches the Tauri app.
-[workspace]
 
 [dependencies]
 telemetry = { path = "../crates/telemetry" }
@@ -48,16 +45,3 @@ windows-sys = { version = "0.59", features = [
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
 ] }
-
-[profile.release]
-lto = true
-codegen-units = 1
-strip = true
-
-# Quick optimised builds for trying changes (release does full LTO and takes minutes).
-#   cargo build --profile fast   ->  target/fast/tenths-egui
-[profile.fast]
-inherits = "release"
-lto = false
-codegen-units = 16
-incremental = true

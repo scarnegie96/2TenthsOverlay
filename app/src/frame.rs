@@ -547,7 +547,7 @@ fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, pr
                     .map(|s| s.to_string())
                     .or_else(|| e.downcast_ref::<String>().cloned())
                     .unwrap_or_else(|| "it stopped unexpectedly".into());
-                eprintln!("[tenths-egui] the {} widget failed: {msg}", slot.meta.id);
+                eprintln!("[tenths] the {} widget failed: {msg}", slot.meta.id);
                 // Drop whatever it drew before failing.
                 ctx.graphics_mut(|g| {
                     let list = g.entry(layer);

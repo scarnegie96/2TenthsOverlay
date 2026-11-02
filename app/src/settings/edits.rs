@@ -211,7 +211,7 @@ impl Editor {
                 }
             }
             Err(e) => {
-                eprintln!("[tenths-egui] couldn't save settings: {e}");
+                eprintln!("[tenths] couldn't save settings: {e}");
                 self.error = Some(format!("Couldn't save: {e}"));
             }
         }
@@ -220,7 +220,7 @@ impl Editor {
     fn save_into_active_layout(&self) {
         let (Some(dir), Some(id)) = (&self.layouts_dir, self.raw["general"]["activeProfile"].as_str()) else { return };
         if let Err(e) = super::layouts_io::save(dir, Some(id), None, self.raw["widgets"].clone()) {
-            eprintln!("[tenths-egui] couldn't update layout {id}: {e}");
+            eprintln!("[tenths] couldn't update layout {id}: {e}");
         }
     }
 }

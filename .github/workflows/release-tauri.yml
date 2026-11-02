@@ -1,10 +1,14 @@
+# ARCHIVED: releases of the previous Tauri app (archive/tauri). The app is now
+# the egui one in app/, which doesn't have releases or an updater yet; this
+# workflow only runs when started by hand from the Actions tab.
+#
 # Builds the Windows installer and publishes a GitHub release. The release
 # carries the installer, its signature and latest.json, which the app's
-# updater reads (src-tauri/src/updates.rs). Signing uses the repository's
+# updater reads (archive/tauri/src-tauri/src/updates.rs). Signing uses the repository's
 # TAURI_SIGNING_* secrets.
 #
 # It runs when:
-#   - main gets a new version in src-tauri/tauri.conf.json: if there's no
+#   - main gets a new version in archive/tauri/src-tauri/tauri.conf.json: if there's no
 #     release for that version yet, it builds one and GitHub creates the tag
 #     (v0.4.9) as it publishes. Pushes that don't change the version build
 #     nothing.
@@ -14,16 +18,9 @@
 # Release notes, shown in the app: the "## 0.4.9" section of CHANGELOG.md, or
 # for a tag pushed by hand with no such section, the tag's message.
 
-name: Release
+name: Release (Tauri, archived)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - src-tauri/tauri.conf.json
-      - CHANGELOG.md
-      - .github/workflows/release.yml
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -50,10 +47,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          version=$(node -p "require('./archive/tauri/src-tauri/tauri.conf.json').version")
           tag="v$version"
           if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $version in src-tauri/tauri.conf.json"
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $version in archive/tauri/src-tauri/tauri.conf.json"
             exit 1
           fi
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -61,9 +58,9 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          pubkey=$(node -p "require('./src-tauri/tauri.conf.json').plugins.updater.pubkey")
+          pubkey=$(node -p "require('./archive/tauri/src-tauri/tauri.conf.json').plugins.updater.pubkey")
           if [ -z "$pubkey" ]; then
-            echo "::error::No updater public key in src-tauri/tauri.conf.json (plugins.updater.pubkey)"
+            echo "::error::No updater public key in archive/tauri/src-tauri/tauri.conf.json (plugins.updater.pubkey)"
             exit 1
           fi
           if [ "$HAS_KEY" != "true" ]; then
@@ -92,6 +89,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: archive/tauri/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         if: steps.meta.outputs.skip != 'true'
@@ -99,9 +97,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         if: steps.meta.outputs.skip != 'true'
         with:
-          workspaces: ". -> target"
+          workspaces: "archive/tauri/src-tauri -> target"
 
       - run: npm ci
+        working-directory: archive/tauri
         if: steps.meta.outputs.skip != 'true'
 
       - name: Build, sign and publish
@@ -112,6 +111,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          projectPath: archive/tauri
           # GitHub creates this tag on the built commit if it doesn't exist yet.
           tagName: ${{ steps.meta.outputs.tag }}
           releaseCommitish: ${{ github.sha }}
