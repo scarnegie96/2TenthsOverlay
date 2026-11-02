@@ -20,6 +20,9 @@ pub struct Tray {
     toggle: MenuId,
     next: MenuId,
     update: MenuId,
+    /// The update item and the text it shows now, so it's only set when it changes.
+    update_item: MenuItem,
+    update_text: std::cell::RefCell<String>,
     quit: MenuId,
     /// Items whose text gets the action's shortcut: `(action id, item, plain text)`.
     shortcut_items: Vec<(&'static str, MenuItem, &'static str)>,
@@ -38,7 +41,7 @@ impl Tray {
         let edit = MenuItem::new("Edit layout", true, None);
         let toggle = MenuItem::new("Show / hide overlays", true, None);
         let next = MenuItem::new("Next layout", true, None);
-        // Relabelled "Update to 0.x.y…" when a check finds one (the updater is not ported yet).
+        // Relabelled "Update to 0.x.y…" when a check finds one (`set_update_text`).
         let update = MenuItem::new("Check for updates", true, None);
         let quit = MenuItem::new("Quit Tenths", true, None);
         let menu = Menu::new();
@@ -57,6 +60,8 @@ impl Tray {
             toggle: toggle.id().clone(),
             next: next.id().clone(),
             update: update.id().clone(),
+            update_item: update,
+            update_text: std::cell::RefCell::new("Check for updates".to_string()),
             quit: quit.id().clone(),
             shortcut_items: vec![
                 ("overlay.edit", edit, "Edit layout"),
@@ -79,7 +84,7 @@ impl Tray {
             } else if *id == self.next {
                 out.push(Request::NextLayout);
             } else if *id == self.update {
-                out.push(Request::OpenAbout);
+                out.push(Request::UpdateItem);
             } else if *id == self.quit {
                 out.push(Request::Quit);
             }
@@ -90,6 +95,13 @@ impl Tray {
             }
         }
         out
+    }
+
+    pub fn set_update_text(&self, text: &str) {
+        if *self.update_text.borrow() != text {
+            self.update_item.set_text(text);
+            *self.update_text.borrow_mut() = text.to_string();
+        }
     }
 
     pub fn set_shortcuts(&self, shortcuts: &[(&str, Option<String>)]) {

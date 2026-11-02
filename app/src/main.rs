@@ -48,6 +48,7 @@ mod shell;
 mod svg;
 mod sys;
 mod theme;
+mod updates;
 mod widgets;
 
 use std::collections::HashMap;
@@ -199,6 +200,9 @@ struct App {
     shell: shell::Shell,
     settings: settings::SettingsWindow,
     tray_synced: bool,
+    /// Looks for newer releases (updates.rs); automatic checks are off for `--offline`, `--demo` and screenshots.
+    updates: updates::Updates,
+    auto_updates: bool,
     /// A window per panel (false: `--fullscreen-overlay`), and their state (panels.rs).
     panel_mode: bool,
     panels: panels::Panels,
@@ -235,6 +239,8 @@ impl App {
         let (shared, control) = data::start_with(cc.egui_ctx.clone(), demo, args.offline, |c| shell::setup_runner(&paths, c));
         let layouts = layouts::Layouts::open(paths.config.as_deref(), &store);
         let shell = shell::Shell::new(paths, notice);
+        let updates = updates::Updates::new(shell.sender());
+        updates.load_auto(shell.paths.config.as_deref());
         if let Some(l) = listener {
             l.serve(shell.sender(), cc.egui_ctx.clone());
         }
@@ -252,6 +258,9 @@ impl App {
             shell,
             settings,
             tray_synced: false,
+            updates,
+            // (TENTHS_UPDATE_URL: trying a release by hand, screenshots included.)
+            auto_updates: std::env::var_os("TENTHS_UPDATE_URL").is_some() || (!args.offline && !args.demo && args.shot.is_none()),
             panel_mode: !args.fullscreen_overlay,
             panels: Default::default(),
             shared,
@@ -404,6 +413,10 @@ impl eframe::App for App {
         if !std::mem::replace(&mut self.tray_synced, true) {
             self.update_tray_shortcuts();
         }
+        // Automatic update checks, and the tray item's text ("Check for updates" / "Update to x.y.z").
+        self.updates.tick(ctx, self.auto_updates);
+        let available = self.updates.status().available.map(|r| r.version);
+        self.shell.set_update_item(available.as_deref());
         // What the tray and a second launch ask for.
         for r in self.shell.poll() {
             self.handle(ctx, r);
@@ -411,6 +424,7 @@ impl eframe::App for App {
 
         // Settings saved by the Tauri app, and new driver ratings.
         if self.store.poll() {
+            self.updates.load_auto(self.shell.paths.config.as_deref());
             self.control.save_reports.store(shell::save_reports_setting(self.shell.paths.config.as_deref()), std::sync::atomic::Ordering::Relaxed);
             self.update_tray_shortcuts();
         }
@@ -493,6 +507,7 @@ impl eframe::App for App {
                 live: &live,
                 control: &self.control,
                 shell: &self.shell,
+                updates: &self.updates,
                 general: &general,
                 editing: self.editing,
                 overlays_visible: self.visible,
@@ -542,6 +557,13 @@ impl App {
         match r {
             OpenSettings => self.settings.show_pane(None),
             OpenAbout => self.settings.show_pane(Some(settings::Pane::About)),
+            // The tray's update item: the About page, and a check if nothing is known yet.
+            UpdateItem => {
+                self.settings.show_pane(Some(settings::Pane::About));
+                if self.updates.status().available.is_none() {
+                    self.updates.check_now(ctx);
+                }
+            }
             ToggleEdit => self.set_editing(ctx, !self.editing),
             ToggleOverlays => self.visible = !self.visible,
             NextLayout => self.next_layout(1),

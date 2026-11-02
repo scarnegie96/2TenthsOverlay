@@ -1,0 +1,145 @@
+# Releases the app (app/, egui): builds it, makes the NSIS installer, signs it
+# and publishes a GitHub release `v<version>` with
+#   Tenths_<version>_x64-setup.exe, its .sig, and latest.json.
+# The updater (in the app, and the old Tauri builds') reads latest.json from the
+# newest release and installs only what the key's signature vouches for.
+#
+# It runs when
+#   - main gets a push that changes app/Cargo.toml (a version bump): if there's no
+#     release for that version yet it makes one, otherwise it stops with nothing done;
+#   - it's started from the Actions tab (Run workflow). With "Pre-release" ticked it
+#     makes a pre-release from whatever branch is chosen: GitHub doesn't count those
+#     as the latest release, so nobody's updater is offered it. Without, only main can.
+# Pushes to development never run it (development builds with build.yml).
+#
+# Needs the repository secrets TAURI_SIGNING_PRIVATE_KEY (the base64 minisign
+# secret key file the Tauri releases were signed with) and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD; without the key it fails at the start, with
+# a message saying so.
+#
+# The release notes, shown in the app, are the version's section of CHANGELOG.md.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/Cargo.toml"
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Pre-release (not offered to anyone's updater)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# One release at a time: a second run for the same version sees the first one's release and stops.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the version, and whether it needs a release
+        id: meta
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease }}
+        run: |
+          version=$(grep -m1 '^version' app/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          if [ -z "$version" ]; then
+            echo "::error::No version found in app/Cargo.toml"
+            exit 1
+          fi
+          tag="v$version"
+          if [ "$PRERELEASE" != "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Only main makes a full release (this is $GITHUB_REF). Tick Pre-release to try one from another branch."
+            exit 1
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists: nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret isn't set (Settings > Secrets and variables > Actions). Without it the installer can't be signed, and no installed copy of Tenths would accept the update."
+            exit 1
+          fi
+          # The public half, from the app's source: what the update will be checked against.
+          pubkey=$(sed -n 's/^pub const PUBKEY: &str = "\(.*\)";.*/\1/p' app/src/updates.rs)
+          if [ -z "$pubkey" ]; then
+            echo "::error::No PUBKEY found in app/src/updates.rs"
+            exit 1
+          fi
+          {
+            echo "skip=false"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "pubkey=$pubkey"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.meta.outputs.skip != 'true'
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.meta.outputs.skip != 'true'
+
+      - name: Build the app and the release tool
+        if: steps.meta.outputs.skip != 'true'
+        run: cargo build --release -p tenths -p tenths-release
+
+      - name: Run the tests
+        if: steps.meta.outputs.skip != 'true'
+        run: cargo test --release -p tenths -p tenths-release
+
+      - name: Make the installer
+        if: steps.meta.outputs.skip != 'true'
+        shell: pwsh
+        run: ./app/installer/build.ps1 -Version "${{ steps.meta.outputs.version }}"
+
+      - name: Sign it, check the signature, write latest.json and the notes
+        if: steps.meta.outputs.skip != 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          PUBKEY: ${{ steps.meta.outputs.pubkey }}
+        run: |
+          tool=target/release/tenths-release.exe
+          installer="dist/Tenths_${VERSION}_x64-setup.exe"
+          "$tool" sign --file "$installer" --version "$VERSION"
+          # What the app will do with the download: if the secret isn't the key the app trusts, stop here.
+          "$tool" verify --file "$installer" --version "$VERSION" --pubkey "$PUBKEY"
+          "$tool" notes --version "$VERSION" > dist/notes.md
+          "$tool" manifest --version "$VERSION" \
+            --url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Tenths_${VERSION}_x64-setup.exe" \
+            --sig-file "$installer.sig" --notes-file dist/notes.md --out dist/latest.json
+          cat dist/latest.json
+
+      - name: Publish the release
+        if: steps.meta.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          flags="--latest"
+          [ "$PRERELEASE" = "true" ] && flags="--prerelease"
+          gh release create "$TAG" \
+            "dist/Tenths_${VERSION}_x64-setup.exe" "dist/Tenths_${VERSION}_x64-setup.exe.sig" dist/latest.json \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tenths $TAG" --notes-file dist/notes.md $flags

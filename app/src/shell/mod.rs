@@ -25,6 +25,8 @@ pub enum Request {
     OpenSettings,
     /// Open Settings on the About page (the tray's update item).
     OpenAbout,
+    /// The tray's "Check for updates" / "Update to x.y.z" item.
+    UpdateItem,
     ToggleEdit,
     ToggleOverlays,
     NextLayout,
@@ -151,6 +153,15 @@ pub fn setup_runner(paths: &Paths, control: &mut telemetry::runner::RunnerContro
     }
 }
 
+/// The tray's update item text.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn update_item_text(available: Option<&str>) -> String {
+    match available {
+        Some(v) => format!("Update to {v}…"),
+        None => "Check for updates".to_string(),
+    }
+}
+
 // --- The shell itself --------------------------------------------------------------
 
 pub struct Shell {
@@ -192,6 +203,17 @@ impl Shell {
         out
     }
 
+    /// The tray's update item says "Update to <version>…" when a newer version is known, else "Check for updates".
+    /// Cheap to call every frame. No tray on this platform: no-op.
+    pub fn set_update_item(&mut self, available: Option<&str>) {
+        #[cfg(windows)]
+        if let Some(t) = &self.tray {
+            t.set_update_text(&update_item_text(available));
+        }
+        #[cfg(not(windows))]
+        let _ = available;
+    }
+
     /// Adds each action's shortcut to the tray's item, as the Tauri app does
     /// once the bindings are known: `(action id, shortcut)`. Call it from the
     /// controls service when bindings change. No tray on this platform: no-op.
@@ -216,6 +238,12 @@ mod tests {
         assert_eq!(corrupt_name(1_793_456_701), "config.corrupt-20261031-142501.json");
         // 2024-02-29 23:59:59 UTC, a leap day.
         assert_eq!(corrupt_name(1_709_251_199), "config.corrupt-20240229-235959.json");
+    }
+
+    #[test]
+    fn the_tray_update_item_names_the_version() {
+        assert_eq!(update_item_text(None), "Check for updates");
+        assert_eq!(update_item_text(Some("0.5.1")), "Update to 0.5.1…");
     }
 
     #[test]

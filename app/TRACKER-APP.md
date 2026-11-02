@@ -48,7 +48,7 @@ Work starts once the panel agents are merged (these touch the shared files:
 
 | Item | Status |
 |---|---|
-| Tray icon and menu: Open settings, Edit layout, Show/hide overlays, Next layout, Check for updates, Quit (`tray-icon` crate) | ✅ tray-icon, Windows only (stub elsewhere, untested on Windows); Next layout switches saved layouts (wired at the G2/G3 merge); Check for updates ⏭️ (G7) |
+| Tray icon and menu: Open settings, Edit layout, Show/hide overlays, Next layout, Check for updates, Quit (`tray-icon` crate) | ✅ tray-icon, Windows only (stub elsewhere, untested on Windows); Next layout switches saved layouts (wired at the G2/G3 merge); Check for updates ✅ ("Update to x.y.z…" when one is found; opens About) |
 | Single instance (a second launch focuses the first) | ✅ |
 | Demo toggle (`general.demo`) switching the runner live | ✅ |
 | Corrupt config: keep it aside and show a notice (as `config_notice`) | ✅ |
@@ -67,7 +67,7 @@ A second egui viewport (normal window, not an overlay).
 | Appearance: theme, every colour token with reset, follows rules | ✅ |
 | A pane per widget generated from `schema.rs` options (toggle / number with min/max/step/suffix / select with help / text with maxLength), enable, scale, opacity, display | ✅ |
 | Delta pane: reference lap import (file picker via `rfd`), lap list, clear | ✅ |
-| About: version, release notes, updates status | ✅ version and credits; ⏭️ release notes and updates status (G7) |
+| About: version, release notes, updates status | ✅ |
 | Streaming pane | ⏭️ the OBS pages are web pages; decide later (window capture, off-screen images or Spout) |
 
 ## G6. Race reports — `crates/telemetry/src/report.rs`, `src-tauri/src/reports.rs`, `src/settings/Races.tsx`
@@ -81,5 +81,5 @@ A second egui viewport (normal window, not an overlay).
 
 | Item | Status |
 |---|---|
-| Updater: `latest.json` + minisign verify (same key) + run installer, tray item, About pane | ⏭️ until the egui build becomes the release |
-| Installer and release workflow for the egui build | ⏭️ same |
+| Updater: `latest.json` + minisign verify (same key) + run installer, tray item, About pane | ✅ `updates.rs` (same endpoint, key and `latest.json` shape; version in the trusted comment checked; download with progress, verified twice, run `/P /R`), 20 s then 6 h checks, About page with notes, progress and errors, tray "Update to x.y.z…" (Windows, untested there). Tests: manifest, versions, signatures (good, tampered, wrong key, wrong version), a local-server fetch and download |
+| Installer and release workflow for the egui build | ✅ `app/installer/tenths.nsi` (compiles with makensis 3.09; per-user, same folder, shortcut and uninstall key as Tauri's; `/S /P /R /UPDATE /ARGS`), `crates/release` (`tenths-release sign / verify / manifest / notes`), `build.rs` icon and version info, `release.yml` (main + version bump, or manual pre-release), unsigned installer artifact in `build.yml`. Not run on Windows or GitHub yet |
