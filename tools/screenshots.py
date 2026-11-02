@@ -143,20 +143,37 @@ def overview(tmp):
         save(composite(out), name)
 
 
-def widgets(tmp):
+def batches(jobs, size=4):
+    """Groups of up to `size` jobs, never the same widget twice in one group (one config per run)."""
+    out = []
+    for job in jobs:
+        for b in out:
+            if len(b) < size and all(j[1] != job[1] for j in b):
+                b.append(job)
+                break
+        else:
+            out.append([job])
+    return out
+
+
+def wheels(tmp):
+    widgets(tmp, only_wheels=True)
+
+
+def widgets(tmp, only_wheels=False):
     """Each widget at 200% (sharp on high-DPI screens), four to a run, one per quarter of the screen."""
-    print("widgets")
+    print("widgets" if not only_wheels else "wheels")
     W, H = 5120, 2880
     quarters = [(0, 0), (W // 2, 0), (0, H // 2), (W // 2, H // 2)]
     pad = 48
     jobs = [(wid, wid, {}) for wid in ALL]
     jobs += [(f"wheel-{w}", "inputs", {"inputs": {"wheel": w}}) for w in ("round", "gt", "formula", "oval")]
+    if only_wheels:
+        jobs = [j for j in jobs if j[0].startswith("wheel-")]
     # Inputs: room above for the reference strip.
     top = {"inputs": 260}
     crops = {}
-    for k in range(0, len(jobs), 4):
-        batch = jobs[k:k + 4]
-        # A widget id can only be on once per run: each batch has distinct ids.
+    for k, batch in enumerate(batches(jobs)):
         layout, extra = {}, {}
         for (name, wid, opts), (qx, qy) in zip(batch, quarters):
             layout[wid] = (qx + 100, qy + 100 + top.get(wid, 0))
@@ -174,7 +191,7 @@ def widgets(tmp):
                 continue
             l, t, r, b = box
             crops[name] = full.crop((max(l - pad, 0), max(t - pad, 0), r + pad, b + pad))
-    for wid in ALL:
+    for wid in ([] if only_wheels else ALL):
         if wid in crops:
             save(crops[wid], f"widgets/{wid}.png")
     # The four steering wheels side by side.
@@ -188,6 +205,8 @@ def widgets(tmp):
             sheet.paste(w, (x, 0))
             x += w.width
         save(sheet, "widgets/wheels.png")
+    if only_wheels:
+        return
     # Standings with the thumbs shown after the flag.
     out = tmp / "rate.png"
     run(config({"standings": (50, 50)}, "dark", scale=2.0), out, size=(W // 2, H // 2), env={"TENTHS_EGUI_VOTING": "1"})
@@ -231,7 +250,7 @@ def main():
     with tempfile.TemporaryDirectory() as t:
         tmp = Path(t)
         for step in which:
-            {"overview": overview, "widgets": widgets, "settings": settings}[step](tmp)
+            {"overview": overview, "widgets": widgets, "wheels": wheels, "settings": settings}[step](tmp)
 
 
 if __name__ == "__main__":
