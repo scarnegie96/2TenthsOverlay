@@ -121,8 +121,10 @@ Function ParseSwitches
   StrCpy $Passive 0
   StrCpy $RunAfter 0
   ${GetParameters} $R0
+  StrCmp $R0 "" done
   StrCpy $R2 1
   loop:
+    IntCmp $R2 64 done 0 done
     ClearErrors
     ${WordFind} "$R0" " " "+$R2" $R1
     IfErrors done
