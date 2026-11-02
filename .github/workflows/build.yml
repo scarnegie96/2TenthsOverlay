@@ -1,5 +1,5 @@
-# Builds the app (app/, egui) for Windows on every push to development that
-# touches it, and keeps tenths.exe and the installer as workflow artifacts to
+# Builds the app (app/, egui) for Windows on every push to main or development
+# that touches it, and keeps tenths.exe and the installer as workflow artifacts to
 # download and try (Actions → Windows build → the run → Artifacts). The installer
 # is not signed, so no installed Tenths will take it as an update: it's for
 # trying the install by hand. Never makes a release (release.yml does).
@@ -7,7 +7,7 @@ name: Windows build
 
 on:
   push:
-    branches: [development]
+    branches: [main, development]
     paths:
       - "app/**"
       - "crates/telemetry/**"
