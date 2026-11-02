@@ -91,6 +91,8 @@ struct Win {
     passthrough: Option<bool>,
     /// Whether it refuses the keyboard now.
     no_activate: bool,
+    /// Room above the widget's own box on its display, in the widget's px (None before the first placement).
+    room_above: Option<f32>,
 }
 
 /// How often each panel repaints. A window is repainted on its own timer (deferred
@@ -184,7 +186,14 @@ impl Host {
         let id = WIDGETS[idx].id;
         let Some(snap) = self.snap.lock().unwrap().clone() else { return };
         let started = Instant::now();
-        let (natural, clicks, over) = self.layout.lock().unwrap().draw_panel(idx, PanelFrame { ctx, store: &snap.store, th: &snap.th, live: &snap.live, ratings: &snap.ratings, units: snap.units, now: snap.now });
+        let room = self.wins.lock().unwrap().get(id).and_then(|w| w.room_above);
+        let (natural, clicks, (above, below)) = {
+            let mut layout = self.layout.lock().unwrap();
+            if let Some(room) = room {
+                layout.set_room_above(idx, room);
+            }
+            layout.draw_panel(idx, PanelFrame { ctx, store: &snap.store, th: &snap.th, live: &snap.live, ratings: &snap.ratings, units: snap.units, now: snap.now })
+        };
         {
             let mut c = self.cost.lock().unwrap();
             let c = c.entry(id).or_default();
@@ -202,13 +211,14 @@ impl Host {
             period = period.max(Duration::from_millis(33));
         } else {
             let cfg = snap.store.config.widget(id);
-            // The widget's own box is placed as usual; the part that sticks out above it is extra window.
-            let mut want = place(d, cfg, Vec2::new(natural.x, (natural.y - over).max(1.0))).phys;
-            if over > 0.0 {
-                let up = (over as f64 * cfg.scale as f64 * d.scale).round() as i32;
-                want.y -= up;
-                want.h += up as u32;
-            }
+            // The widget's own box is placed as usual; what sticks out above or below it is extra window.
+            let main = place(d, cfg, Vec2::new(natural.x, (natural.y - above - below).max(1.0))).phys;
+            win.room_above = Some(((main.y - d.y).max(0) as f64 / (cfg.scale as f64 * d.scale)) as f32);
+            let mut want = main;
+            let k = cfg.scale as f64 * d.scale;
+            let (up, down) = ((above as f64 * k).round() as u32, (below as f64 * k).round() as u32);
+            want.y -= up as i32;
+            want.h += up + down;
             self.manage(ctx, win, id, d, want, &clicks, snap.now);
         }
         ctx.request_repaint_after(period);

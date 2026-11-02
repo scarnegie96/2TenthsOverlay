@@ -148,7 +148,12 @@ impl Layout {
     /// Per-panel windows (not editing): draws widget `idx` at the origin of its own
     /// window, scaled, and returns its unscaled size (zero when it draws nothing)
     /// and the clickable parts in window points.
-    pub fn draw_panel(&mut self, idx: usize, f: PanelFrame) -> (Vec2, Vec<(Rect, ClickAction)>, f32) {
+    /// See `Widget::set_room_above`.
+    pub fn set_room_above(&mut self, idx: usize, px: f32) {
+        self.slots[idx].widget.set_room_above(px);
+    }
+
+    pub fn draw_panel(&mut self, idx: usize, f: PanelFrame) -> (Vec2, Vec<(Rect, ClickAction)>, (f32, f32)) {
         let PanelFrame { ctx, store, th, live, ratings, units, now } = f;
         let slot = &mut self.slots[idx];
         let cfg = store.config.widget(slot.meta.id).clone();
@@ -159,7 +164,7 @@ impl Layout {
         slot.natural = size;
         slot.rect = None;
         if size.x <= 0.0 || size.y <= 0.0 {
-            return (Vec2::ZERO, Vec::new(), 0.0);
+            return (Vec2::ZERO, Vec::new(), (0.0, 0.0));
         }
         let over = slot.widget.overhang();
         ctx.transform_layer_shapes(layer, TSTransform::new(Vec2::ZERO, cfg.scale));

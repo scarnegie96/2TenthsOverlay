@@ -77,11 +77,15 @@ pub trait Widget: Send {
     /// draws nothing (a radar with no cars near, no flag out).
     fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2;
 
-    /// How much of the size `draw` returned lies above the widget's own top edge (a strip that
-    /// sticks out of it, drawn in the window), as of the last draw. The window grows upward by it.
-    fn overhang(&self) -> f32 {
-        0.0
+    /// How much of the size `draw` returned lies above and below the widget's own box (a strip
+    /// that sticks out of it, drawn in the window), as of the last draw. The window grows by it.
+    fn overhang(&self) -> (f32, f32) {
+        (0.0, 0.0)
     }
+
+    /// Told before each draw in a window of its own: how much room there is above the widget's box
+    /// on its display, in the widget's own px. A widget that sticks out above can go below instead.
+    fn set_room_above(&mut self, _px: f32) {}
 }
 
 pub fn make(id: &str) -> Box<dyn Widget> {
