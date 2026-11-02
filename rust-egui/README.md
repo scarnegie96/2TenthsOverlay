@@ -36,6 +36,9 @@ tenths-egui.exe --edit           start in edit mode
 tenths-egui.exe --imperial       mph
 tenths-egui.exe --bench 600      print memory and frame stats every 10 s, quit after 600 s
 tenths-egui.exe --shot out.png   save a screenshot after 5 s (--shot-after N), then quit
+tenths-egui.exe --fps 30         redraw at most 30 times a second (default 60, iRacing's rate)
+tenths-egui.exe --vsync          wait for the screen refresh before showing each frame (off by default)
+tenths-egui.exe --fullscreen-overlay   one full-screen window per display, as before, instead of a small window per panel
 ```
 
 - **Ctrl+Shift+E** toggles edit mode (from anywhere). In edit mode, F2, Esc

@@ -75,7 +75,7 @@ struct Args {
     pane: Option<String>,
     report: Option<String>,
     data_dir: Option<PathBuf>,
-    /// Redraws a second while telemetry flows (`--fps`, default 30).
+    /// Redraws a second while telemetry flows (`--fps`, default 60).
     fps: u32,
     /// Wait for the display's refresh before showing each frame (`--vsync`;
     /// off by default, so the overlay never holds up its frame to line up with the sim's).
@@ -104,7 +104,7 @@ fn args() -> Args {
         pane: value("--pane"),
         report: value("--report"),
         data_dir: value("--data-dir").map(PathBuf::from),
-        fps: value("--fps").and_then(|v| v.parse().ok()).filter(|f: &u32| (5..=240).contains(f)).unwrap_or(30),
+        fps: value("--fps").and_then(|v| v.parse().ok()).filter(|f: &u32| (5..=240).contains(f)).unwrap_or(60),
         vsync: has("--vsync"),
         // A screenshot only sees the root window, so it needs the full-screen one.
         fullscreen_overlay: has("--fullscreen-overlay") || value("--shot").is_some(),

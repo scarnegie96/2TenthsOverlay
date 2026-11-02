@@ -44,9 +44,9 @@ pub const TRACE_SECONDS: f64 = 20.0;
 pub type Shared = Arc<Mutex<Latest>>;
 
 /// Longest the overlay waits between redraws while telemetry flows, in ms
-/// (`--fps`; 30 fps by default). iRacing sends 60 frames a second; drawing
-/// every one of them costs the sim more than it gains on screen.
-pub static FRAME_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(33);
+/// (`--fps`; 60 by default, iRacing's own rate, since some panels change
+/// every frame: inputs, delta, g-meter). Lower it to spare the sim.
+pub static FRAME_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(16);
 
 struct UiSink {
     shared: Shared,
