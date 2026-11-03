@@ -62,7 +62,7 @@ mod win {
             let manager = match GlobalHotKeyManager::new() {
                 Ok(m) => Some(m),
                 Err(e) => {
-                    eprintln!("[tenths] hotkeys unavailable: {e}");
+                    log!("[tenths] hotkeys unavailable: {e}");
                     None
                 }
             };
@@ -86,12 +86,12 @@ mod win {
             }
             for k in wanted {
                 let Some(hk) = hotkey(k) else {
-                    eprintln!("[tenths] unknown key {:?}", k.code);
+                    log!("[tenths] unknown key {:?}", k.code);
                     continue;
                 };
                 match manager.register(hk) {
                     Ok(()) => self.registered.push((hk, k.clone())),
-                    Err(e) => eprintln!("[tenths] hotkey {}: {e}", k.code),
+                    Err(e) => log!("[tenths] hotkey {}: {e}", k.code),
                 }
             }
         }

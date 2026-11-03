@@ -91,8 +91,8 @@ fn keep_unreadable(path: &Path) {
     }
     let kept = path.with_file_name(format!("driver-ratings.unreadable-{}.json", now_secs()));
     match std::fs::rename(path, &kept) {
-        Ok(()) => eprintln!("[tenths] driver-ratings.json couldn't be read; kept it as {}", kept.display()),
-        Err(e) => eprintln!("[tenths] driver-ratings.json couldn't be read or moved aside: {e}"),
+        Ok(()) => log!("[tenths] driver-ratings.json couldn't be read; kept it as {}", kept.display()),
+        Err(e) => log!("[tenths] driver-ratings.json couldn't be read or moved aside: {e}"),
     }
 }
 

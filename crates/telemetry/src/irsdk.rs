@@ -121,7 +121,7 @@ impl Irsdk {
             let got = VirtualQuery(view.Value, &mut info, mem::size_of::<MEMORY_BASIC_INFORMATION>());
             let view_len = if got == 0 { 0 } else { info.RegionSize };
             if view_len < shm::HEADER_LEN {
-                eprintln!("[telemetry] iRacing shared memory too small ({view_len} bytes)");
+                log!("[telemetry] iRacing shared memory too small ({view_len} bytes)");
                 UnmapViewOfFile(view);
                 CloseHandle(map);
                 return None;
@@ -156,7 +156,7 @@ impl Irsdk {
     fn checked(&self, offset: i64, len: i64) -> Option<usize> {
         let start = shm::checked_range(offset, len, self.view_len);
         if start.is_none() && !self.warned.replace(true) {
-            eprintln!(
+            log!(
                 "[telemetry] skipped a shared memory read out of range (offset {offset}, len {len}, view {})",
                 self.view_len
             );

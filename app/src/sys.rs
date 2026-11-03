@@ -52,3 +52,15 @@ mod tests {
         assert!(memory_bytes().is_some_and(|b| b > 1_000_000));
     }
 }
+
+/// `TENTHS_EGUI_VOTING` (shows the rating thumbs without a finished race), read once: it's asked every frame.
+pub fn voting_forced() -> bool {
+    static V: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *V.get_or_init(|| std::env::var_os("TENTHS_EGUI_VOTING").is_some())
+}
+
+/// `TENTHS_EGUI_FAIL=<id>` makes that widget fail, to check the error path; read once.
+pub fn fail_widget() -> Option<&'static str> {
+    static F: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    F.get_or_init(|| std::env::var("TENTHS_EGUI_FAIL").ok()).as_deref()
+}

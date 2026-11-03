@@ -227,7 +227,7 @@ impl Controls {
     pub fn inject(&mut self, action: &str) {
         match ACTIONS.iter().map(|(id, _)| *id).chain([QUIT]).find(|id| *id == action) {
             Some(id) => self.queued.push(id),
-            None => eprintln!("[tenths] unknown action {action:?}"),
+            None => log!("[tenths] unknown action {action:?}"),
         }
     }
 

@@ -351,7 +351,7 @@ impl ReportStore {
         let id = report.id.clone();
         std::thread::spawn(move || {
             if let Err(e) = write(&dir, &id, &text) {
-                eprintln!("[telemetry] couldn't save race report {id}: {e}");
+                log!("[telemetry] couldn't save race report {id}: {e}");
             }
         });
     }

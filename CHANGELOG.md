@@ -26,6 +26,7 @@ when you bump the version.
 - Lap log: scroll the mouse wheel over it in edit mode to see older laps.
 - Windows: draws with DirectX 12 (wgpu) instead of OpenGL, so the panel windows are properly transparent on NVIDIA cards (OpenGL gave black or frosted-glass windows there). `--glow` goes back to OpenGL.
 - Windows: one transparent window per display by default (about 33 fps and 200 MB, against 10-20 fps and 255 MB with a window per panel). `--panel-windows` goes back to a small window for each panel.
+- Release builds no longer print diagnostics (they're debug-build only), no longer time every panel's draw unless `--bench` asks, and no longer format each widget's options or read environment variables on every repaint.
 - The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
 
 ## 0.4.13

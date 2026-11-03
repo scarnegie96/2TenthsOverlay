@@ -158,7 +158,7 @@ impl Widget for Standings {
         let finished = field.is_some_and(|f| f.clock.player_finished);
         // Once you've taken the flag: thumbs up or down for the other drivers.
         // TENTHS_EGUI_VOTING=1 shows the thumbs without finishing a race, to check them.
-        let voting = race && (finished || std::env::var_os("TENTHS_EGUI_VOTING").is_some()) && o.b("rateDrivers");
+        let voting = race && (finished || crate::sys::voting_forced()) && o.b("rateDrivers");
         let show_rejoin = o.b("showRejoin") && race && !finished && loss.is_some() && my_row.is_some_and(|r| r.status == CarStatus::Track);
         let mut groups = group_by_class(all);
         if o.b("myClassOnly") {

@@ -543,9 +543,10 @@ fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, pr
     painter.set_opacity(if editing { cfg.opacity.max(0.85) } else { cfg.opacity });
 
     // A failed widget is tried again when its settings change, or after a while.
-    let fingerprint = format!("{:?}", cfg.options);
+    // (Only when it has failed: formatting the options on every paint of every panel is a lot of garbage.)
+    let fingerprint = || format!("{:?}", cfg.options);
     if let Some((_, at, fp)) = &slot.error {
-        if *fp != fingerprint || now - at > RETRY_S {
+        if now - at > RETRY_S || *fp != fingerprint() {
             slot.error = None;
         }
     }
@@ -574,7 +575,7 @@ fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, pr
         let widget = &mut slot.widget;
         let first = ctx.graphics_mut(|g| g.entry(layer).next_idx().0);
         // TENTHS_EGUI_FAIL=<id> makes that widget fail, to check this path.
-        let fail = std::env::var("TENTHS_EGUI_FAIL").is_ok_and(|v| v == slot.meta.id);
+        let fail = crate::sys::fail_widget() == Some(slot.meta.id);
         match catch_unwind(AssertUnwindSafe(|| {
             let size = widget.draw(&painter, &cx);
             if fail {
@@ -589,7 +590,7 @@ fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, pr
                     .map(|s| s.to_string())
                     .or_else(|| e.downcast_ref::<String>().cloned())
                     .unwrap_or_else(|| "it stopped unexpectedly".into());
-                eprintln!("[tenths] the {} widget failed: {msg}", slot.meta.id);
+                log!("[tenths] the {} widget failed: {msg}", slot.meta.id);
                 // Drop whatever it drew before failing.
                 ctx.graphics_mut(|g| {
                     let list = g.entry(layer);
@@ -598,7 +599,7 @@ fn paint_slot(slot: &mut Slot, paint: &Paint, cfg: &crate::config::WidgetCfg, pr
                     }
                 });
                 let size = if editing { kit::error_note(&painter, th, slot.meta.name, &msg) } else { Vec2::ZERO };
-                slot.error = Some((msg, now, fingerprint));
+                slot.error = Some((msg, now, fingerprint()));
                 size
             }
         }

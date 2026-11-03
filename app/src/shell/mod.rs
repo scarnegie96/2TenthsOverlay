@@ -96,11 +96,11 @@ pub fn keep_corrupt_config(path: &Path) -> Option<String> {
     let kept = path.with_file_name(&name);
     match std::fs::rename(path, &kept) {
         Ok(()) => {
-            eprintln!("[tenths] config.json couldn't be read ({err}); kept it as {}", kept.display());
+            log!("[tenths] config.json couldn't be read ({err}); kept it as {}", kept.display());
             Some(name)
         }
         Err(e) => {
-            eprintln!("[tenths] config.json couldn't be read ({err}) or moved aside ({e})");
+            log!("[tenths] config.json couldn't be read ({err}) or moved aside ({e})");
             None
         }
     }
@@ -185,7 +185,7 @@ impl Shell {
             tx,
             rx,
             #[cfg(windows)]
-            tray: tray::Tray::new().map_err(|e| eprintln!("[tenths] no tray icon: {e}")).ok(),
+            tray: tray::Tray::new().map_err(|e| log!("[tenths] no tray icon: {e}")).ok(),
         }
     }
 

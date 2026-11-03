@@ -99,6 +99,9 @@ struct Win {
 /// viewports), not with every frame of the root: a panel is a whole egui pass,
 /// tessellation, GL paint and buffer swap each time, so this is the main cost.
 /// The fast ones are the live traces and gauges; the lists change a few times a second.
+/// Whether to time each panel's draw (only `--bench` reads it).
+pub static TIMING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub fn refresh(id: &str) -> Duration {
     Duration::from_millis(match id {
         "inputs" | "dynamics" | "delta" | "radar" | "instruments" => 16,
@@ -186,7 +189,7 @@ impl Host {
     fn repaint(&self, ctx: &egui::Context, idx: usize, d: &Display) {
         let id = WIDGETS[idx].id;
         let Some(snap) = self.snap.lock().unwrap().clone() else { return };
-        let started = Instant::now();
+        let started = TIMING.load(std::sync::atomic::Ordering::Relaxed).then(Instant::now);
         let room = self.wins.lock().unwrap().get(id).and_then(|w| w.room_above);
         let (natural, clicks, (above, below)) = {
             let mut layout = self.layout.lock().unwrap();
@@ -195,7 +198,7 @@ impl Host {
             }
             layout.draw_panel(idx, PanelFrame { ctx, store: &snap.store, th: &snap.th, live: &snap.live, ratings: &snap.ratings, units: snap.units, now: snap.now })
         };
-        {
+        if let Some(started) = started {
             let mut c = self.cost.lock().unwrap();
             let c = c.entry(id).or_default();
             c.0 += started.elapsed();
@@ -259,7 +262,7 @@ impl Host {
             // Keep following the mouse (CLICKABLE_POLL_MS in the Tauri overlay).
             ctx.request_repaint_after(Duration::from_millis(50));
         }
-        let want = !over && std::env::var_os("TENTHS_EGUI_VOTING").is_none();
+        let want = !over && !crate::sys::voting_forced();
         if win.passthrough.unwrap_or(true) != want {
             win.passthrough = Some(want);
             ctx.send_viewport_cmd(ViewportCommand::MousePassthrough(want));

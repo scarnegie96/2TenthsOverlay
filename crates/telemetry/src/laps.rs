@@ -124,7 +124,7 @@ impl Writer {
         let thread = thread::Builder::new()
             .name("lap-writer".into())
             .spawn(move || write_loop(&worker))
-            .map_err(|err| eprintln!("[telemetry] couldn't start the lap writer: {err}"))
+            .map_err(|err| log!("[telemetry] couldn't start the lap writer: {err}"))
             .ok()?;
         Some(Self { shared, thread: Some(thread) })
     }
@@ -189,7 +189,7 @@ fn write_file(path: &Path, data: &StoredLaps) {
         fs::rename(&tmp, path)
     };
     if let Err(err) = write() {
-        eprintln!("[telemetry] couldn't save lap to {}: {err}", path.display());
+        log!("[telemetry] couldn't save lap to {}: {err}", path.display());
     }
 }
 

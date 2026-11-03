@@ -185,7 +185,7 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
                         engine.set_report_store(None);
                     }
                     Err(err) => {
-                        eprintln!("[telemetry] replay: {err}");
+                        log!("[telemetry] replay: {err}");
                         replay_failed = true;
                         report(SourceKind::Replay, false, &err);
                         continue;
@@ -222,7 +222,7 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
                 #[cfg(windows)]
                 Source::Iracing(_) => {
                     if !crate::irsdk::send_pit_command(cmd) {
-                        eprintln!("[telemetry] pit command {cmd:?} not sent");
+                        log!("[telemetry] pit command {cmd:?} not sent");
                     }
                 }
             }
@@ -312,7 +312,7 @@ fn run<S: Sink>(sink: S, control: RunnerControl) {
                     true
                 }
                 Err(err) => {
-                    eprintln!("[telemetry] session YAML parse failed: {err}");
+                    log!("[telemetry] session YAML parse failed: {err}");
                     false
                 }
             },

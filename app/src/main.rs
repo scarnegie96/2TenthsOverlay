@@ -42,6 +42,16 @@
 // While the port is under way some helpers wait for the panels that use them.
 #![allow(dead_code)]
 
+/// Diagnostics to stderr: debug builds only. A release build prints nothing but what was asked for
+/// (`--bench`, `--shot`, the heap profiler), so no formatting or I/O runs while it's drawing.
+macro_rules! log {
+    ($($t:tt)*) => {
+        if cfg!(debug_assertions) {
+            eprintln!($($t)*);
+        }
+    };
+}
+
 mod anchor;
 mod config;
 mod controls;
@@ -197,13 +207,14 @@ fn main() -> eframe::Result {
         // (or, with a window per panel, left tiny: panels.rs).
         .with_inner_size(if args.fullscreen_overlay || args.edit { [1920.0, 1080.0] } else { [1.0, 1.0] })
         .with_mouse_passthrough(!args.edit);
-    println!(
+    log!(
         "[tenths] overlay: {}",
         if args.fullscreen_overlay { "one full-screen window per display (--panel-windows for a window per panel)" } else { "one small window per panel (--fullscreen-overlay for one window per display)" }
     );
     if let Some(bits) = std::env::args().skip_while(|a| a != "--flag").nth(1).and_then(|v| v.parse::<u32>().ok()) {
         widgets::flags::FORCED.store(bits, std::sync::atomic::Ordering::Relaxed);
     }
+    panels::TIMING.store(args.bench.is_some(), std::sync::atomic::Ordering::Relaxed);
     data::FRAME_MS.store((1000 / args.fps).max(1) as u64, std::sync::atomic::Ordering::Relaxed);
     let glow_options = eframe::egui_glow::GlowConfiguration { vsync: args.vsync, ..Default::default() };
     #[allow(unused_mut)]
@@ -411,7 +422,7 @@ impl App {
     /// Puts a saved layout on screen and makes it the active one (edits save into it).
     pub fn switch_layout(&mut self, id: &str) {
         if let Err(e) = self.layouts.switch(&mut self.store, id) {
-            eprintln!("[tenths] couldn't switch layout: {e}");
+            log!("[tenths] couldn't switch layout: {e}");
             self.store.error = Some(e);
         }
     }
@@ -823,7 +834,7 @@ impl App {
             ctx.request_repaint_after(Duration::from_millis(50));
         }
         // TENTHS_EGUI_VOTING=1 (a check, with no cursor to poll off Windows): never click-through.
-        let want = !self.editing && !over && std::env::var_os("TENTHS_EGUI_VOTING").is_none();
+        let want = !self.editing && !over && !crate::sys::voting_forced();
         if self.passthrough.get(&vid).copied().unwrap_or(true) != want {
             self.passthrough.insert(vid, want);
             ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(want));
@@ -838,7 +849,7 @@ impl App {
         match action {
             widgets::ClickAction::Rate { user_id, name, rating } => {
                 if let Err(e) = self.ratings.set(user_id, &name, rating) {
-                    eprintln!("[tenths] couldn't save the rating: {e}");
+                    log!("[tenths] couldn't save the rating: {e}");
                     self.store.error = Some(format!("Couldn't save the rating: {e}"));
                 }
             }

@@ -11,6 +11,15 @@
 //!  demo::DemoSource (fake race) ─────────────────┘
 //! ```
 
+/// Diagnostics to stderr: debug builds only (see the same macro in the app).
+macro_rules! log {
+    ($($t:tt)*) => {
+        if cfg!(debug_assertions) {
+            eprintln!($($t)*);
+        }
+    };
+}
+
 pub mod blap;
 pub mod coach;
 pub mod demo;

@@ -155,7 +155,7 @@ mod win {
         let spawned = std::thread::Builder::new().name("controllers".into()).spawn(move || unsafe {
             STATE.with(|s| *s.borrow_mut() = Some(State { devices: HashMap::new(), on_press: Box::new(on_press) }));
             let Some(hwnd) = message_window() else {
-                eprintln!("[tenths] controllers: no window for Raw Input");
+                log!("[tenths] controllers: no window for Raw Input");
                 return;
             };
             let devices = CONTROLLER_USAGES.map(|usage| RAWINPUTDEVICE {
@@ -165,7 +165,7 @@ mod win {
                 hwndTarget: hwnd,
             });
             if RegisterRawInputDevices(devices.as_ptr(), devices.len() as u32, size_of::<RAWINPUTDEVICE>() as u32) == 0 {
-                eprintln!("[tenths] controllers: RegisterRawInputDevices failed");
+                log!("[tenths] controllers: RegisterRawInputDevices failed");
                 return;
             }
             let mut msg: MSG = zeroed();
@@ -174,7 +174,7 @@ mod win {
             }
         });
         if let Err(err) = spawned {
-            eprintln!("[tenths] controllers: {err}");
+            log!("[tenths] controllers: {err}");
         }
     }
 

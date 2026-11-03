@@ -429,7 +429,7 @@ impl Store {
             }
             // Keep what we had: the Tauri app may be half-way through a write.
             Err(e) => {
-                eprintln!("[tenths] {e}");
+                log!("[tenths] {e}");
                 self.error = Some(e);
             }
         }
@@ -470,7 +470,7 @@ impl Store {
                 self.error = None;
             }
             Err(e) => {
-                eprintln!("[tenths] couldn't save {}: {e}", path.display());
+                log!("[tenths] couldn't save {}: {e}", path.display());
                 self.error = Some(format!("Couldn't save: {e}"));
             }
         }
@@ -529,7 +529,7 @@ impl Store {
                 self.error = None;
             }
             Err(e) => {
-                eprintln!("[tenths] couldn't save {}: {e}", path.display());
+                log!("[tenths] couldn't save {}: {e}", path.display());
                 self.error = Some(format!("Couldn't save: {e}"));
             }
         }
