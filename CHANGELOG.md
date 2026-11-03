@@ -4,6 +4,11 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.6.1
+
+- Fixed the screen staying white after pressing Done in layout editing in the full-screen overlay on Windows.
+- Edit Layout: panels that overlap can all be picked now. Clicking where several overlap grabs the smallest one, so a small panel under a big one is no longer stuck.
+
 ## 0.6.0
 
 - Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with the widgets in one transparent window per display over the game (a small window per widget on other systems). Settings, layouts, laps, ratings and race reports carry over.

@@ -458,7 +458,7 @@ impl Layout {
                 return Some(Hit::Handle(i));
             }
         }
-        (0..self.slots.len()).rev().find(|&i| self.rect_on(i, key).is_some_and(|r| r.contains(p))).map(Hit::Body)
+        pick_body((0..self.slots.len()).filter_map(|i| self.rect_on(i, key).map(|r| (i, r))), p).map(Hit::Body)
     }
 
     /// Outlines, labels with tools, resize handles and snapping guides.
@@ -516,6 +516,31 @@ impl Layout {
             kit::text(&p, hide.center(), Align2::CENTER_CENTER, "Hide", th.bold(12.0), hide_c);
             kit::fill(&p, Self::handle_rect(r), 3.0, th.attention);
         }
+    }
+}
+
+/// The widget to grab at `p` among overlapping ones: the smallest, so a small panel sitting on (or
+/// under) a big one can always be picked; of equal size, the later one (drawn on top).
+fn pick_body(rects: impl Iterator<Item = (usize, Rect)>, p: Pos2) -> Option<usize> {
+    rects
+        .filter(|(_, r)| r.contains(p))
+        .min_by(|(i, a), (j, b)| a.area().total_cmp(&b.area()).then(j.cmp(i)))
+        .map(|(i, _)| i)
+}
+
+#[cfg(test)]
+mod pick_tests {
+    use super::*;
+
+    #[test]
+    fn smallest_wins_and_ties_go_to_the_top() {
+        let big = Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0));
+        let small = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(50.0, 50.0));
+        let p = Pos2::new(20.0, 20.0);
+        // The big one is later (on top) but the small one under it is still the one picked.
+        assert_eq!(pick_body([(0, small), (1, big)].into_iter(), p), Some(0));
+        assert_eq!(pick_body([(0, big), (1, big)].into_iter(), p), Some(1));
+        assert_eq!(pick_body([(0, small)].into_iter(), Pos2::new(300.0, 200.0)), None);
     }
 }
 
