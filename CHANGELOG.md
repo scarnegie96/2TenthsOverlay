@@ -24,6 +24,7 @@ when you bump the version.
 - Fuel: a "Min / max lap" row shows the least and most fuel used on any clean green lap of the session.
 - Flags: under a blue flag a second box shows who is behind you (position, number, name and gap), the nearest car behind that is a lap or more ahead, else the nearest behind. Switch it off with "Show who is behind under a blue flag".
 - Lap log: scroll the mouse wheel over it in edit mode to see older laps.
+- Windows: draws with DirectX 12 (wgpu) instead of OpenGL, so the panel windows are properly transparent on NVIDIA cards (OpenGL gave black or frosted-glass windows there). `--glow` goes back to OpenGL.
 - The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
 
 ## 0.4.13

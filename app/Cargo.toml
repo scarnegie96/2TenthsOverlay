@@ -45,6 +45,9 @@ rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 rfd = { version = "0.17", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
+# Windows draws with wgpu on DirectX 12 (see main.rs): per-pixel transparent windows don't work through
+# OpenGL there (a black or frosted-glass window on NVIDIA), and DirectX 12's DirectComposition ones do.
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wgpu"] }
 rfd = "0.17"
 tray-icon = { version = "0.25", default-features = false }
 global-hotkey = "0.9"

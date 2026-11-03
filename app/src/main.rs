@@ -13,6 +13,7 @@
 //!   tenths-egui --config <path>   another config.json than the Tauri app's
 //!   tenths-egui --theme f1        dark, light or f1, over the config's
 //!   tenths-egui --imperial        imperial units, over the config's
+//!   tenths-egui --glow            Windows: draw with OpenGL instead of DirectX 12 (wgpu), if that misbehaves
 //!   tenths-egui --fullscreen-overlay  one full-screen window per display (the old way) instead of a
 //!                                 small window per panel (panels.rs); --shot implies it
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
@@ -200,7 +201,25 @@ fn main() -> eframe::Result {
     }
     data::FRAME_MS.store((1000 / args.fps).max(1) as u64, std::sync::atomic::Ordering::Relaxed);
     let glow_options = eframe::egui_glow::GlowConfiguration { vsync: args.vsync, ..Default::default() };
-    let options = eframe::NativeOptions { viewport, glow_options, ..Default::default() };
+    #[allow(unused_mut)]
+    let mut options = eframe::NativeOptions { viewport, glow_options, ..Default::default() };
+    #[cfg(windows)]
+    if !std::env::args().any(|a| a == "--glow") {
+        use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
+        // DirectX 12 only: Vulkan surfaces on Windows can't be transparent, which is the whole point.
+        let mut setup = WgpuSetupCreateNew::without_display_handle();
+        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12;
+        setup.power_preference = eframe::wgpu::PowerPreference::HighPerformance;
+        options.renderer = eframe::Renderer::Wgpu;
+        options.wgpu_options = WgpuConfiguration {
+            surface: SurfaceConfig {
+                present_mode: if args.vsync { eframe::wgpu::PresentMode::AutoVsync } else { eframe::wgpu::PresentMode::AutoNoVsync },
+                ..SurfaceConfig::LOW_LATENCY
+            },
+            wgpu_setup: WgpuSetup::CreateNew(setup),
+            ..Default::default()
+        };
+    }
     eframe::run_native("tenths", options, Box::new(move |cc| Ok(Box::new(App::new(cc, args, listener)))))
 }
 
