@@ -285,6 +285,22 @@ pub fn pointer() -> Option<Pointer> {
 /// Stops the overlay window titled `title` taking the keyboard when clicked
 /// (`WS_EX_NOACTIVATE`), so a click on a thumb doesn't pull focus out of
 /// iRacing. Returns false if the window wasn't found yet. A no-op elsewhere.
+/// Click-through for a window by title, without winit: its `MousePassthrough` adds and removes
+/// `WS_EX_LAYERED` along with `WS_EX_TRANSPARENT`, and re-adding it to a DirectComposition window
+/// leaves it blank (white) after leaving edit mode. Here only the transparent bit changes.
+/// `false` when the window isn't found yet.
+pub fn set_click_through(title: &str, on: bool) -> bool {
+    #[cfg(windows)]
+    {
+        win::set_click_through(title, on)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (title, on);
+        false
+    }
+}
+
 pub fn set_no_activate(title: &str, on: bool) -> bool {
     #[cfg(windows)]
     {
@@ -306,7 +322,7 @@ mod win {
     use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GetCursorPos, GetSystemMetrics, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, MONITORINFOF_PRIMARY, SM_SWAPBUTTON, WS_EX_NOACTIVATE,
+        FindWindowW, GetCursorPos, GetSystemMetrics, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, MONITORINFOF_PRIMARY, SM_SWAPBUTTON, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT,
     };
 
     use super::{key_of, Display};
@@ -354,6 +370,22 @@ mod win {
             let vk = if swapped { VK_RBUTTON } else { VK_LBUTTON };
             // The high bit is set while the button is down.
             Some(super::Pointer { x: p.x as f64, y: p.y as f64, down: GetAsyncKeyState(vk as i32) < 0 })
+        }
+    }
+
+    pub fn set_click_through(title: &str, on: bool) -> bool {
+        let wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe {
+            let hwnd = FindWindowW(std::ptr::null(), wide.as_ptr());
+            if hwnd.is_null() {
+                return false;
+            }
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            let next = if on { style | (WS_EX_TRANSPARENT | WS_EX_LAYERED) as isize } else { style & !(WS_EX_TRANSPARENT as isize) };
+            if next != style {
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
+            }
+            true
         }
     }
 

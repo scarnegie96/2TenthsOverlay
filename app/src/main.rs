@@ -836,8 +836,18 @@ impl App {
         // TENTHS_EGUI_VOTING=1 (a check, with no cursor to poll off Windows): never click-through.
         let want = !self.editing && !over && !crate::sys::voting_forced();
         if self.passthrough.get(&vid).copied().unwrap_or(true) != want {
-            self.passthrough.insert(vid, want);
-            ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(want));
+            if cfg!(windows) {
+                // Not winit's MousePassthrough: see `displays::set_click_through`.
+                if displays::set_click_through(title, want) {
+                    self.passthrough.insert(vid, want);
+                    ctx.request_repaint();
+                } else {
+                    ctx.request_repaint_after(Duration::from_millis(50));
+                }
+            } else {
+                self.passthrough.insert(vid, want);
+                ctx.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(want));
+            }
         }
         let no_activate = !self.editing;
         if self.no_activate.get(&vid) != Some(&no_activate) && displays::set_no_activate(title, no_activate) {
