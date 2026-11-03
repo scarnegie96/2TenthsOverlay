@@ -505,6 +505,24 @@ impl Layout {
         if !self.probe.is_empty() {
             kit::text(&p, Pos2::new(screen.center().x, screen.top() + 10.0), Align2::CENTER_TOP, &self.probe, th.medium(13.0), th.ink3);
         }
+        // Where this window thinks it is, and where the mouse is in it.
+        let (inner, ppp) = ctx.input(|i| (i.viewport().inner_rect, i.viewport().native_pixels_per_point));
+        let ptr = hover.map_or("-".to_string(), |h| format!("{:.0},{:.0}", h.x, h.y));
+        let info = format!(
+            "{} {}x{} at {},{} scale {:.2} | window {}x{} points, ppp {} | mouse {}",
+            me.name(),
+            me.width,
+            me.height,
+            me.x,
+            me.y,
+            me.scale,
+            screen.width().round(),
+            screen.height().round(),
+            ppp.map_or("?".to_string(), |v| format!("{v:.2}")),
+            ptr
+        );
+        let _ = inner;
+        kit::text(&p, Pos2::new(screen.center().x, screen.top() + 28.0), Align2::CENTER_TOP, &info, th.medium(13.0), th.ink3);
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(r) = self.rect_on(i, &me.key) else { continue };
             kit::dashed_rect(&p, r.expand(3.5), alpha(th.attention, 0.75), 1.0, 4.0, 3.0);
