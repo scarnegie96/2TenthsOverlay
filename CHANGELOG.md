@@ -4,6 +4,22 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.6.2
+
+- Windows: panels on the right and bottom of a screen bigger than 1920x1080 can be clicked, moved, resized and hidden again. The overlay window started at 1920x1080 and was made click-through before it was stretched to the screen, and Windows kept taking the mouse only over that first size, so everything past it fell through to the desktop. The overlay window now starts at its display's size.
+- Quit really ends Tenths on Windows now. The 1.5 s safety net still went through Windows' normal process exit, which can hang in the graphics driver's shutdown and leave Tenths in Task Manager; it now ends the process outright.
+- Radar: a new look. Your car with a translucent band beside it for each car alongside, placed where that car is along the track (red while it overlaps you, orange when only partly alongside), and a glow for the nearest car close ahead and behind that grows stronger as the gap shrinks. iRacing only says *that* a car is alongside, not where it is across the track, so the old top-down view had to guess the lanes and sometimes got them wrong. (The top-down view is still there with `"style": "classic"` in the radar's options in config.json.)
+- Radar: a car that drops in behind or pulls in ahead of you leaves the side as soon as iRacing says nobody is beside you, instead of staying there while it follows within 14 m. A car that pulled away keeps its side for at most 1.5 s. And when someone comes alongside, a car that was just on the other side no longer takes their side.
+- Delta: works in races. iRacing doesn't publish its lap deltas there, so Tenths now records your own laps and compares against your best and last clean laps this session whenever iRacing has no delta of its own. (Optimal and session optimal still come from iRacing only.)
+- Delta: in qualifying and races, "Best lap" and "Optimal lap" compare against this session's best lap and sectors. iRacing's own are your all-time best for the car and track, which say little about how a race is going. Practice is unchanged.
+- Battle: the gap to the cars around you is live now, worked out from where the cars are on track like the Relative. Before, it came from iRacing's timing, which only changes as cars cross timing lines, so it sat still and then jumped. (Cars a lap or more apart still use the timing.)
+- Battle: the gap graph is gone (it looked the same whether you were catching or being caught). Instead each car shows its latest time through every sector and the difference to yours: red where they were faster, green where slower.
+- Race pace: the lines follow the same live gaps, so they move every couple of seconds instead of only when timing updates. Battle's change per lap comes from the same history and is smoother too.
+- Race pace: cars no longer drop to the bottom of the chart for a few seconds as they cross the line. Their lap counter ticks a moment after they cross, which made them look a lap down; whole laps now come from iRacing's timing gap instead. The same fix stops Battle briefly showing a car as a lap away.
+- Race pace shows the leader's last 5 laps by default (also 3, 10, 20 or the whole race, in its settings).
+- Race pace: a "Relative to you" option (off by default) puts you along the middle with the cars either side of you (3 by default) at their gap to you, instead of everyone against the leader.
+- Twitch chat and the OBS stream window are taken out for now, to keep the overlay focused on driving. They're kept aside for later (see Future work in the README); a saved layout with Twitch chat in it still loads, without it.
+
 ## 0.6.1
 
 - Fixed the screen staying white after pressing Done in layout editing in the full-screen overlay on Windows.
