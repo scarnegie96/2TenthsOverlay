@@ -14,6 +14,7 @@
 //!   tenths-egui --theme f1        dark, light or f1, over the config's
 //!   tenths-egui --imperial        imperial units, over the config's
 //!   tenths-egui --glow            Windows: draw with OpenGL instead of DirectX 12 (wgpu), if that misbehaves
+//!   tenths-egui --high-gpu        Windows (DirectX 12): draw on the high-performance GPU instead of the low-power one
 //!   tenths-egui --fullscreen-overlay  one full-screen window per display (the old way) instead of a
 //!                                 small window per panel (panels.rs); --shot implies it
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
@@ -209,7 +210,15 @@ fn main() -> eframe::Result {
         // DirectX 12 only: Vulkan surfaces on Windows can't be transparent, which is the whole point.
         let mut setup = WgpuSetupCreateNew::without_display_handle();
         setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12;
-        setup.power_preference = eframe::wgpu::PowerPreference::HighPerformance;
+        // The default swapchain (from the window handle) can't be transparent; DirectComposition's can.
+        setup.instance_descriptor.backend_options.dx12.presentation_system = eframe::wgpu::Dx12SwapchainKind::DxgiFromVisual;
+        // The overlay is light work: leave the big GPU to the game (on a laptop it's also the one that doesn't
+        // need every frame copied across to the screen's GPU). `--high-gpu` to choose it anyway.
+        setup.power_preference = if std::env::args().any(|a| a == "--high-gpu") {
+            eframe::wgpu::PowerPreference::HighPerformance
+        } else {
+            eframe::wgpu::PowerPreference::LowPower
+        };
         options.renderer = eframe::Renderer::Wgpu;
         options.wgpu_options = WgpuConfiguration {
             surface: SurfaceConfig {
