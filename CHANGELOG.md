@@ -7,6 +7,7 @@ when you bump the version.
 ## 0.6.1
 
 - Fixed the screen staying white after pressing Done in layout editing in the full-screen overlay on Windows.
+- Quit (tray, hotkey, edit bar) always quits now. Before, it could be left running and need Task Manager.
 - Edit Layout: panels that overlap can all be picked now. Clicking where several overlap grabs the smallest one, so a small panel under a big one is no longer stuck.
 
 ## 0.6.0

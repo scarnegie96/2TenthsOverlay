@@ -580,7 +580,7 @@ impl eframe::App for App {
                 controls::AppAction::ToggleVisible => self.visible = !self.visible,
                 controls::AppAction::Layout(controls::layouts::LayoutSwitch::Next) => self.next_layout(1),
                 controls::AppAction::Layout(controls::layouts::LayoutSwitch::Index(i)) => self.layout_at(i),
-                controls::AppAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                controls::AppAction::Quit => quit_app(ctx),
             }
         }
         let on_track = live.tick.as_ref().is_some_and(|t| t.is_on_track);
@@ -698,7 +698,7 @@ impl App {
                 let on = !self.store.config.general.streaming.window;
                 self.store.set_stream_window(on);
             }
-            Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Quit => quit_app(ctx),
         }
     }
 
@@ -1009,9 +1009,21 @@ impl App {
             self.set_editing(ctx, false);
         }
         if quit {
-            ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
+            quit_app(ctx);
         }
     }
+}
+
+/// Quits Tenths: asks the main window to close, and if the process is still there a moment later
+/// (a minimised or hidden window that never redraws to see the request, or the graphics teardown
+/// stalling) ends it anyway, so Quit always quits.
+fn quit_app(ctx: &egui::Context) {
+    ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
+    ctx.request_repaint_of(egui::ViewportId::ROOT);
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(1500));
+        std::process::exit(0);
+    });
 }
 
 const PRIMARY_TITLE: &str = "Tenths";
