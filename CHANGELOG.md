@@ -6,7 +6,7 @@ when you bump the version.
 
 ## 0.5.0 (in development, no release yet)
 
-- Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with each widget in its own small window over the game. Settings, layouts, laps, ratings and race reports carry over.
+- Tenths is now a native app drawn with egui instead of a Tauri app with web pages: about 120 MB in one process instead of several WebView2 processes, with the widgets in one transparent window per display over the game (a small window per widget on other systems). Settings, layouts, laps, ratings and race reports carry over.
 - Twitch chat shows emotes as pictures, inline with the words.
 - OBS streaming is a **stream window** now: Settings → Streaming (or the tray's Stream window) opens a window called "Tenths stream" with your widgets on a green, magenta, black or grey background, for OBS's Window Capture. The Tauri version's web pages for Browser Sources are gone.
 - Lighter on the CPU and GPU: each panel window now repaints on its own timer instead of every frame. Inputs, G-force, Delta, Radar and Instruments stay at 60 Hz, Flags, Pit stop, Battle and Coach run at 30 Hz, and Relative, Standings (gap included) and the other panels at 4 Hz. Car drawings are kept as ready meshes instead of rebuilt each frame.
@@ -25,6 +25,7 @@ when you bump the version.
 - Flags: under a blue flag a second box shows who is behind you (position, number, name and gap), the nearest car behind that is a lap or more ahead, else the nearest behind. Switch it off with "Show who is behind under a blue flag".
 - Lap log: scroll the mouse wheel over it in edit mode to see older laps.
 - Windows: draws with DirectX 12 (wgpu) instead of OpenGL, so the panel windows are properly transparent on NVIDIA cards (OpenGL gave black or frosted-glass windows there). `--glow` goes back to OpenGL.
+- Windows: one transparent window per display by default (about 33 fps and 200 MB, against 10-20 fps and 255 MB with a window per panel). `--panel-windows` goes back to a small window for each panel.
 - The Tauri version is kept in `archive/tauri/` and on the `archive/tauri` branch.
 
 ## 0.4.13

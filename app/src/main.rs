@@ -15,6 +15,7 @@
 //!   tenths-egui --imperial        imperial units, over the config's
 //!   tenths-egui --glow            Windows: draw with OpenGL instead of DirectX 12 (wgpu), if that misbehaves
 //!   tenths-egui --high-gpu        Windows (DirectX 12): draw on the high-performance GPU instead of the low-power one
+//!   tenths-egui --panel-windows   Windows: a small window per panel instead of one per display
 //!   tenths-egui --fullscreen-overlay  one full-screen window per display (the old way) instead of a
 //!                                 small window per panel (panels.rs); --shot implies it
 //!   tenths-egui --bench 600       print memory and frame stats every 10 s, quit after 600 s
@@ -138,7 +139,10 @@ fn args_from(command_line: &[String]) -> Args {
         fps: value("--fps").and_then(|v| v.parse().ok()).filter(|f: &u32| (5..=240).contains(f)).unwrap_or(60),
         vsync: has("--vsync"),
         // A screenshot only sees the root window, so it needs the full-screen one.
-        fullscreen_overlay: has("--fullscreen-overlay") || value("--shot").is_some(),
+        // Windows: one window per display by default. It measured about 33 fps and 200 MB against 10-20 fps
+        // and 255 MB for a window per panel (14 transparent swapchains presenting from one thread).
+        // `--panel-windows` brings the small windows back; elsewhere they stay the default.
+        fullscreen_overlay: has("--fullscreen-overlay") || value("--shot").is_some() || (cfg!(windows) && !has("--panel-windows")),
         replay: value("--replay").map(PathBuf::from),
         replay_speed: value("--speed").and_then(|v| v.parse().ok()).filter(|s: &f64| (0.0..=1000.0).contains(s)).unwrap_or(1.0),
         replay_loop: has("--loop"),
@@ -195,7 +199,7 @@ fn main() -> eframe::Result {
         .with_mouse_passthrough(!args.edit);
     println!(
         "[tenths] overlay: {}",
-        if args.fullscreen_overlay { "one full-screen window per display (--fullscreen-overlay)" } else { "one small window per panel (--fullscreen-overlay for the old way)" }
+        if args.fullscreen_overlay { "one full-screen window per display (--panel-windows for a window per panel)" } else { "one small window per panel (--fullscreen-overlay for one window per display)" }
     );
     if let Some(bits) = std::env::args().skip_while(|a| a != "--flag").nth(1).and_then(|v| v.parse::<u32>().ok()) {
         widgets::flags::FORCED.store(bits, std::sync::atomic::Ordering::Relaxed);
