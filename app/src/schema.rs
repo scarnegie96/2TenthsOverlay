@@ -159,7 +159,9 @@ pub const WIDGETS: &[Meta] = &[
         x: 842.0,
         y: 596.0,
         enabled: true,
-        options: &[("range", N(20.0)), ("alwaysShow", B(true)), ("classColors", B(false))],
+        // `style` "classic" (in config.json only) brings back the top-down radar, with its own
+        // options (radar_bars.rs).
+        options: &[("alwaysShow", B(true)), ("range", N(20.0))],
     },
     Meta { id: "tires", name: "Tires", x: 1580.0, y: 120.0, enabled: true, options: &[("showPressure", B(true))] },
     Meta {
@@ -218,7 +220,8 @@ pub const WIDGETS: &[Meta] = &[
         y: 700.0,
         enabled: false,
         options: &[
-            ("window", S("race")),
+            ("window", S("5")),
+            ("relative", B(false)),
             ("show", S("all")),
             ("around", N(3.0)),
             ("maxGap", N(0.0)),
@@ -248,19 +251,10 @@ pub const WIDGETS: &[Meta] = &[
         enabled: false,
         options: &[
             ("trendLaps", N(3.0)),
-            ("showSparkline", B(true)),
-            ("sparkLaps", N(8.0)),
+            ("showSectors", B(true)),
             ("showLaps", B(true)),
             ("showTyres", B(true)),
         ],
-    },
-    Meta {
-        id: "twitch",
-        name: "Twitch chat",
-        x: 620.0,
-        y: 300.0,
-        enabled: false,
-        options: &[("channel", S("")), ("rows", N(10.0)), ("fadeAfter", N(60.0)), ("showEmotes", B(true))],
     },
 ];
 

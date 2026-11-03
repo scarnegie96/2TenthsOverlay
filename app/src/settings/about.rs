@@ -1,4 +1,4 @@
-//! About (version and updates). (The Streaming page is streaming.rs.)
+//! About (version and updates).
 //!
 //! The About page drives the updater (`crate::updates`): the version, when it
 //! last checked, "Check now", the newer version with its notes and an

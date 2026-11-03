@@ -20,10 +20,15 @@ pub struct Engine {
     laps: LapLog,
     /// Where to save laps; None in the demo.
     lap_store: Option<LapStore>,
-    /// Lane each nearby car was given last frame, so cars don't jump sides.
-    radar_sides: HashMap<i32, i32>,
+    /// Lane each nearby car was given, and the session time iRacing last confirmed a car on that
+    /// side while it overlapped us, so cars don't jump sides (`nearby`).
+    radar_sides: HashMap<i32, (i32, f64)>,
     /// Imported comparison lap, if any.
     reference: Option<ReferenceLap>,
+    /// Your own laps this session, for deltas when iRacing has none.
+    own_laps: crate::own_laps::OwnLaps,
+    /// Every car's latest time through each sector.
+    car_sectors: crate::car_sectors::CarSectors,
     coach: Option<Coach>,
     dynamics: crate::dynamics::DynamicsTracker,
     /// Where each car started the race, for positions gained and lost.
@@ -184,6 +189,12 @@ impl Engine {
         self.session_type(num).to_ascii_lowercase().contains("race")
     }
 
+    /// Practice, testing or warm-up (or not known): where comparing with your all-time laps makes sense.
+    fn is_practice(&self, num: i32) -> bool {
+        let t = self.session_type(num).to_ascii_lowercase();
+        t.is_empty() || t.contains("practice") || t.contains("test") || t.contains("warm")
+    }
+
     /// Call on every frame (60 Hz). Updates trackers and returns the fast payload.
     pub fn tick(&mut self, f: &RawFrame) -> TickPayload {
         // A new session: save the race that just ended before the trackers start again.
@@ -193,6 +204,7 @@ impl Engine {
         self.fuel.update(f);
         let starts = self.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]);
         self.sectors.update(f, starts);
+        self.car_sectors.update(f, starts);
         self.laps.update(f);
         let race = self.is_race(f.session_num);
         self.grid.update(f, race);
@@ -206,6 +218,7 @@ impl Engine {
             self.pit_loss.update(f, |car| s.driver(car).map(|d| d.class_id));
         }
         let reference_delta = self.reference_delta(f);
+        let own = self.own_laps.update(f);
         let coach = match (&self.reference, &mut self.coach) {
             (Some(r), Some(c)) if reference_delta.is_some() => {
                 let len = if r.length_m > 0.0 {
@@ -236,7 +249,7 @@ impl Engine {
             lap_last: positive(f.lap_last),
             lap_best: positive(f.lap_best),
             lap_optimal: self.sectors.optimal(),
-            deltas: Deltas { reference: reference_delta, ..f.deltas },
+            deltas: session_deltas(&f.deltas, own, reference_delta, self.is_practice(f.session_num)),
             fuel_level: f.fuel_level,
             car_left_right: f.car_left_right,
             incidents: f.incidents,
@@ -309,31 +322,63 @@ impl Engine {
         };
         let mut remaining: Vec<i32> = sides.to_vec();
         let overlaps = |c: &NearbyCar| c.dist.abs() < CAR_LENGTH_M * 1.6;
+        // CarLeftRight is off when the spotter has nothing to say (not driving, replays): then an
+        // overlapping car with no side tells us nothing about its lane.
+        let reported = f.car_left_right != clr::OFF;
+        let now = f.session_time;
+        // A new session or a jump back in a replay: the lanes are from another moment.
+        if self.radar_sides.values().any(|&(_, t)| t > now + 1.0) {
+            self.radar_sides.clear();
+        }
+        // The lane a car was last confirmed in, while that's recent enough to trust.
+        let memory = |car: i32| self.radar_sides.get(&car).filter(|(_, t)| now - t <= LANE_MEMORY_S).map(|&(side, _)| side);
+        let mut confirmed = vec![false; cars.len()];
 
         // 1. Overlapping cars keep the side they had, if iRacing still reports a car there.
-        for c in cars.iter_mut().filter(|c| overlaps(c)) {
-            if let Some(&prev) = self.radar_sides.get(&c.car_idx) {
-                if let Some(k) = remaining.iter().position(|&s| s == prev) {
-                    c.side = remaining.remove(k);
+        for (k, c) in cars.iter_mut().enumerate().filter(|(_, c)| overlaps(c)) {
+            if let Some(prev) = memory(c.car_idx) {
+                if let Some(at) = remaining.iter().position(|&s| s == prev) {
+                    c.side = remaining.remove(at);
+                    confirmed[k] = true;
                 }
             }
         }
-        // 2. Remaining reported sides go to the nearest unassigned overlapping cars.
-        for c in cars.iter_mut().filter(|c| overlaps(c) && c.side == 0) {
-            if remaining.is_empty() {
-                break;
+        // 2. Each side still reported goes to the nearest overlapping car without one, passing over
+        //    a car that was just on the other side (it has dropped in behind or ahead of us) while
+        //    there's another to give it to.
+        for side in remaining {
+            let pick = cars
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| overlaps(c) && c.side == 0)
+                .min_by(|(_, a), (_, b)| {
+                    let key = |c: &NearbyCar| (memory(c.car_idx) == Some(-side), c.dist.abs());
+                    let (ka, kb) = (key(a), key(b));
+                    ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
+                })
+                .map(|(k, _)| k);
+            if let Some(k) = pick {
+                cars[k].side = side;
+                confirmed[k] = true;
             }
-            c.side = remaining.remove(0);
         }
-        // 3. A car that was beside us and has just pulled ahead or dropped back
-        //    is still in that lane, so keep it there while it's close.
-        for c in cars.iter_mut().filter(|c| c.side == 0 && c.dist.abs() < LANE_MEMORY_M) {
-            if let Some(&prev) = self.radar_sides.get(&c.car_idx) {
+        // 3. A car that was beside us and has just pulled ahead or dropped back is still in that
+        //    lane for a moment, so keep it there while it's close and the memory is fresh. Not a car
+        //    still overlapping us when iRacing says nobody is on that side: that one is in our lane.
+        for c in cars.iter_mut().filter(|c| c.side == 0 && c.dist.abs() < LANE_MEMORY_M && !(reported && overlaps(c))) {
+            if let Some(prev) = memory(c.car_idx) {
                 c.side = prev;
             }
         }
 
-        self.radar_sides = cars.iter().filter(|c| c.side != 0).map(|c| (c.car_idx, c.side)).collect();
+        // Confirmed lanes are timed from now; remembered ones keep the time they were last confirmed.
+        let old = std::mem::take(&mut self.radar_sides);
+        self.radar_sides = cars
+            .iter()
+            .zip(&confirmed)
+            .filter(|(c, _)| c.side != 0)
+            .map(|(c, &ok)| (c.car_idx, (c.side, if ok { now } else { old.get(&c.car_idx).map_or(now, |&(_, t)| t) })))
+            .collect();
         cars
     }
 
@@ -507,6 +552,8 @@ impl Engine {
                     gap: None,
                     laps_down: 0,
                     interval: None,
+                    live_gap: None,
+                    sectors: self.car_sectors.last(i),
                     start_position: if race { self.grid.start(d.car_idx, s) } else { None },
                     laps: lap_info(f, d, &fastest),
                     on_pit_road: f.car_on_pit_road[i],
@@ -527,6 +574,11 @@ impl Engine {
             ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
         });
 
+        // Each car's class pace, for the live gaps.
+        let fallback_lap = reference_lap_time(s, s.driver(p), f, p.clamp(0, MAX_CARS as i32 - 1) as usize);
+        let class_lap: HashMap<i32, f32> = s.drivers.iter().map(|d| (d.car_idx, d.class_est_lap_time)).collect();
+        let lap_of = |c: usize| class_lap.get(&(c as i32)).copied().filter(|t| *t > 1.0).unwrap_or(fallback_lap);
+
         // Gaps are computed within each class.
         let mut class_leader: HashMap<i32, usize> = HashMap::new();
         let mut class_prev: HashMap<i32, usize> = HashMap::new();
@@ -541,10 +593,23 @@ impl Engine {
 
             if race {
                 let progress = |c: usize| f.car_lap_completed[c] as f32 + f.car_lap_dist_pct[c].max(0.0);
-                let laps_down = (progress(li) - progress(i)).floor().max(0.0) as i32;
-                let f2 = f.car_f2_time[i] - f.car_f2_time[li];
-                rows[idx].laps_down = laps_down;
-                rows[idx].gap = (leader != idx).then_some(f2.max(0.0));
+                let f2 = (f.car_f2_time[i] - f.car_f2_time[li]).max(0.0);
+                rows[idx].gap = (leader != idx).then_some(f2);
+                let live = if leader == idx {
+                    Some(LiveGap { gap: 0.0, laps: 0 })
+                } else {
+                    let lap = lap_of(li);
+                    // The leader's race pace, to count whole laps in the timing gap.
+                    let pace = [f.car_best_lap[li], f.car_last_lap[li], lap].into_iter().find(|t| *t > 1.0).unwrap_or(lap);
+                    live_gap(f, li, i, lap_time_fraction(f, li, lap), lap_time_fraction(f, i, lap), lap, f2, pace)
+                };
+                rows[idx].live_gap = live.map(|l| l.gap);
+                // Laps down: from the live gap when there is one (the lap counters tick a moment
+                // after the line, which made a car look a lap down as it crossed).
+                rows[idx].laps_down = match live {
+                    Some(l) => l.laps,
+                    None => (progress(li) - progress(i)).floor().max(0.0) as i32,
+                };
                 if let Some(&prev) = class_prev.get(&class) {
                     let pi = rows[prev].driver.car_idx as usize;
                     rows[idx].interval = Some((f.car_f2_time[i] - f.car_f2_time[pi]).max(0.0));
@@ -611,6 +676,8 @@ const CAR_LENGTH_M: f32 = 4.7;
 const RADAR_RANGE_M: f32 = 60.0;
 /// How far a car can move away along the track and still be drawn in its last lane.
 const LANE_MEMORY_M: f32 = 14.0;
+/// For how long after iRacing last put it beside us, in seconds.
+const LANE_MEMORY_S: f64 = 1.5;
 /// Lap times within this many seconds count as the same lap.
 const LAP_EPS: f32 = 0.0005;
 
@@ -710,6 +777,66 @@ pub fn lap_time_fraction(f: &RawFrame, car: usize, class_est_lap: f32) -> f32 {
     } else {
         f.car_lap_dist_pct[car].clamp(0.0, 1.0)
     }
+}
+
+/// The deltas to send: iRacing's where it gives them, otherwise ours from your own laps this
+/// session (`own`). Outside practice, "best" and "optimal" are this session's: iRacing's own
+/// best and optimal laps are your all-time ones for the car and track (its .blap and .olap
+/// files), which say little about how a qualifying run or a race is going.
+pub fn session_deltas(iracing: &Deltas, own: crate::own_laps::OwnDeltas, reference: Option<f32>, practice: bool) -> Deltas {
+    let session_best = iracing.session_best.or(own.best);
+    Deltas {
+        best: if practice { iracing.best.or(own.best) } else { session_best },
+        optimal: if practice { iracing.optimal } else { iracing.session_optimal },
+        session_best,
+        session_optimal: iracing.session_optimal,
+        last: iracing.last.or(own.last),
+        reference,
+    }
+}
+
+/// A car's live gap to its class leader (`live_gap`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LiveGap {
+    /// Seconds.
+    pub gap: f32,
+    /// Whole laps of it.
+    pub laps: i32,
+}
+
+/// How far car `behind` is behind car `ahead` (its class leader) on track right now: whole laps,
+/// plus how far round the lap `ahead` is in front, in time (each car's `lap_time_fraction`), at
+/// `lap_time` a lap. None when either car isn't on track.
+///
+/// The whole laps come from iRacing's timing gap (`timing_gap`, which counts laps, read at the
+/// leader's `pace`) when there is one. The lap counters would do, except that a car's
+/// `CarIdxLapCompleted` ticks a moment after its `CarIdxLapDistPct` wraps at the line, and in
+/// between it looks a lap further behind.
+#[allow(clippy::too_many_arguments)]
+pub fn live_gap(f: &RawFrame, ahead: usize, behind: usize, ahead_frac: f32, behind_frac: f32, lap_time: f32, timing_gap: f32, pace: f32) -> Option<LiveGap> {
+    let (pa, pb) = (f.car_lap_dist_pct[ahead], f.car_lap_dist_pct[behind]);
+    if pa < 0.0 || pb < 0.0 {
+        return None;
+    }
+    // How far round the lap the leader is in front, 0..1, by distance and by time.
+    let wrap = |d: f32| d - d.floor();
+    let by_distance = wrap(pa - pb);
+    let mut by_time = wrap(ahead_frac - behind_frac);
+    // Almost side by side, the two can wrap on opposite sides of the line: keep time with distance.
+    if by_time - by_distance > 0.5 {
+        by_time -= 1.0;
+    } else if by_distance - by_time > 0.5 {
+        by_time += 1.0;
+    }
+    let laps = if timing_gap > 0.0 && pace > 1.0 {
+        // The timing gap in laps, less the part on track, leaves whole laps.
+        (timing_gap / pace - by_time).round().max(0.0)
+    } else {
+        // No timing yet (the first lap): race progress minus the part on track.
+        let progress = |c: usize| f.car_lap_completed[c] as f32 + f.car_lap_dist_pct[c];
+        ((progress(ahead) - progress(behind)) - by_distance).round().max(0.0)
+    };
+    Some(LiveGap { gap: ((laps + by_time) * lap_time).max(0.0), laps: laps as i32 })
 }
 
 /// Seconds on track between two cars, positive when the car is ahead of the player.
@@ -1106,6 +1233,58 @@ mod tests {
     }
 
     #[test]
+    fn live_gap_counts_laps_and_wraps_the_line() {
+        let mut f = RawFrame::with_capacity();
+        let mut put = |c: usize, laps: i32, pct: f32| {
+            f.car_lap_completed[c] = laps;
+            f.car_lap_dist_pct[c] = pct;
+            f.car_est_time[c] = pct * 90.0;
+        };
+        put(0, 5, 0.02); // leader just over the line
+        put(1, 4, 0.98); // a car just before it, same lap: 3.6 s
+        put(2, 3, 0.10); // over a lap behind: 90 + 82.8 s
+        put(3, 5, 0.01); // right behind: 0.9 s
+        put(4, 4, 0.025); // a hair ahead on track but a lap down: just under a lap
+        // iRacing's timing gaps, a little stale as they always are.
+        let timing = [0.0, 3.5, 171.0, 0.8, 89.0];
+        let gap = |f: &RawFrame, c: usize| {
+            live_gap(f, 0, c, lap_time_fraction(f, 0, 90.0), lap_time_fraction(f, c, 90.0), 90.0, timing[c], 90.0).unwrap()
+        };
+        assert!((gap(&f, 1).gap - 3.6).abs() < 1e-3);
+        assert_eq!(gap(&f, 1).laps, 0);
+        assert!((gap(&f, 2).gap - 172.8).abs() < 1e-2);
+        assert_eq!(gap(&f, 2).laps, 1);
+        assert!((gap(&f, 3).gap - 0.9).abs() < 1e-3);
+        assert!((gap(&f, 4).gap - 89.55).abs() < 1e-2);
+        assert_eq!(gap(&f, 4).laps, 0);
+        // Car 3 crosses the line but its lap counter hasn't ticked yet: still 0.9 s, not a lap more.
+        f.car_lap_completed[3] = 4;
+        assert!((gap(&f, 3).gap - 0.9).abs() < 1e-3);
+        assert_eq!(gap(&f, 3).laps, 0);
+        // Before there's any timing (the first lap), the lap counters it is.
+        let first = live_gap(&f, 0, 1, lap_time_fraction(&f, 0, 90.0), lap_time_fraction(&f, 1, 90.0), 90.0, 0.0, 90.0).unwrap();
+        assert!((first.gap - 3.6).abs() < 1e-3);
+        // Off track: nothing.
+        f.car_lap_dist_pct[1] = -1.0;
+        assert!(live_gap(&f, 0, 1, 0.0, 0.0, 90.0, 3.5, 90.0).is_none());
+    }
+
+    #[test]
+    fn deltas_outside_practice_are_this_sessions() {
+        let iracing = Deltas { best: Some(-1.0), optimal: Some(-2.0), session_best: Some(0.5), session_optimal: Some(0.2), last: None, reference: None };
+        let own = crate::own_laps::OwnDeltas { best: Some(0.4), last: Some(0.3) };
+        let practice = session_deltas(&iracing, own, None, true);
+        assert_eq!((practice.best, practice.optimal), (Some(-1.0), Some(-2.0)));
+        assert_eq!(practice.last, Some(0.3), "ours where iRacing has none");
+        let race = session_deltas(&iracing, own, Some(0.1), false);
+        assert_eq!((race.best, race.optimal, race.session_best), (Some(0.5), Some(0.2), Some(0.5)));
+        assert_eq!(race.reference, Some(0.1));
+        // No session deltas from iRacing (a race): your own best lap this session.
+        let none = Deltas { best: Some(-1.0), ..Deltas::default() };
+        assert_eq!(session_deltas(&none, own, None, false).best, Some(0.4));
+    }
+
+    #[test]
     fn fuel_average_ignores_pit_laps() {
         let mut t = FuelTracker::default();
         let mut f = RawFrame::with_capacity();
@@ -1265,6 +1444,67 @@ mod tests {
         let behind = near.iter().find(|c| c.car_idx == 2).unwrap();
         assert_eq!(behind.side, 0);
         assert!((behind.dist + 20.0).abs() < 0.01);
+    }
+
+    /// A frame with car 0 as the player at half a lap, cars 1 and 2 `m1` and `m2` metres along from
+    /// it (positive ahead), at session time `t`, with iRacing reporting `clr`.
+    fn radar_frame(e: &Engine, m1: f32, m2: f32, t: f64, clr: i32) -> RawFrame {
+        let track_m = e.session().unwrap().track_length_km * 1000.0;
+        let mut f = RawFrame::with_capacity();
+        f.player_car_idx = 0;
+        f.session_time = t;
+        f.lap_dist_pct = 0.5;
+        for i in 0..3 {
+            f.car_track_surface[i] = track_surface::ON_TRACK;
+        }
+        f.car_lap_dist_pct[0] = 0.5;
+        f.car_lap_dist_pct[1] = 0.5 + m1 / track_m;
+        f.car_lap_dist_pct[2] = 0.5 + m2 / track_m;
+        f.car_left_right = clr;
+        f
+    }
+
+    fn side_of(near: &[NearbyCar], car: i32) -> i32 {
+        near.iter().find(|c| c.car_idx == car).unwrap().side
+    }
+
+    #[test]
+    fn radar_car_that_drops_in_behind_leaves_the_side_lane() {
+        let mut e = Engine::new();
+        e.set_session(two_car_session());
+        let f = radar_frame(&e, 1.0, 40.0, 10.0, car_left_right::CAR_LEFT);
+        assert_eq!(side_of(&e.nearby(&f), 1), -1);
+        // A moment later it's 4 m behind and iRacing says nobody's beside us: it's in our lane.
+        let f = radar_frame(&e, -4.0, 40.0, 10.2, car_left_right::CLEAR);
+        assert_eq!(side_of(&e.nearby(&f), 1), 0);
+    }
+
+    #[test]
+    fn radar_lane_memory_runs_out() {
+        let mut e = Engine::new();
+        e.set_session(two_car_session());
+        let f = radar_frame(&e, 1.0, 40.0, 10.0, car_left_right::CAR_RIGHT);
+        assert_eq!(side_of(&e.nearby(&f), 1), 1);
+        // Pulled 10 m ahead: still in its lane for a moment...
+        let f = radar_frame(&e, 10.0, 40.0, 10.5, car_left_right::CLEAR);
+        assert_eq!(side_of(&e.nearby(&f), 1), 1);
+        // ...but not for good, even while it stays that close.
+        let f = radar_frame(&e, 10.0, 40.0, 12.0, car_left_right::CLEAR);
+        assert_eq!(side_of(&e.nearby(&f), 1), 0);
+    }
+
+    #[test]
+    fn radar_new_side_goes_to_the_car_that_wasnt_just_on_the_other_side() {
+        let mut e = Engine::new();
+        e.set_session(two_car_session());
+        let f = radar_frame(&e, 1.0, 40.0, 10.0, car_left_right::CAR_LEFT);
+        assert_eq!(side_of(&e.nearby(&f), 1), -1);
+        // Car 1 has dropped in 3 m behind; car 2 comes up 4 m ahead on our right. Car 1 is nearer,
+        // but it was just on the left, so the right is car 2's.
+        let f = radar_frame(&e, -3.0, 4.0, 10.3, car_left_right::CAR_RIGHT);
+        let near = e.nearby(&f);
+        assert_eq!(side_of(&near, 2), 1);
+        assert_eq!(side_of(&near, 1), 0);
     }
 
     #[test]

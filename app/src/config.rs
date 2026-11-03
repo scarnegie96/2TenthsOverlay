@@ -133,74 +133,6 @@ pub struct General {
     pub controls: Value,
     /// `general.activeProfile`: the saved layout that edits are saved into.
     pub active_profile: Option<String>,
-    /// `general.streaming`: the OBS stream window (stream.rs).
-    pub streaming: Streaming,
-}
-
-/// The stream window's background: a colour for OBS's Chroma Key filter, or a dark one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StreamBackground {
-    #[default]
-    Green,
-    Magenta,
-    Black,
-    Grey,
-}
-
-impl StreamBackground {
-    pub const ALL: [StreamBackground; 4] = [Self::Green, Self::Magenta, Self::Black, Self::Grey];
-    pub fn key(self) -> &'static str {
-        match self {
-            Self::Green => "green",
-            Self::Magenta => "magenta",
-            Self::Black => "black",
-            Self::Grey => "grey",
-        }
-    }
-    pub fn parse(s: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|b| b.key() == s)
-    }
-}
-
-/// `general.streaming`. `enabled` and `port` are the Tauri app's (its OBS web
-/// pages), kept as read; the rest is the stream window's.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Streaming {
-    pub enabled: bool,
-    pub port: u16,
-    /// The stream window is open.
-    pub window: bool,
-    pub background: StreamBackground,
-    /// The display (`displays::Display::key`) whose layout and size it follows; None = the main one.
-    pub display: Option<String>,
-    /// Only these widgets (ids); empty = every widget on that display.
-    pub widgets: Vec<String>,
-    /// The window's size as a share of that display: 0.5, 0.75 or 1.
-    pub scale: f32,
-}
-
-impl Default for Streaming {
-    fn default() -> Self {
-        Self { enabled: false, port: 7457, window: false, background: StreamBackground::default(), display: None, widgets: Vec::new(), scale: 0.5 }
-    }
-}
-
-fn normalize_streaming(v: &Value) -> Streaming {
-    let d = Streaming::default();
-    let Some(o) = v.as_object() else { return d };
-    Streaming {
-        enabled: o.get("enabled").and_then(Value::as_bool).unwrap_or(d.enabled),
-        port: o.get("port").and_then(num).filter(|p| (1024.0..=65535.0).contains(p)).map(|p| p as u16).unwrap_or(d.port),
-        window: o.get("window").and_then(Value::as_bool).unwrap_or(d.window),
-        background: o.get("background").and_then(Value::as_str).and_then(StreamBackground::parse).unwrap_or(d.background),
-        display: o.get("display").and_then(Value::as_str).filter(|s| !s.is_empty()).map(String::from),
-        widgets: o
-            .get("widgets")
-            .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(Value::as_str).filter(|id| schema::meta(id).is_some()).map(String::from).collect())
-            .unwrap_or_default(),
-        scale: o.get("scale").and_then(num).map(|s| s as f32).filter(|s| (0.25..=1.0).contains(s)).unwrap_or(d.scale),
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -301,7 +233,6 @@ pub fn normalize(raw: &Value) -> Config {
         colors,
         controls: g.get("controls").cloned().unwrap_or(Value::Null),
         active_profile: g.get("activeProfile").and_then(Value::as_str).map(String::from),
-        streaming: normalize_streaming(g.get("streaming").unwrap_or(&Value::Null)),
     };
     Config { general, widgets }
 }
@@ -501,24 +432,6 @@ impl Store {
         self.config.general.active_profile = active.map(String::from);
         let Some(path) = self.path.clone() else { return };
         let result = write_root(&path, |root| set_active(root, active));
-        self.finish_write(&path, result);
-    }
-
-    /// Turns the stream window on or off (the tray's item, the window's close button), in memory and in the file.
-    pub fn set_stream_window(&mut self, on: bool) {
-        self.config.general.streaming.window = on;
-        let Some(path) = self.path.clone() else { return };
-        let result = write_root(&path, |root| {
-            let g = root.entry("general").or_insert_with(|| Value::Object(Map::new()));
-            if !g.is_object() {
-                *g = Value::Object(Map::new());
-            }
-            let st = g.as_object_mut().unwrap().entry("streaming").or_insert_with(|| Value::Object(Map::new()));
-            if !st.is_object() {
-                *st = Value::Object(Map::new());
-            }
-            st.as_object_mut().unwrap().insert("window".into(), Value::Bool(on));
-        });
         self.finish_write(&path, result);
     }
 

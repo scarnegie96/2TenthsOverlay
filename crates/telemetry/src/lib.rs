@@ -21,6 +21,7 @@ macro_rules! log {
 }
 
 pub mod blap;
+pub mod car_sectors;
 pub mod coach;
 pub mod demo;
 pub mod dynamics;
@@ -32,6 +33,7 @@ pub mod laps;
 pub mod instruments;
 pub mod lapfile;
 pub mod model;
+pub mod own_laps;
 pub mod pitloss;
 pub mod pit;
 pub mod reference;

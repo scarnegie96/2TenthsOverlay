@@ -88,23 +88,6 @@ pub fn trend(me: &Trace, other: &Trace, now: f64, lap_time: f64, laps: u32) -> O
     Some(Trend { closing_per_lap: (then.abs() - gap_now.abs()) / n, laps: n as u32 })
 }
 
-/// The gap at evenly spaced moments over the last `laps` laps, oldest first,
-/// each averaged over a third of a lap, for a sparkline.
-pub fn history(me: &Trace, other: &Trace, now: f64, lap_time: f64, laps: u32, points: usize) -> Vec<f64> {
-    if lap_time.is_nan() || lap_time <= 0.0 {
-        return Vec::new();
-    }
-    let now = last_shared(me, other, now);
-    let mut out = Vec::new();
-    for k in 0..=points {
-        let t = now - lap_time * laps as f64 * (1.0 - k as f64 / points as f64);
-        if let Some(v) = smooth_interval_at(me, other, t, lap_time / 3.0) {
-            out.push(v.abs());
-        }
-    }
-    out
-}
-
 /// Where a car is round the race, for `laps_between`.
 #[derive(Debug, Clone, Copy)]
 pub struct Place {
@@ -189,19 +172,10 @@ mod tests {
     }
 
     #[test]
-    fn history_averages_the_third_of_a_lap_before() {
-        let (me, ahead) = traces();
-        // Each point is averaged over the third of a lap before it, so ~0.05 s behind the instant value.
-        let h = history(&me, &ahead, 1000.0, 100.0, 8, 8);
-        assert!(h.len() == 9 && (h[0] - 4.45).abs() < 1e-3 && (h[8] - 2.05).abs() < 1e-3, "history {h:?}");
-    }
-
-    #[test]
     fn needs_a_lap_time() {
         let (me, ahead) = traces();
         assert!(trend(&me, &ahead, 1000.0, 0.0, 3).is_none());
         assert!(trend(&me, &ahead, 1000.0, 100.0, 0).is_none());
-        assert!(history(&me, &ahead, 1000.0, 0.0, 8, 8).is_empty());
     }
 
     #[test]

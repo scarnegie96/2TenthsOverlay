@@ -30,8 +30,6 @@ pub enum Request {
     ToggleEdit,
     ToggleOverlays,
     NextLayout,
-    /// The tray's "Stream window": the OBS window on or off.
-    ToggleStream,
     Quit,
 }
 
@@ -216,16 +214,6 @@ impl Shell {
             out.extend(t.poll());
         }
         out
-    }
-
-    /// Ticks the tray's "Stream window" item to match the setting. No tray on this platform: no-op.
-    pub fn set_tray_stream(&mut self, on: bool) {
-        #[cfg(windows)]
-        if let Some(t) = &self.tray {
-            t.set_stream(on);
-        }
-        #[cfg(not(windows))]
-        let _ = on;
     }
 
     /// The tray's update item says "Update to <version>…" when a newer version is known, else "Check for updates".

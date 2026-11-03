@@ -110,21 +110,6 @@ pub struct PanelFrame<'a> {
     pub now: f64,
 }
 
-/// What `Layout::draw_stream` needs (the stream window, stream.rs).
-pub struct StreamFrame<'a> {
-    pub ctx: &'a egui::Context,
-    pub store: &'a Store,
-    pub th: &'a Theme,
-    pub live: &'a Live,
-    pub ratings: &'a Ratings,
-    pub units: crate::config::Units,
-    pub now: f64,
-    /// The widgets to draw (indexes into `WIDGETS`), each with the size, in points, of the display it is placed on.
-    pub want: &'a [(usize, Vec2)],
-    /// Points in the stream window per point of the display: where and how big everything is drawn.
-    pub k: f32,
-}
-
 impl Default for Layout {
     fn default() -> Self {
         Self::new()
@@ -172,25 +157,6 @@ impl Layout {
         ctx.transform_layer_shapes(layer, TSTransform::new(Vec2::ZERO, cfg.scale));
         let clicks = clicks.into_iter().map(|c| (Rect::from_min_size(c.rect.min * cfg.scale, c.rect.size() * cfg.scale), c.action)).collect();
         (size, clicks, over)
-    }
-
-    /// The stream window: draws each wanted widget where the layout puts it on its
-    /// display, scaled by `k`. Same drawing, theme, options and opacity as the
-    /// overlay. Doesn't feed the widgets (`observe` already ran this frame) or
-    /// touch where the overlay thinks they are.
-    pub fn draw_stream(&mut self, f: StreamFrame) {
-        let StreamFrame { ctx, store, th, live, ratings, units, now, want, k } = f;
-        for &(idx, screen) in want {
-            let slot = &mut self.slots[idx];
-            let cfg = store.config.widget(slot.meta.id).clone();
-            let paint = Paint { ctx, th, store, live, ratings, units, editing: false, windowed: false, now, hover: None };
-            let (size, _clicks, layer) = paint_slot(slot, &paint, &cfg, None);
-            if size.x <= 0.0 || size.y <= 0.0 {
-                continue;
-            }
-            let pos = anchor::resolve(&cfg, size * cfg.scale, screen, size);
-            ctx.transform_layer_shapes(layer, TSTransform::new(pos.to_vec2() * k, cfg.scale * k));
-        }
     }
 
     /// Editing is over (or never started): forget any drag or guides.

@@ -23,12 +23,12 @@ pub mod laplog;
 pub mod pitstop;
 pub mod racepace;
 pub mod radar;
+pub mod radar_bars;
 pub mod relative;
 pub mod session;
 pub mod standings;
 pub mod stints;
 pub mod tires;
-pub mod twitch;
 pub mod weather;
 
 /// Everything a widget draws from.
@@ -100,7 +100,8 @@ pub fn make(id: &str) -> Box<dyn Widget> {
         "dynamics" => Box::<dynamics::Dynamics>::default(),
         "instruments" => Box::<instruments::Instruments>::default(),
         "fuel" => Box::new(fuel::Fuel),
-        "radar" => Box::new(radar::Radar),
+        // Bands and glows (radar_bars.rs); the top-down radar (radar.rs) only with the hidden `style` "classic".
+        "radar" => Box::new(radar_bars::RadarBars),
         "tires" => Box::new(tires::Tires),
         "pitstop" => Box::new(pitstop::PitStop),
         "flags" => Box::<flags::Flags>::default(),
@@ -108,7 +109,6 @@ pub fn make(id: &str) -> Box<dyn Widget> {
         "racepace" => Box::<racepace::RacePace>::default(),
         "stints" => Box::new(stints::Stints),
         "battle" => Box::<battle::Battle>::default(),
-        "twitch" => Box::<twitch::Twitch>::default(),
         _ => unreachable!("unknown widget {id}"),
     }
 }

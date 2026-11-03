@@ -67,7 +67,6 @@ mod ratings;
 mod schema;
 mod settings;
 mod shell;
-mod stream;
 mod svg;
 mod sys;
 mod theme;
@@ -195,6 +194,15 @@ fn main() -> eframe::Result {
     } else {
         None
     };
+    // One window per display: start the primary overlay already covering its display. Windows only
+    // takes the mouse over the size a click-through (layered) window had when it became layered, so
+    // the old 1920x1080 start left the rest of a bigger screen dead. It has to be layered from the
+    // start, though: making a DirectComposition window layered later turns it white.
+    let first = if args.fullscreen_overlay { displays::primary_at_start() } else { None };
+    let first_rect = first.as_ref().map(|d| displays::window_rect(d, d.scale as f32));
+    // Windows, full-screen overlay: layered (click-through) from the start even in edit mode, which
+    // only clears the click-through bit (`App::click_through`).
+    let layered_now = cfg!(windows) && args.fullscreen_overlay;
     let viewport = egui::ViewportBuilder::default()
         .with_title(PRIMARY_TITLE)
         .with_decorations(false)
@@ -202,11 +210,15 @@ fn main() -> eframe::Result {
         .with_always_on_top()
         .with_taskbar(false)
         .with_resizable(false)
-        .with_position([0.0, 0.0])
-        // Resized to the whole display on the first frame, once the monitor is known
+        .with_position(first_rect.map_or(egui::Pos2::ZERO, |r| r.min))
+        // Fitted to the whole display on the first frames, once the monitor is known
         // (or, with a window per panel, left tiny: panels.rs).
-        .with_inner_size(if args.fullscreen_overlay || args.edit { [1920.0, 1080.0] } else { [1.0, 1.0] })
-        .with_mouse_passthrough(!args.edit);
+        .with_inner_size(match first_rect {
+            Some(r) => r.size(),
+            None if args.fullscreen_overlay || args.edit => egui::Vec2::new(1920.0, 1080.0),
+            None => egui::Vec2::new(1.0, 1.0),
+        })
+        .with_mouse_passthrough(!args.edit || layered_now);
     log!(
         "[tenths] overlay: {}",
         if args.fullscreen_overlay { "one full-screen window per display (--panel-windows for a window per panel)" } else { "one small window per panel (--fullscreen-overlay for one window per display)" }
@@ -302,8 +314,6 @@ struct App {
     /// A window per panel (false: `--fullscreen-overlay`), and their state (panels.rs).
     panel_mode: bool,
     panels: panels::Panels,
-    /// The OBS stream window (stream.rs).
-    stream: stream::Stream,
 }
 
 /// Frame timing and memory, averaged over a second.
@@ -371,7 +381,6 @@ impl App {
             auto_updates: std::env::var_os("TENTHS_UPDATE_URL").is_some() || (!args.offline && !args.demo && args.replay.is_none() && args.shot.is_none()),
             panel_mode: !args.fullscreen_overlay,
             panels: Default::default(),
-            stream: Default::default(),
             shared,
             store,
             ratings: ratings::Ratings::open(config::data_dir()),
@@ -381,8 +390,9 @@ impl App {
             displays: Arc::new(Vec::new()),
             displays_at: None,
             placers: HashMap::new(),
-            // The root window starts click-through unless we start in edit mode (see main()).
-            passthrough: HashMap::from([(egui::ViewportId::ROOT, !args.edit)]),
+            // What each window's click-through was last set to. The root window starts click-through
+            // unless we start in edit mode outside the Windows full-screen overlay (see main()).
+            passthrough: HashMap::from([(egui::ViewportId::ROOT, !args.edit || (cfg!(windows) && args.fullscreen_overlay))]),
             no_activate: HashMap::new(),
             toast: None,
             seen_active: None,
@@ -626,10 +636,6 @@ impl eframe::App for App {
         }
         self.placers.retain(|id, _| *id == egui::ViewportId::ROOT || live_ids.contains(id));
 
-        // The OBS stream window, when it's on: shown whenever the overlay would be, whatever the hide hotkey says.
-        let stream_show = self.editing || (live.connected() && (general.show_when == config::ShowWhen::Connected || on_track));
-        self.stream_window(ctx, &th, &live, general.units, stream_show, now);
-
         self.stats(ctx, live.ticks, frame_start, live.status.as_deref());
 
         // The Settings window, when it's open.
@@ -701,10 +707,6 @@ impl App {
             ToggleEdit => self.set_editing(ctx, !self.editing),
             ToggleOverlays => self.visible = !self.visible,
             NextLayout => self.next_layout(1),
-            ToggleStream => {
-                let on = !self.store.config.general.streaming.window;
-                self.store.set_stream_window(on);
-            }
             Quit => quit_app(ctx),
         }
     }
@@ -1038,9 +1040,22 @@ fn exit_watchdog() {
     if !STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
         std::thread::spawn(|| {
             std::thread::sleep(Duration::from_millis(1500));
-            std::process::exit(0);
+            kill_now();
         });
     }
+}
+
+/// Ends the process at once. On Windows `std::process::exit` still runs every DLL's shutdown code
+/// (`ExitProcess`), and the graphics driver's has been seen to hang there, leaving Tenths in Task
+/// Manager after Quit. `TerminateProcess` runs none of it. Like `std::process::exit` before it, it
+/// skips Rust's own clean-up too; the normal shutdown has had its 1.5 s by then.
+fn kill_now() -> ! {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
+        TerminateProcess(GetCurrentProcess(), 0);
+    }
+    std::process::exit(0)
 }
 
 const PRIMARY_TITLE: &str = "Tenths";
@@ -1066,7 +1081,7 @@ fn overlay_viewport(d: &displays::Display) -> egui::ViewportBuilder {
         .with_active(false)
         .with_position(r.min)
         .with_inner_size(r.size())
-        // Click-through to start with; `click_through` changes it from there.
+        // Click-through (layered) from the start, at its display's size; `click_through` changes it from there.
         .with_mouse_passthrough(true)
 }
 

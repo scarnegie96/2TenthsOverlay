@@ -1,6 +1,6 @@
 //! The Settings window: a second, normal egui window (an immediate viewport
 //! of the app) with the panes of `src/settings/Settings.tsx`: General, Races,
-//! Layouts, Appearance, Controls, Streaming, About, and one per widget.
+//! Layouts, Appearance, Controls, About, and one per widget.
 //!
 //! It edits `config.json` exactly like the Tauri app's Settings (`edits.rs`),
 //! so the overlay and the Tauri app pick the changes up from the file.
@@ -35,7 +35,6 @@ mod layouts;
 mod races;
 pub mod reports_io;
 pub mod specs;
-mod streaming;
 mod timefmt;
 pub mod ui;
 mod widget;
@@ -49,7 +48,6 @@ pub enum Pane {
     Layouts,
     Appearance,
     Controls,
-    Streaming,
     About,
     Widget(&'static str),
 }
@@ -63,7 +61,6 @@ impl Pane {
             "layouts" => Pane::Layouts,
             "appearance" => Pane::Appearance,
             "controls" => Pane::Controls,
-            "streaming" => Pane::Streaming,
             "about" => Pane::About,
             id => Pane::Widget(schema::WIDGETS.iter().find(|m| m.id == id)?.id),
         })
@@ -290,7 +287,6 @@ impl SettingsWindow {
             Pane::Layouts => self.layouts.show(ui, th, env, &mut self.editor, &self.tasks.tx),
             Pane::Appearance => appearance::show(ui, th, env, &mut self.editor),
             Pane::Controls => self.controls.show(ui, th, env, &mut self.editor),
-            Pane::Streaming => streaming::show(ui, th, env, &mut self.editor),
             Pane::About => about::show(ui, th, env, &mut self.editor),
             Pane::Widget(id) => widget::show(ui, th, env, &mut self.editor, &mut self.reference, &self.tasks.tx, id),
         }
@@ -351,13 +347,12 @@ impl SettingsWindow {
                 ui.painter().vline(r.right() + 10.0, r.y_range(), Stroke::new(1.0, th.line));
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    let items: [(&str, Pane, bool); 7] = [
+                    let items: [(&str, Pane, bool); 6] = [
                         ("General", Pane::General, false),
                         ("Races", Pane::Races, false),
                         ("Layouts", Pane::Layouts, false),
                         ("Appearance", Pane::Appearance, false),
                         ("Controls", Pane::Controls, false),
-                        ("Streaming", Pane::Streaming, false),
                         ("About", Pane::About, false),
                     ];
                     // A dot on About while a newer version is waiting.

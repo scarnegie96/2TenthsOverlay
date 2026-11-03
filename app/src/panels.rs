@@ -107,7 +107,6 @@ pub fn refresh(id: &str) -> Duration {
         "inputs" | "dynamics" | "delta" | "radar" | "instruments" => 16,
         "flags" | "pitstop" | "battle" | "coach" => 33,
         "weather" => 100,
-        "twitch" => 500,
         // relative, standings (gap included), session, fuel, tires, laplog, stints, racepace
         _ => 250,
     })

@@ -433,6 +433,13 @@ pub struct StandingRow {
     pub laps_down: i32,
     /// Seconds to the car one place ahead in class.
     pub interval: Option<f32>,
+    /// Race only: seconds behind the class leader on track right now, worked out from where the
+    /// cars are like the Relative, so it moves every frame. `gap` (iRacing's timing) only changes
+    /// as cars cross timing lines. None off track or outside races.
+    pub live_gap: Option<f32>,
+    /// Latest time through each track sector (`SplitTimeInfo.Sectors`), None where the last pass
+    /// wasn't timed (pit road, joined mid-sector).
+    pub sectors: Vec<Option<f32>>,
     /// Class position at the start of the race; None outside races or when unknown.
     pub start_position: Option<i32>,
     #[serde(flatten)]

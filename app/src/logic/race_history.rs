@@ -39,7 +39,8 @@ impl Sample {
             is_player: r.is_player,
             class_position: r.class_position,
             lap: r.lap,
-            gap: r.gap,
+            // On-track gap (moves all the time), else iRacing's timing gap (steps at timing lines).
+            gap: r.live_gap.or(r.gap),
             laps_down: r.laps_down,
             status: r.status,
         }

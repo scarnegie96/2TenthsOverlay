@@ -256,6 +256,14 @@ pub fn current() -> Vec<Display> {
     }
 }
 
+/// The primary display, asked before any window exists. On Windows the process is made per-monitor
+/// DPI aware first (as winit would a moment later), so these are real pixels and real scales.
+pub fn primary_at_start() -> Option<Display> {
+    #[cfg(windows)]
+    win::dpi_aware();
+    current().into_iter().find(|d| d.primary)
+}
+
 /// `x,y,w,h[,scale];…` as displays named like Windows' (`\\.\DISPLAY1`…).
 pub fn parse_fake(s: &str) -> Vec<Display> {
     let list = s
@@ -342,7 +350,7 @@ mod win {
 
     use windows_sys::Win32::Foundation::{BOOL, LPARAM, POINT, RECT};
     use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW};
-    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         FindWindowW, GetCursorPos, GetSystemMetrics, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, MONITORINFOF_PRIMARY, SM_SWAPBUTTON, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT, GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
@@ -393,6 +401,13 @@ mod win {
             let vk = if swapped { VK_RBUTTON } else { VK_LBUTTON };
             // The high bit is set while the button is down.
             Some(super::Pointer { x: p.x as f64, y: p.y as f64, down: GetAsyncKeyState(vk as i32) < 0 })
+        }
+    }
+
+    /// Per-monitor (v2) DPI awareness, which winit asks for anyway; harmless if it's already set.
+    pub fn dpi_aware() {
+        unsafe {
+            SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         }
     }
 

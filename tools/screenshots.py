@@ -43,13 +43,11 @@ SHOWCASE = {
     "coach": (568, 612), "flags": (990, 612), "fuel": (1170, 612),
     "laplog": (568, 836), "radar": (892, 836), "instruments": (760, 1213),
     "stints": (1468, 24), "tires": (1468, 716), "pitstop": (1772, 716), "weather": (2132, 24),
-    "battle": (2132, 476), "twitch": (2132, 740),
+    "battle": (2132, 476),
 }
 ALL = list(SHOWCASE)
-# Options the pictures need: a chat channel (the demo plays a made-up chat on
-# this one), the radar and flag board always shown.
+# Options the pictures need: the radar and flag board always shown.
 OPTIONS = {
-    "twitch": {"channel": "tenths_racing", "fadeAfter": 0, "rows": 8},
     "radar": {"alwaysShow": True},
     "flags": {"alwaysShow": True},
 }
@@ -86,7 +84,7 @@ def run(cfg, out, size=(2560, 1440), args=(), env=None, warmup=WARMUP, shot_afte
         # A safety car out on the flag board, as the old overview had (the demo only waves flags now and then).
         cmd += ["--flag", str(flag)]
         cmd += list(args)
-        full_env = dict(os.environ, TENTHS_CHAT_DEMO="1", **(env or {}))
+        full_env = dict(os.environ, **(env or {}))
         subprocess.run(cmd, check=True, env=full_env, stdout=subprocess.DEVNULL, timeout=shot_after + 120)
 
 

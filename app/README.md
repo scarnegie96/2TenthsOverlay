@@ -23,8 +23,8 @@ the [main README](../README.md); this file covers how it's put together.
   kit (`src/kit.rs`) and theme tokens (`src/theme.rs`). Each reads its options
   from `config.json`, with defaults from `src/schema.rs`.
 - **Logic from the web front end** (race history, delta history, battle,
-  iRating, incidents, rejoin, weather, pit fuel plan, coach texts, Twitch
-  parser, race report maths) lives in `src/logic/`, with the old
+  iRating, incidents, rejoin, weather, pit fuel plan, coach texts, race
+  report maths) lives in `src/logic/`, with the old
   `scripts/check-*.ts` cases as unit tests.
 - **The rest of the app**: hotkeys, wheel buttons and pit commands
   (`src/controls/`), saved layouts (`src/layouts.rs`), the settings window

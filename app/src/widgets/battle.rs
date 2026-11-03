@@ -1,28 +1,28 @@
 //! Battle (`src/widgets/Battle.tsx`): the cars directly ahead of and behind you
 //! in your class (ahead on top). For each, the gap now, how much it changes per
-//! lap, the gap over the last laps, their last and best laps against yours,
-//! their tyres and stops. Only what the timing shows: no predictions.
+//! lap, their latest sector times and last and best laps against yours, their
+//! tyres and stops. Only what the timing shows: no predictions.
 
-use egui::epaint::Mesh;
-use egui::{Align, Align2, Color32, Painter, Pos2, Rangef, Rect, Shape, Stroke, Vec2};
+use egui::{Align, Align2, Painter, Pos2, Rangef, Rect, Stroke, Vec2};
 use telemetry::model::StandingRow;
 use telemetry::stints::CarStints;
 
 use super::{Ctx, Widget};
 use crate::data::Live;
 use crate::kit::{self, seg};
-use crate::logic::battle::{history, laps_between, trend, Place, Trend, STEADY};
+use crate::logic::battle::{laps_between, trend, Place, Trend, STEADY};
 use crate::logic::format::{lap_time, signed};
 use crate::logic::race_history::RaceHistory;
-use crate::theme::{alpha, hex_or, Theme};
+use crate::theme::{hex_or, Theme};
 
 const W: f32 = 360.0;
-const SPARK_W: f32 = 170.0;
-const SPARK_H: f32 = 40.0;
 /// A gap of more than this isn't a battle yet, so it's shown quieter.
 const NEAR_S: f32 = 2.0;
-/// The figures column's least width, and the gap before the sparkline.
+/// The figures column's width; the sector times use the rest of the row.
 const FIGURES_W: f32 = 112.0;
+/// Each sector's cell is at least this wide; more sectors than fit wrap onto another row.
+const SECTOR_MIN_W: f32 = 56.0;
+const SECTOR_ROW_H: f32 = 34.0;
 
 #[derive(Default)]
 pub struct Battle {
@@ -43,8 +43,7 @@ struct Shared<'a> {
     compounds: &'a [String],
     lap: f64,
     trend_laps: u32,
-    spark_laps: u32,
-    show_spark: bool,
+    show_sectors: bool,
     show_laps: bool,
     show_tyres: bool,
 }
@@ -90,8 +89,7 @@ impl Widget for Battle {
             // A lap's time for the trend: your recent lap, else your best.
             lap: me.laps.last_lap.or(me.laps.best_lap).unwrap_or(0.0) as f64,
             trend_laps: o.int("trendLaps", 1) as u32,
-            spark_laps: o.int("sparkLaps", 2) as u32,
-            show_spark: o.b("showSparkline"),
+            show_sectors: o.b("showSectors"),
             show_laps: o.b("showLaps"),
             show_tyres: o.b("showTyres"),
         };
@@ -117,21 +115,30 @@ impl Battle {
         let Some(car) = car else { return 30.0 };
         let me = s.me;
 
-        // The gap now, from the timing (fresher than the history).
+        // The gap now: on the same lap, from where the cars are on track (live, like the Relative);
+        // otherwise, or when either isn't on track, from iRacing's timing.
         let g = |r: &StandingRow| if r.class_position == 1 { Some(0.0) } else { r.gap };
-        let laps_apart = laps_between(Place::from(car), Place::from(me));
-        let gap_now = match (g(car), g(me)) {
-            (Some(a), Some(b)) => Some((a - b).abs()),
+        let live = |r: &StandingRow| if r.class_position == 1 { Some(0.0) } else { r.live_gap };
+        // Laps apart: from the live gaps when there are both (the lap counters tick a moment after
+        // the line, which made a car crossing it look a lap away), else from the lap counters.
+        // (At your best lap's pace: your last lap may have been a stop.)
+        let pace = me.laps.best_lap.or(me.laps.last_lap).unwrap_or(0.0);
+        let laps_apart = match (live(car), live(me)) {
+            (Some(a), Some(b)) if pace > 1.0 => ((a - b).abs() / pace).floor() as i32,
+            _ => laps_between(Place::from(car), Place::from(me)),
+        };
+        let gap_now = match (live(car), live(me), g(car), g(me)) {
+            (Some(a), Some(b), _, _) if laps_apart == 0 => Some((a - b).abs()),
+            (_, _, Some(a), Some(b)) => Some((a - b).abs()),
             _ => None,
         };
 
-        // How the gap changes per lap, and its history, from the race history.
+        // How the gap changes per lap, from the race history.
         let empty: Vec<f32> = Vec::new();
         let trace = |idx: i32| self.history.cars.get(&idx).map(|c| &c.points).unwrap_or(&empty);
         let (mine_pts, their_pts) = (trace(me.driver.car_idx), trace(car.driver.car_idx));
         let now = self.history.now;
         let t: Option<Trend> = if laps_apart == 0 { trend(mine_pts, their_pts, now, s.lap, s.trend_laps) } else { None };
-        let spark: Vec<f64> = if s.show_spark && laps_apart == 0 { history(mine_pts, their_pts, now, s.lap, s.spark_laps, 40) } else { Vec::new() };
 
         // The gap shrinking is good when chasing, bad when defending.
         let closing = t.map(|t| t.closing_per_lap).unwrap_or(0.0);
@@ -148,13 +155,19 @@ impl Battle {
         };
 
         let facts = s.show_laps || s.show_tyres;
-        let height = 6.0 + 20.0 + 3.0 + 46.0 + if facts { 3.0 + 16.0 } else { 0.0 } + 6.0;
+        let left = panel.x().min + 3.0 + 8.0;
+        let right = panel.x().max - 10.0;
+        // Sector times beside the figures, in as many rows as they need.
+        let n_sectors = if s.show_sectors { car.sectors.len().max(me.sectors.len()) } else { 0 };
+        let sectors_x = Rangef::new(left + FIGURES_W, right);
+        let per_row = ((sectors_x.span() / SECTOR_MIN_W).floor() as usize).max(1);
+        let sector_rows = n_sectors.div_ceil(per_row);
+        let main_h = 46f32.max(sector_rows as f32 * SECTOR_ROW_H);
+        let height = 6.0 + 20.0 + 3.0 + main_h + if facts { 3.0 + 16.0 } else { 0.0 } + 6.0;
         let near = gap_now.is_some_and(|g| g < NEAR_S) && laps_apart == 0;
         if near {
             p.rect_filled(Rect::from_min_size(Pos2::new(panel.x().min, top), Vec2::new(3.0, height)), 0.0, th.attention);
         }
-        let left = panel.x().min + 3.0 + 8.0;
-        let right = panel.x().max - 10.0;
         let class = hex_or(&car.driver.class_color, th.ink);
 
         // Who: position, class stripe, number, name, iRating.
@@ -202,16 +215,13 @@ impl Battle {
                 kit::text(p, Pos2::new(r.right() + 2.0, rate_y), Align2::LEFT_CENTER, "/lap", th.medium(11.0), th.ink3);
             }
         }
-        if s.show_spark {
-            // The svg fills what's left of the row; its 170 x 40 drawing sits centred in it.
-            let free = Rangef::new(left + FIGURES_W + 10.0, right);
-            let at = Pos2::new(free.center() - SPARK_W / 2.0, main_top + (46.0 - SPARK_H) / 2.0);
-            sparkline(p, th, at, &spark, tone);
+        if n_sectors > 0 {
+            sectors(p, th, sectors_x, main_top, per_row, &car.sectors, &me.sectors, n_sectors);
         }
 
         // Facts: last and best laps against yours, tyre, stops.
         if facts {
-            let cy = main_top + 46.0 + 3.0 + 8.0;
+            let cy = main_top + main_h + 3.0 + 8.0;
             let mut x = left;
             let font = th.medium(12.5);
             let lap_vs = |x: &mut f32, label: &str, theirs: Option<f32>, mine: Option<f32>| {
@@ -264,33 +274,52 @@ impl Battle {
     }
 }
 
-/// The gap over the last laps, oldest left; lower is closer. Coloured like the change per lap.
-/// `at` is the top left of its 170 x 40 box.
-fn sparkline(p: &Painter, th: &Theme, at: Pos2, values: &[f64], tone: Option<Color32>) {
-    if values.len() < 2 {
-        return;
-    }
-    let color = tone.unwrap_or(th.ink2);
-    let max = values.iter().cloned().fold(0.5, f64::max);
-    let n = values.len() as f32 - 1.0;
-    let x = |i: usize| at.x + (i as f32 / n) * (SPARK_W - 6.0) + 1.0;
-    let y = |v: f64| at.y + SPARK_H - 3.0 - (v / max) as f32 * (SPARK_H - 7.0);
-    let base = at.y + SPARK_H - 3.0;
-    let pts: Vec<Pos2> = values.iter().enumerate().map(|(i, v)| Pos2::new(x(i), y(*v))).collect();
-
-    let fill = alpha(color, 0.08);
-    let mut mesh = Mesh::default();
-    for (i, q) in pts.iter().enumerate() {
-        mesh.colored_vertex(*q, fill);
-        mesh.colored_vertex(Pos2::new(q.x, base), fill);
-        if i > 0 {
-            let b = (i as u32) * 2;
-            mesh.add_triangle(b - 2, b - 1, b);
-            mesh.add_triangle(b - 1, b + 1, b);
+/// Their latest time through each sector, and below it the difference to yours: red where they
+/// were faster than you, green where slower. `per_row` cells to a row across `x`, from `top`.
+#[allow(clippy::too_many_arguments)]
+fn sectors(p: &Painter, th: &Theme, x: Rangef, top: f32, per_row: usize, theirs: &[Option<f32>], mine: &[Option<f32>], n: usize) {
+    let cols = per_row.min(n).max(1);
+    let cell_w = x.span() / cols as f32;
+    for k in 0..n {
+        let (row, col) = (k / cols, k % cols);
+        let cx = x.min + cell_w * (col as f32 + 0.5);
+        let y = top + row as f32 * SECTOR_ROW_H;
+        let t = theirs.get(k).copied().flatten();
+        let m = mine.get(k).copied().flatten();
+        kit::text(p, Pos2::new(cx, y + 6.0), Align2::CENTER_CENTER, &format!("S{}", k + 1), th.medium(10.0), th.ink3);
+        let time = t.map(|t| sector_time(t as f64)).unwrap_or_else(|| "–".into());
+        kit::text(p, Pos2::new(cx, y + 18.0), Align2::CENTER_CENTER, &time, th.semi(12.5), th.ink);
+        if let (Some(t), Some(m)) = (t, m) {
+            let d = (t - m) as f64;
+            let color = if d < -0.0005 {
+                th.loss
+            } else if d > 0.0005 {
+                th.gain
+            } else {
+                th.ink2
+            };
+            kit::text(p, Pos2::new(cx, y + 29.0), Align2::CENTER_CENTER, &signed(d, 2), th.semi(11.0), color);
         }
     }
-    p.add(Shape::mesh(mesh));
-    p.line_segment([Pos2::new(at.x, base), Pos2::new(at.x + SPARK_W, base)], Stroke::new(1.0, th.line));
-    p.add(Shape::line(pts.clone(), Stroke::new(1.75, color)));
-    p.circle_filled(pts[pts.len() - 1], 3.0, color);
+}
+
+/// A sector time: seconds with two decimals, or m:ss.ss past a minute.
+fn sector_time(t: f64) -> String {
+    if t >= 60.0 {
+        let m = (t / 60.0).floor();
+        format!("{}:{:05.2}", m as i64, t - m * 60.0)
+    } else {
+        format!("{t:.2}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sector_times_read_like_lap_times() {
+        assert_eq!(sector_time(31.234), "31.23");
+        assert_eq!(sector_time(75.5), "1:15.50");
+    }
 }

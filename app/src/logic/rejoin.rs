@@ -82,6 +82,8 @@ pub(crate) mod tests {
             gap,
             laps_down: 0,
             interval: None,
+            live_gap: None,
+            sectors: Vec::new(),
             start_position: None,
             laps: LapInfo::default(),
             on_pit_road: false,

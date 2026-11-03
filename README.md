@@ -14,9 +14,8 @@ Note: This is in active development, progressing quickly. I am trying to provide
 
 ![Every Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
 
-All 19 widgets at once, in the demo race on a 2560×1440 screen (the Twitch chat
-is a made-up one). The default layout turns on fewer, and you can place each one
-wherever you like.
+All 18 widgets at once, in the demo race on a 2560×1440 screen. The default
+layout turns on fewer, and you can place each one wherever you like.
 
 <details>
 <summary>The same layout in the light theme</summary>
@@ -34,9 +33,9 @@ wherever you like.
 
 ## Features
 
-- **19 widgets**: timing tables, a battle view of the cars around you, a race pace chart, everyone's stints, a lap
+- **18 widgets**: timing tables, a battle view of the cars around you, a race pace chart, everyone's stints, a lap
   delta graph, a lap log, live coaching, inputs, car dynamics, dash lights, fuel, tires, pit stop,
-  weather, a radar, an LED flag board and (experimental) Twitch chat. Each one has its own options.
+  weather, a radar and an LED flag board. Each one has its own options.
 - **Pit stop controls**: tick fuel (enough to finish, a full tank, or a few
   litres more or less, or let auto fuel keep it at enough to finish), tires, fast repair and a tear-off for your next stop
   without opening iRacing's pit menu, and see what iRacing has ticked.
@@ -47,7 +46,7 @@ wherever you like.
 - **Any screen**: with more than one monitor, put each widget on whichever
   display you like; drag it across in edit mode.
 - **Saved layouts**: keep as many layouts as you like (sprint, endurance,
-  streaming…), switch with `Ctrl+Shift+L`, `Ctrl+Shift+1`–`9` or a wheel
+  night…), switch with `Ctrl+Shift+L`, `Ctrl+Shift+1`–`9` or a wheel
   button, and export them as files to back up or share.
 - **Any screen size**: widgets are pinned to the nearest screen edge or the
   centre, so a layout made at 1080p lands in the same places at 1440p or 4K.
@@ -179,7 +178,10 @@ Your best, optimal and last laps run along the bottom, with the comparison lap
 highlighted.
 
 Compare against your best lap, optimal lap (best sectors), session best,
-session optimal, last lap, or an imported reference lap.
+session optimal, last lap, or an imported reference lap. Best and optimal are
+your all-time ones in practice and this session's in qualifying and races.
+Where iRacing gives no delta (it doesn't in races), Tenths works it out from
+your own laps this session.
 
 *Options*: comparison lap, iRacing's sectors or 4–30 equal mini sectors, last
 lap's line, the lap times row, and a **simple pace readout** that swaps the
@@ -202,9 +204,11 @@ mark the leader's laps. The history starts when the race does (or when
 Tenths starts, if that's later) and is kept while the widget is hidden. Races
 only; off by default.
 
-*Options*: the whole race or the leader's last 5, 10 or 20 laps; everyone in
-your class or just the leader and the cars around you; a fixed gap scale; and
-the gap change per lap.
+*Options*: the whole race or the leader's last 3, 5, 10 or 20 laps (5 to
+start with); relative to you instead of the leader (you along the middle, the
+cars either side of you at their gap to you); everyone in your class or just
+the leader and the cars around you; a fixed gap scale; and the gap change per
+lap.
 
 ### Stints
 
@@ -398,11 +402,17 @@ you've changed it by hand), and show the keys.
 
 ![Radar widget](docs/widgets/radar.png)
 
-A see-through top-down view of the cars around you. Cars turn amber when
-they're close and red when they overlap, and the side arcs light up when
-someone's alongside.
+Your car, with a translucent band beside it for each car alongside, placed
+where that car is along the track (higher when it's ahead of you, lower when
+it's behind): red while it overlaps you, orange when it's only partly
+alongside or just pulling away. A glow ahead or behind marks the nearest car
+directly in front or behind, coming closer and getting stronger as the gap
+shrinks, and turning red when it's very close. iRacing only says that a car is
+alongside, not where it is across the track, so the radar shows which side and
+how far along rather than guessing at lanes.
 
-*Options*: range, always visible or only when a car is near, and class colors.
+*Options*: always visible or only when a car is near, and how close a car
+ahead or behind must be to show (10 to 50 m).
 
 ### Flags
 
@@ -433,7 +443,8 @@ class position in the corner. For each car:
 - the gap now (or how many laps apart), and how much it has changed per lap
   over the last few laps (green when it's going your way: the car ahead coming
   back to you, or the car behind dropping away; red the other way);
-- a graph of the gap over the last laps, coloured the same way;
+- their latest time through each sector, with the difference to yours under it
+  (red where they were faster, green where slower);
 - their iRating;
 - their last (L) and best (B) laps, each with the difference to yours (green
   when theirs was slower);
@@ -442,25 +453,8 @@ class position in the corner. For each car:
 
 An amber edge marks a car within two seconds. In races only. Off by default.
 
-*Options*: how many laps the change per lap is measured over, whether to show
-the gap graph and how many laps it covers, and whether to show the lap times
-and the tyres and stops.
-
-### Twitch chat (experimental)
-
-![Twitch chat widget](docs/widgets/twitch.png)
-
-A Twitch channel's live chat, so you can read it without leaving the car. Set
-your channel name (or paste its twitch.tv link) in the widget's settings. No
-login is needed: Tenths reads chat the way anyone watching can, and can't post.
-Newest messages are at the bottom, with names in their Twitch colours and
-emotes as pictures (if one can't be loaded, its name shows instead). Messages hide after a minute by default, so the panel goes
-quiet when chat does, and anything a moderator deletes (or a timed-out user's
-messages) disappears here too. The dot by the channel is green when connected.
-Off by default.
-
-*Options*: channel, how many messages, how long before they hide (0 keeps
-them), and emotes.
+*Options*: how many laps the change per lap is measured over, and whether to
+show the sector times, the lap times and the tyres and stops.
 
 ## Race reports
 
@@ -497,32 +491,6 @@ they're yours to keep, share or delete.
 
 ![A race report](docs/settings/races.png)
 
-## Streaming
-
-For OBS, Tenths can open a **stream window**: an ordinary window called
-"Tenths stream" that draws your widgets where your layout has them, on a plain
-background, with the same theme, options and opacity as on screen. OBS captures
-that window, so you don't capture your screen, and it works while iRacing
-covers it. It's off by default, and costs nothing while it's off.
-
-Turn it on in **Settings → Streaming** or with **Stream window** in the tray
-menu; closing the window turns it off again. There you choose:
-
-- **Background**: green (`#00FF00`) or magenta (`#FF00FF`) to key out, or black or dark grey.
-- **Screen**: on several monitors, which one's layout and size it follows.
-- **Size**: 50, 75 or 100% of that screen.
-- **Widgets**: everything the layout has on that screen, or only the ones you
-  tick (placed where the layout puts them, even a widget you have off on screen).
-
-In OBS: add a **Window Capture** source and pick "Tenths stream", set Capture
-Method to "Windows 10 (1903 and up)", then add a **Chroma Key** filter with the
-background colour (a **Color Key** filter for black or grey). Widgets with
-an opacity under 100% blend with the background colour, so key out a colour your
-widgets don't use, or set those widgets to 100%.
-
-The OBS Browser Source pages of the Tauri version (the port in the settings
-file) are not part of this version.
-
 ## The app
 
 Tenths runs in the background with an icon in the system tray. Each widget
@@ -534,15 +502,15 @@ them; there's no Save button.
 
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
-with its current key), Stream window (on or off), Check for updates (it says
+with its current key), Check for updates (it says
 "Update to 0.5.1…" once a newer version is found) and Quit Tenths. Starting Tenths again while it's
 running opens its settings window. Closing the settings window only hides
 it; Tenths keeps running until you quit it from the tray.
 
 Along the top of the settings window are the connection status (Waiting for
 iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
-**Edit layout**. Down the side are the General, Races, Layouts, Appearance, Controls,
-Streaming and About pages, then a page for each widget with a dot showing
+**Edit layout**. Down the side are the General, Races, Layouts, Appearance, Controls
+and About pages, then a page for each widget with a dot showing
 whether it's on.
 
 ### General
@@ -564,8 +532,7 @@ whether it's on.
 ![Settings: Layouts](docs/settings/layouts.png)
 
 A layout is every widget's position, size, opacity, on/off state and options,
-saved under a name: one for sprints and one for endurance races, say, or one
-for streaming. The theme, colors, units and keys stay the same across layouts.
+saved under a name: one for sprints and one for endurance races, say. The theme, colors, units and keys stay the same across layouts.
 
 - **Save**: give what's on screen a name and **Save layout**. While a layout is
   on screen (marked **On screen**), anything you change, whether moving,
@@ -869,7 +836,6 @@ app/                  The app (egui)
   src/main.rs         Windows per display and per widget, edit mode, stats
   src/frame.rs        Laying out, dragging and snapping widgets; edit chrome
   src/panels.rs       One small window per widget outside edit mode
-  src/stream.rs       The stream window for OBS
   src/displays.rs     Monitors, DPI, window placement, click-through
   src/config.rs       config.json (shared with the Tauri version), watched for changes
   src/schema.rs       Every widget's options and defaults
@@ -886,12 +852,32 @@ app/                  The app (egui)
   build.rs            The icon and version information inside tenths.exe
   TRACKER*.md         What was ported from the Tauri version, item by item
 archive/tauri/        The previous Tauri + React version, as it was
+archive/streaming/    Twitch chat and the OBS stream window, taken out for the first release (see Future work)
 archive/pyside-port/  A plan for a Python/Qt version (not pursued)
 tools/screenshots.py  README pictures
 ```
 
 The data flow and the maths behind each number are unchanged from the Tauri
 version: see [archive/tauri/docs/ARCHITECTURE.md](archive/tauri/docs/ARCHITECTURE.md).
+
+## Future work
+
+Two features were built and then taken out for the first release, to keep it
+focused on driving. Their code is kept in [archive/streaming/](archive/streaming/)
+(with notes on what else they need to be wired back in) so they can return
+once they've had more testing.
+
+- **Twitch chat**: a widget showing a Twitch channel's live chat, read-only,
+  so you can read it without leaving the car. It reads chat anonymously the way
+  any viewer can (no login, and it can't post), shows names in their Twitch
+  colours and emotes as pictures, hides messages after a while so the panel
+  goes quiet when chat does, and removes anything a moderator deletes.
+- **OBS stream window**: an ordinary window, "Tenths stream", drawing your
+  widgets where your layout has them on a plain green, magenta, black or grey
+  background, for OBS's Window Capture with a Chroma Key filter. Unlike
+  capturing the screen, it keeps working while iRacing covers it. It would have
+  its own Settings page (background, which screen's layout it follows, 50, 75
+  or 100% size, and which widgets) and a tray item to turn it on and off.
 
 ## License
 
