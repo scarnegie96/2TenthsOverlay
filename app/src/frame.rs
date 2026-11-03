@@ -66,6 +66,8 @@ pub struct Layout {
     /// display under the pointer, or 0 when it's over none.
     leaving: Option<u32>,
     guides: Vec<Guide>,
+    /// What the last press in edit mode did (shown at the top of the screen, to see why a panel won't take it).
+    probe: String,
 }
 
 /// What a click in edit mode landed on.
@@ -135,7 +137,7 @@ impl Layout {
             .iter()
             .map(|meta| Slot { meta, widget: widgets::make(meta.id), natural: Vec2::ZERO, rect: None, shown_on: None, error: None })
             .collect();
-        Self { slots, drag: None, drag_on: String::new(), leaving: None, guides: Vec::new() }
+        Self { slots, drag: None, drag_on: String::new(), leaving: None, guides: Vec::new(), probe: String::new() }
     }
 
     /// Lets every widget see the latest data, once a frame, whether it is shown or not.
@@ -193,6 +195,7 @@ impl Layout {
 
     /// Editing is over (or never started): forget any drag or guides.
     pub fn stop_editing(&mut self) {
+        self.probe.clear();
         self.drag = None;
         self.guides.clear();
         self.leaving = None;
@@ -287,7 +290,30 @@ impl Layout {
         }
         let screen_size = screen.size();
         let next = displays::next_display(&me.key, displays);
-        if pressed && self.drag.is_none() && !ctx.is_pointer_over_egui() {
+        // Over the edit bar or its list: not for the panels. (Not `is_pointer_over_egui`, which also
+        // counts the empty window itself when its root area isn't known.)
+        let over_ui = pos.is_some_and(|p| ctx.layer_id_at(p).is_some_and(|l| l.order != Order::Background));
+        if pressed {
+            self.probe = match pos {
+                None => "press: no pointer position".to_string(),
+                Some(p) => format!(
+                    "press {:.0},{:.0} on {}: {}",
+                    p.x,
+                    p.y,
+                    me.name(),
+                    if self.drag.is_some() {
+                        "a drag is still active".to_string()
+                    } else if over_ui {
+                        "over the edit bar".to_string()
+                    } else if self.hit(ctx, store, p, &me.key, next.map(|d| d.number)).is_some() {
+                        "hit".to_string()
+                    } else {
+                        "no panel there".to_string()
+                    }
+                ),
+            };
+        }
+        if pressed && self.drag.is_none() && !over_ui {
             if let Some(p) = pos {
                 match self.hit(ctx, store, p, &me.key, next.map(|d| d.number)) {
                     Some(Hit::Smaller(i)) => self.nudge_scale(store, i, -0.1, screen, &me.key),
@@ -475,6 +501,9 @@ impl Layout {
                     p.hline(screen.x_range(), screen.top() + y, Stroke::new(1.0, th.attention));
                 }
             }
+        }
+        if !self.probe.is_empty() {
+            kit::text(&p, Pos2::new(screen.center().x, screen.top() + 10.0), Align2::CENTER_TOP, &self.probe, th.medium(13.0), th.ink3);
         }
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(r) = self.rect_on(i, &me.key) else { continue };
