@@ -103,7 +103,8 @@ pub fn refresh(id: &str) -> Duration {
     Duration::from_millis(match id {
         "inputs" | "dynamics" | "delta" | "radar" | "instruments" => 16,
         "flags" | "pitstop" | "battle" | "coach" => 33,
-        "weather" | "twitch" => 500,
+        "weather" => 100,
+        "twitch" => 500,
         // relative, standings (gap included), session, fuel, tires, laplog, stints, racepace
         _ => 250,
     })
