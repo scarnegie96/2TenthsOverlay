@@ -497,6 +497,9 @@ impl App {
 impl eframe::App for App {
     /// eframe exits the process after this, so it's where the heap profile is written.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // The graphics and window teardown after this has been seen to hang, leaving the process
+        // (and its windows) up with nothing running.
+        exit_watchdog();
         heap::finish();
     }
 
@@ -506,6 +509,10 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = &ui.ctx().clone();
+        // Closed from the window or the taskbar: make sure it really goes.
+        if ctx.input(|i| i.viewport().close_requested()) {
+            exit_watchdog();
+        }
         let frame_start = Instant::now();
         if let Some(until) = self.warmup_until {
             let speed = if self.started.elapsed().as_secs_f64() < until { WARMUP_SPEED } else { 1 };
@@ -1022,10 +1029,18 @@ impl App {
 fn quit_app(ctx: &egui::Context) {
     ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
     ctx.request_repaint_of(egui::ViewportId::ROOT);
-    std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_millis(1500));
-        std::process::exit(0);
-    });
+    exit_watchdog();
+}
+
+/// Ends the process a moment from now whatever the window system and graphics are doing (once).
+fn exit_watchdog() {
+    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_millis(1500));
+            std::process::exit(0);
+        });
+    }
 }
 
 const PRIMARY_TITLE: &str = "Tenths";
