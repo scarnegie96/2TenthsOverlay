@@ -773,7 +773,10 @@ impl App {
     #[allow(clippy::too_many_arguments)]
     fn overlay(&mut self, ctx: &egui::Context, d: &displays::Display, th: &theme::Theme, live: &data::Live, units: config::Units, show: bool, now: f64) {
         let vid = ctx.viewport_id();
-        self.placers.entry(vid).or_default().update(ctx, d, now);
+        let title = if d.primary { PRIMARY_TITLE.to_string() } else { overlay_title(d) };
+        let placer = self.placers.entry(vid).or_default();
+        placer.update(ctx, d, now);
+        placer.fit_native(ctx, &title, d, now);
         if self.editing && ctx.input(|i| i.key_pressed(egui::Key::F2) || i.key_pressed(egui::Key::Escape)) {
             self.set_editing(ctx, false);
         }
@@ -807,7 +810,6 @@ impl App {
             let screen = ctx.content_rect();
             self.layout_toast(ctx, th, now, screen, screen.top() + screen.height() * 0.18);
         }
-        let title = if d.primary { PRIMARY_TITLE.to_string() } else { overlay_title(d) };
         self.click_through(ctx, d, &clicks, &title);
     }
 

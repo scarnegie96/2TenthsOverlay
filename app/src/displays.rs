@@ -182,6 +182,8 @@ pub struct Placer {
     target: Option<PhysRect>,
     tries: u32,
     last: f64,
+    /// When the real window was last compared with the display (`fit_native`).
+    checked: f64,
 }
 
 const PLACE_TRIES: u32 = 12;
@@ -192,6 +194,27 @@ impl Placer {
     /// still being moved (so the caller can keep repainting).
     pub fn update(&mut self, ctx: &egui::Context, d: &Display, now: f64) -> bool {
         self.update_rect(ctx, PhysRect::of(d), now)
+    }
+
+    /// Windows: makes the window called `title` exactly cover the display, in physical pixels, asking
+    /// the system directly. Going through winit leaves some windows (on mixed-scale displays) smaller
+    /// than they are drawn, and clicks outside the real window then fall through to what's behind.
+    /// Checked twice a second.
+    pub fn fit_native(&mut self, ctx: &egui::Context, title: &str, d: &Display, now: f64) {
+        #[cfg(windows)]
+        {
+            if now - self.checked < 0.5 {
+                return;
+            }
+            self.checked = now;
+            if win::fit_window(title, PhysRect::of(d)) == Some(false) {
+                ctx.request_repaint();
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (ctx, title, d, now);
+        }
     }
 
     /// As `update`, for any rectangle on the desktop. A new target is asked for at once.
@@ -322,7 +345,7 @@ mod win {
     use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GetCursorPos, GetSystemMetrics, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, MONITORINFOF_PRIMARY, SM_SWAPBUTTON, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT,
+        FindWindowW, GetCursorPos, GetSystemMetrics, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, MONITORINFOF_PRIMARY, SM_SWAPBUTTON, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT, GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
     };
 
     use super::{key_of, Display};
@@ -370,6 +393,29 @@ mod win {
             let vk = if swapped { VK_RBUTTON } else { VK_LBUTTON };
             // The high bit is set while the button is down.
             Some(super::Pointer { x: p.x as f64, y: p.y as f64, down: GetAsyncKeyState(vk as i32) < 0 })
+        }
+    }
+
+    /// Moves and sizes the window called `title` to `want` (physical pixels) if it isn't there.
+    /// `None` when there's no such window; `Some(true)` when it already was; `Some(false)` when it was moved.
+    pub fn fit_window(title: &str, want: super::PhysRect) -> Option<bool> {
+        let wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+        unsafe {
+            let hwnd = FindWindowW(std::ptr::null(), wide.as_ptr());
+            if hwnd.is_null() {
+                return None;
+            }
+            let mut r: RECT = zeroed();
+            if GetWindowRect(hwnd, &mut r) == 0 {
+                return None;
+            }
+            let have = [r.left, r.top, r.right - r.left, r.bottom - r.top];
+            let target = [want.x, want.y, want.w as i32, want.h as i32];
+            if have.iter().zip(target).all(|(h, w)| (h - w).abs() <= 1) {
+                return Some(true);
+            }
+            SetWindowPos(hwnd, std::ptr::null_mut(), want.x, want.y, want.w as i32, want.h as i32, SWP_NOZORDER | SWP_NOACTIVATE);
+            Some(false)
         }
     }
 

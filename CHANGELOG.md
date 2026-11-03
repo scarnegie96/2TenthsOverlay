@@ -9,6 +9,7 @@ when you bump the version.
 - Fixed the screen staying white after pressing Done in layout editing in the full-screen overlay on Windows.
 - Quit (tray, hotkey, edit bar) always quits now. Before, it could be left running and need Task Manager.
 - Edit Layout: clicks on panels are no longer ignored by a stale "over the UI" check, and the top of the screen shows what the last click did (hit, over the edit bar, no panel there) to help track down any panel that still won't respond.
+- Windows with more than one display (or a mix of scales): each overlay window now covers its whole display. Before, a window could be smaller than what was drawn, so the right and bottom parts of the screen ignored clicks (panels there couldn't be moved or clicked).
 - Edit Layout: panels that overlap can all be picked now. Clicking where several overlap grabs the smallest one, so a small panel under a big one is no longer stuck.
 
 ## 0.6.0
