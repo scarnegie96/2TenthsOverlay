@@ -4,8 +4,9 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
-## Unreleased
+## 0.6.5
 
+- Edit layout: the layout name in the bar is black on its light box, so it's readable in every theme.
 - Battle: the cars ahead and behind are picked live, from where everyone is on track (ten times a second), not from iRacing's positions, which only change as cars cross timing lines. After an overtake the panel compares you with your new neighbours straight away, and the position in its corner and beside each car is the live one too. The Lap figure works for any car you end up next to, since every car's gap at the start of your lap is kept.
 
 ## 0.6.4
