@@ -214,7 +214,7 @@ impl Widget for Instruments {
             y = inner.bottom() + 10.0;
         }
         let size = panel.finish(p, th, y);
-        if any_danger && !th.f1() {
+        if any_danger && !th.broadcast() {
             p.rect_stroke(Rect::from_min_size(Pos2::ZERO, size), kit::radius(th.radius), Stroke::new(1.0, alpha(th.loss, 0.6)), egui::StrokeKind::Inside);
         }
         size

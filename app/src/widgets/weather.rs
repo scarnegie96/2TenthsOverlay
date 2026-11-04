@@ -167,7 +167,7 @@ fn row_rule(p: &Painter, th: &Theme, x: egui::Rangef, y: f32) -> f32 {
 
 /// A small badge: `.tag`.
 fn tag(p: &Painter, th: &Theme, r: Rect, label: &str) {
-    kit::fill(p, r, if th.f1() { 2.0 } else { 3.0 }, th.attention);
+    kit::fill(p, r, if th.broadcast() { 2.0 } else { 3.0 }, th.attention);
     kit::text(p, r.center(), Align2::CENTER_CENTER, label, th.bold(12.0), th.panel_solid);
 }
 

@@ -101,7 +101,7 @@ impl Widget for Relative {
         let c_int = at(show_interval, Col::Px(40.0));
         let x = kit::grid(panel.x(), 6.0, 10.0, 7.0, &cols);
 
-        let pad = if th.f1() { 0.0 } else { 3.0 };
+        let pad = if th.broadcast() { 0.0 } else { 3.0 };
         let mut y = panel.body_top + pad;
         let rh = th.row_h;
         for k in -(ahead as isize)..=(behind as isize) {

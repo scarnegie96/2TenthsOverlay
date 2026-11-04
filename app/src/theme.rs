@@ -1,4 +1,4 @@
-//! Colours and fonts for the three themes (Dark, Light and Box Box), with the
+//! Colours and fonts for the themes (Dark, Light, Night, Box Box and '90s), with the
 //! user's own colours from `general.colors`: `src/lib/theme.ts` and the
 //! tokens in `src/styles/base.css`.
 
@@ -47,8 +47,13 @@ pub struct Theme {
     pub ghost_brake: Color32,
     pub ghost_attention: Color32,
     pub ghost_wheel: Color32,
-    /// Box Box's broadcast red.
-    pub f1_red: Color32,
+    /// The broadcast themes' accent: Box Box's red, the '90s yellow.
+    pub accent: Color32,
+    /// Text drawn on a coloured fill (tyre temperatures, the flag board).
+    pub on_fill: Color32,
+    /// How bright lit things are (the flag board's LEDs, the radar's cars):
+    /// 1, or lower for Night.
+    pub glow: f32,
     pub radius: f32,
     pub row_h: f32,
 }
@@ -130,6 +135,44 @@ pub fn default_color(theme: ThemeId, key: &str) -> &'static str {
             ("brake", "#ff1e1e"),
             ("clutch", "#3fa3ff"),
         ],
+        // Dim and warm: nothing near white, reds and ambers carry the meaning.
+        ThemeId::Night => &[
+            ("ink", "#d6b48e"),
+            ("ink-2", "#a58566"),
+            ("ink-3", "#715b47"),
+            ("panel-solid", "#090605"),
+            ("panel-raised", "#140e0b"),
+            ("edge", "#6d5440"),
+            ("wheel", "#b39373"),
+            ("fastest", "#a17cc8"),
+            ("gain", "#6fa85c"),
+            ("loss", "#d9533c"),
+            ("attention", "#d99a3e"),
+            ("lapped", "#6487b0"),
+            ("lapping", "#c97a4c"),
+            ("throttle", "#6fa85c"),
+            ("brake", "#d9533c"),
+            ("clutch", "#6487b0"),
+        ],
+        // Yellow and white on deep blue.
+        ThemeId::Retro => &[
+            ("ink", "#ffffff"),
+            ("ink-2", "#c9d3f2"),
+            ("ink-3", "#8494c7"),
+            ("panel-solid", "#0a1850"),
+            ("panel-raised", "#15297a"),
+            ("edge", "#6f86d6"),
+            ("wheel", "#dfe5f7"),
+            ("fastest", "#d36bff"),
+            ("gain", "#3ee26f"),
+            ("loss", "#ff4040"),
+            ("attention", "#ff9f1c"),
+            ("lapped", "#4fc8ff"),
+            ("lapping", "#ff8a3d"),
+            ("throttle", "#3ee26f"),
+            ("brake", "#ff4040"),
+            ("clutch", "#4fc8ff"),
+        ],
     };
     table.iter().find(|(k, _)| *k == key).map(|(_, v)| *v).unwrap_or("#808080")
 }
@@ -189,7 +232,11 @@ impl Theme {
             ThemeId::Dark => (Color32::BLACK, 0.84, 6.0, 26.0),
             ThemeId::Light => (Color32::from_rgb(0x5d, 0x6f, 0x85), 0.90, 6.0, 26.0),
             ThemeId::F1 => (Color32::BLACK, 0.88, 0.0, 28.0),
+            // Nearly solid, so a bright track behind doesn't shine through.
+            ThemeId::Night => (Color32::BLACK, 0.95, 6.0, 26.0),
+            ThemeId::Retro => (Color32::from_rgb(0x02, 0x06, 0x1c), 0.92, 0.0, 28.0),
         };
+        let night = id == ThemeId::Night;
         Self {
             id,
             ink,
@@ -218,21 +265,52 @@ impl Theme {
             ghost_brake: mix(brake, ink3, 0.55),
             ghost_attention: mix(attention, ink3, 0.70),
             ghost_wheel: mix(wheel, ink3, 0.55),
-            f1_red: Color32::from_rgb(0xe1, 0x06, 0x00),
+            accent: match id {
+                ThemeId::Retro => Color32::from_rgb(0xff, 0xd4, 0x00),
+                _ => Color32::from_rgb(0xe1, 0x06, 0x00),
+            },
+            on_fill: if night { ink } else { Color32::WHITE },
+            glow: if night { 0.5 } else { 1.0 },
             radius,
             row_h,
         }
     }
 
-    pub fn f1(&self) -> bool {
-        self.id == ThemeId::F1
+    /// The TV-graphics look (Box Box and '90s): square panels, a coloured
+    /// header rule, names in capitals.
+    pub fn broadcast(&self) -> bool {
+        matches!(self.id, ThemeId::F1 | ThemeId::Retro)
+    }
+    pub fn retro(&self) -> bool {
+        self.id == ThemeId::Retro
+    }
+    pub fn night(&self) -> bool {
+        self.id == ThemeId::Night
+    }
+    /// A lit colour at this theme's brightness.
+    pub fn lit(&self, c: Color32) -> Color32 {
+        if self.glow < 1.0 {
+            c.gamma_multiply(self.glow).to_opaque()
+        } else {
+            c
+        }
     }
     pub fn light(&self) -> bool {
         self.id == ThemeId::Light
     }
 
     pub fn font(&self, w: W, size: f32) -> FontId {
-        let name = match (self.f1(), w) {
+        if self.retro() {
+            let name = match w {
+                W::Medium => CONDENSED_500I,
+                W::Semi => CONDENSED_600I,
+                W::Bold => CONDENSED_700I,
+                W::Heavy => CONDENSED_900I,
+            };
+            // The condensed face is narrower: a touch bigger reads the same.
+            return FontId::new(size * 1.06, FontFamily::Name(name.into()));
+        }
+        let name = match (self.broadcast(), w) {
             (false, W::Medium) => BARLOW_500,
             (false, W::Semi) => BARLOW_600,
             (false, W::Bold | W::Heavy) => BARLOW_700,
@@ -258,7 +336,7 @@ impl Theme {
 
     /// Box Box writes names and headings in capitals.
     pub fn caps(&self, s: &str) -> String {
-        if self.f1() {
+        if self.broadcast() {
             s.to_uppercase()
         } else {
             s.to_string()
@@ -269,13 +347,18 @@ impl Theme {
 const BARLOW_500: &str = "barlow-500";
 const BARLOW_600: &str = "barlow-600";
 const BARLOW_700: &str = "barlow-700";
+const CONDENSED_500I: &str = "condensed-500i";
+const CONDENSED_600I: &str = "condensed-600i";
+const CONDENSED_700I: &str = "condensed-700i";
+const CONDENSED_900I: &str = "condensed-900i";
 const TITILLIUM_400: &str = "titillium-400";
 const TITILLIUM_600: &str = "titillium-600";
 const TITILLIUM_700: &str = "titillium-700";
 const TITILLIUM_900: &str = "titillium-900";
 
 /// The web app's fonts, bundled (SIL Open Font Licence): Barlow Semi
-/// Condensed, and Titillium Web for Box Box (latin and latin-ext subsets).
+/// Condensed, Titillium Web for Box Box (latin and latin-ext subsets), and
+/// Barlow Condensed italics for '90s.
 pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
     let fallbacks = fonts.families[&FontFamily::Proportional].clone();
@@ -326,6 +409,10 @@ pub fn install_fonts(ctx: &egui::Context) {
             ("t900x", include_bytes!("../assets/fonts/TitilliumWeb-900-latin-ext.ttf")),
         ],
     );
+    family(&mut fonts, CONDENSED_500I, &[("c500i", include_bytes!("../assets/fonts/BarlowCondensed-MediumItalic.ttf"))]);
+    family(&mut fonts, CONDENSED_600I, &[("c600i", include_bytes!("../assets/fonts/BarlowCondensed-SemiBoldItalic.ttf"))]);
+    family(&mut fonts, CONDENSED_700I, &[("c700i", include_bytes!("../assets/fonts/BarlowCondensed-BoldItalic.ttf"))]);
+    family(&mut fonts, CONDENSED_900I, &[("c900i", include_bytes!("../assets/fonts/BarlowCondensed-BlackItalic.ttf"))]);
     // Plain egui text (the edit bar) uses Barlow too.
     fonts.families.get_mut(&FontFamily::Proportional).unwrap().insert(0, "barlow-500".to_owned());
     ctx.set_fonts(fonts);
@@ -349,6 +436,19 @@ mod tests {
         let l = Theme::build(ThemeId::Light, None);
         assert_eq!(l.attention, parse_hex("#d48300").unwrap());
         assert_eq!(Theme::build(ThemeId::F1, None).radius, 0.0);
+        assert!(Theme::build(ThemeId::Retro, None).broadcast());
+        assert!(!Theme::build(ThemeId::Night, None).broadcast());
+    }
+
+    #[test]
+    fn night_has_nothing_bright() {
+        let t = Theme::build(ThemeId::Night, None);
+        for key in COLOR_KEYS.iter().map(|(k, _)| *k) {
+            let [r, g, b, _] = parse_hex(default_color(ThemeId::Night, key)).unwrap().to_array();
+            let luma = 0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32;
+            assert!(luma < 190.0, "{key} is too bright for Night ({luma})");
+        }
+        assert_eq!(t.on_fill, t.ink);
     }
 
     #[test]

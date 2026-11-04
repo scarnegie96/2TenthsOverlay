@@ -248,7 +248,7 @@ impl Panel {
     pub fn begin(p: &Painter, th: &Theme, w: f32, title: Option<&str>, aside: &[Seg]) -> Self {
         let shadow = p.add(Shape::Noop);
         let bg = p.add(Shape::Noop);
-        let inset = if th.f1() { 0.0 } else { 1.0 };
+        let inset = if th.broadcast() { 0.0 } else { 1.0 };
         let mut panel = Self { w, inset, body_top: inset, shadow, bg };
         if title.is_some() || !aside.is_empty() {
             panel.body_top = inset + head(p, th, Rect::from_min_size(Pos2::new(inset, inset), Vec2::new(w - 2.0 * inset, HEAD_H)), title.unwrap_or(""), aside);
@@ -265,7 +265,7 @@ impl Panel {
     pub fn finish(self, p: &Painter, th: &Theme, bottom: f32) -> Vec2 {
         let size = Vec2::new(self.w, bottom + self.inset);
         let rect = Rect::from_min_size(Pos2::ZERO, size);
-        if th.f1() {
+        if th.broadcast() {
             let shadow = Shadow { offset: [0, 2], blur: 12, spread: 0, color: Color32::from_black_alpha(89) };
             p.set(self.shadow, shadow.as_shape(rect, CornerRadius::ZERO));
             p.set(self.bg, Shape::rect_filled(rect, CornerRadius::ZERO, th.panel));
@@ -284,15 +284,15 @@ pub fn head(p: &Painter, th: &Theme, rect: Rect, title: &str, aside: &[Seg]) -> 
     let h = HEAD_H;
     let r = Rect::from_min_size(rect.min, Vec2::new(rect.width(), h));
     let y = r.top() + (h - 1.0) / 2.0;
-    let spacing = if th.f1() { 14.0 * 0.04 } else { 0.0 };
-    if th.f1() {
+    let spacing = if th.broadcast() { 14.0 * 0.04 } else { 0.0 };
+    if th.broadcast() {
         fill(p, r, 0.0, alpha(th.panel_raised, 0.7));
-        p.rect_filled(Rect::from_min_max(Pos2::new(r.left(), r.bottom() - 2.0), r.max), 0.0, th.f1_red);
+        p.rect_filled(Rect::from_min_max(Pos2::new(r.left(), r.bottom() - 2.0), r.max), 0.0, th.accent);
     } else {
         p.hline(r.x_range(), r.bottom() - 0.5, Stroke::new(1.0, th.line));
     }
     let caps: Vec<Seg>;
-    let aside = if th.f1() {
+    let aside = if th.broadcast() {
         caps = aside.iter().map(|s| Seg { text: s.text.to_uppercase(), ..s.clone() }).collect();
         &caps[..]
     } else {
@@ -302,15 +302,31 @@ pub fn head(p: &Painter, th: &Theme, rect: Rect, title: &str, aside: &[Seg]) -> 
     if !aside.is_empty() {
         segs(p, r.right() - 10.0, y, true, aside, spacing);
     }
-    let font = if th.f1() { th.heavy(14.0) } else { th.bold(14.0) };
+    let font = if th.broadcast() { th.heavy(14.0) } else { th.bold(14.0) };
     let max = r.width() - 20.0 - if aside_w > 0.0 { aside_w + 12.0 } else { 0.0 };
-    text_fit(p, Pos2::new(r.left() + 10.0, y), Align2::LEFT_CENTER, &th.caps(title), font, th.ink, max, spacing);
+    let title = th.caps(title);
+    if th.retro() && !title.is_empty() {
+        // '90s: the title on a slanted yellow tab.
+        let tw = width_sp(p, &title, font.clone(), spacing).min(max);
+        retro_tab(p, th, r.left(), r.top(), r.bottom() - 2.0, 10.0 + tw + 12.0);
+        text_fit(p, Pos2::new(r.left() + 10.0, y), Align2::LEFT_CENTER, &title, font, th.panel_solid, max, spacing);
+        return h;
+    }
+    text_fit(p, Pos2::new(r.left() + 10.0, y), Align2::LEFT_CENTER, &title, font, th.ink, max, spacing);
     h
+}
+
+/// The '90s slanted yellow tab a heading sits on: `w` wide from `left`.
+pub fn retro_tab(p: &Painter, th: &Theme, left: f32, top: f32, bottom: f32, w: f32) {
+    let right = left + w;
+    let lean = 0.27 * (bottom - top);
+    let pts = vec![Pos2::new(left, top), Pos2::new(right + lean, top), Pos2::new(right, bottom), Pos2::new(left, bottom)];
+    p.add(Shape::convex_polygon(pts, th.accent, Stroke::NONE));
 }
 
 /// The aside text style of panel headers (Box Box: semibold).
 pub fn aside_font(th: &Theme) -> FontId {
-    if th.f1() {
+    if th.broadcast() {
         th.semi(14.0)
     } else {
         th.medium(14.0)
@@ -374,9 +390,9 @@ pub fn cell(p: &Painter, col: Rangef, y: f32, align: Align, s: &str, font: FontI
 /// Your row: a wash of your class colour fading to the right with a bar on
 /// the left (Box Box: grey with a red bar).
 pub fn player_row(p: &Painter, th: &Theme, rect: Rect, class: Color32) {
-    if th.f1() {
+    if th.broadcast() {
         fill(p, rect, 0.0, alpha(th.ink, 0.16));
-        fill(p, Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height())), 0.0, th.f1_red);
+        fill(p, Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height())), 0.0, th.accent);
     } else {
         hgradient(p, rect, alpha(class, 0.34), alpha(class, 0.12));
         fill(p, Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height())), 0.0, class);
@@ -385,7 +401,7 @@ pub fn player_row(p: &Painter, th: &Theme, rect: Rect, class: Color32) {
 
 /// Box Box's thin rule under every row.
 pub fn row_rule(p: &Painter, th: &Theme, rect: Rect) {
-    if th.f1() {
+    if th.broadcast() {
         p.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, alpha(th.ink, 0.06)));
     }
 }
@@ -393,10 +409,13 @@ pub fn row_rule(p: &Painter, th: &Theme, rect: Rect) {
 /// The position: right-aligned bold, or Box Box's white box (red outside the
 /// top ten, grey in the pits).
 pub fn pos_cell(p: &Painter, th: &Theme, col: Rangef, y: f32, label: &str, pos: i32, in_pits: bool) {
-    if th.f1() {
+    if th.broadcast() {
         let r = Rect::from_center_size(Pos2::new(col.center(), y), Vec2::new(col.span(), 20.0));
         let (bg, fg) = if in_pits {
             (Color32::from_rgb(0x8b, 0x8b, 0x96), Color32::from_rgb(0x15, 0x15, 0x1e))
+        } else if th.retro() {
+            // '90s: yellow for the podium, white below it.
+            (if (1..=3).contains(&pos) { th.accent } else { Color32::WHITE }, th.panel_solid)
         } else if pos > 10 {
             (Color32::from_rgb(0x9e, 0x0b, 0x17), Color32::WHITE)
         } else {
@@ -411,7 +430,7 @@ pub fn pos_cell(p: &Painter, th: &Theme, col: Rangef, y: f32, label: &str, pos: 
 
 /// The slanted class-colour bar (`ClassStripe`), centred in its column.
 pub fn class_bar(p: &Painter, th: &Theme, cx: f32, y: f32, color: Color32) {
-    if th.f1() {
+    if th.broadcast() {
         fill(p, Rect::from_center_size(Pos2::new(cx, y), Vec2::new(3.0, 16.0)), 0.0, color);
         return;
     }
@@ -429,7 +448,7 @@ pub fn class_bar(p: &Painter, th: &Theme, cx: f32, y: f32, color: Color32) {
 
 /// "#45": a small muted hash and the number, right-aligned at `right`.
 pub fn num_cell(p: &Painter, th: &Theme, right: f32, y: f32, number: &str, size: f32) {
-    let (font, color) = if th.f1() { (th.semi(size), th.ink3) } else { (th.bold(size), th.ink2) };
+    let (font, color) = if th.broadcast() { (th.semi(size), th.ink3) } else { (th.bold(size), th.ink2) };
     let list = [seg("#", th.medium(12.0), th.ink3), seg(number, font, color)];
     let w = segs_width(p, &list, 0.0) + 1.0;
     let r = text(p, Pos2::new(right - w, y + 0.5), Align2::LEFT_CENTER, "#", th.medium(12.0), th.ink3);
@@ -476,8 +495,8 @@ pub fn badge_width(p: &Painter, th: &Theme, b: Badge) -> f32 {
 pub fn status_badge(p: &Painter, th: &Theme, x: f32, y: f32, b: Badge) -> f32 {
     let w = badge_width(p, th, b);
     let r = Rect::from_min_size(Pos2::new(x, y - 8.5), Vec2::new(w, 17.0));
-    let rad = if th.f1() { 2.0 } else { 3.0 };
-    let accent = if th.f1() { th.f1_red } else { th.attention };
+    let rad = if th.broadcast() { 2.0 } else { 3.0 };
+    let accent = if th.broadcast() { th.accent } else { th.attention };
     match b {
         Badge::PitLane => {
             outline(p, r, rad, 1.5, accent);
@@ -485,7 +504,7 @@ pub fn status_badge(p: &Painter, th: &Theme, x: f32, y: f32, b: Badge) -> f32 {
         }
         Badge::PitStall => {
             fill(p, r, rad, accent);
-            let fg = if th.f1() { Color32::WHITE } else { th.panel_solid };
+            let fg = if th.broadcast() && !th.retro() { Color32::WHITE } else { th.panel_solid };
             text(p, r.center(), Align2::CENTER_CENTER, "P", th.heavy(12.0), fg);
         }
         Badge::Out | Badge::Garage => {
@@ -502,7 +521,7 @@ pub fn status_badge(p: &Painter, th: &Theme, x: f32, y: f32, b: Badge) -> f32 {
 pub fn name_cell(p: &Painter, th: &Theme, col: Rangef, y: f32, name: &str, color: Color32, bold: bool, mark: Option<Thumb>, badge: Option<Badge>, dim: f32) {
     let mark_w = if mark.is_some() { 4.0 + 11.0 } else { 0.0 };
     let badge_w = badge.map(|b| 6.0 + badge_width(p, th, b)).unwrap_or(0.0);
-    let (font, spacing) = if th.f1() { (th.bold(15.0), 0.45) } else if bold { (th.bold(15.0), 0.0) } else { (th.medium(15.0), 0.0) };
+    let (font, spacing) = if th.broadcast() { (th.bold(15.0), 0.45) } else if bold { (th.bold(15.0), 0.0) } else { (th.medium(15.0), 0.0) };
     let r = text_fit(p, Pos2::new(col.min, y), Align2::LEFT_CENTER, &th.caps(name), font, color.gamma_multiply(dim), col.span() - mark_w - badge_w, spacing);
     let mut x = r.right();
     if let Some(m) = mark {
@@ -569,7 +588,7 @@ pub fn ir_badge(p: &Painter, th: &Theme, col: Rangef, y: f32, align: Align, valu
         Align::Center => col.center() - total / 2.0,
         Align::Max => col.max - total,
     };
-    let rad = if th.f1() { 2.0 } else { 3.0 };
+    let rad = if th.broadcast() { 2.0 } else { 3.0 };
     let r = Rect::from_min_size(Pos2::new(left, y - 8.0), Vec2::new(total, 16.0));
     fill(p, r, rad, alpha(th.ink, 0.88));
     let vr = Rect::from_min_size(r.min, Vec2::new(vw, 16.0));
@@ -592,7 +611,7 @@ pub fn lic_chip(p: &Painter, th: &Theme, x: f32, y: f32, lic: &str, color: Color
     let (letter, sr) = crate::logic::format::license(lic);
     let w = lic_width(p, th, lic);
     let r = Rect::from_min_size(Pos2::new(x, y - 9.0), Vec2::new(w, 18.0));
-    let rad = if th.f1() { 2.0 } else { 3.0 };
+    let rad = if th.broadcast() { 2.0 } else { 3.0 };
     outline(p, r, rad, 1.0, th.line_strong);
     p.rect_filled(Rect::from_min_size(r.min, Vec2::new(3.0, 18.0)), CornerRadius { nw: rad as u8, sw: rad as u8, ne: 0, se: 0 }, color);
     let lr = text(p, Pos2::new(r.left() + 7.0, y), Align2::LEFT_CENTER, letter, th.bold(12.0), th.ink2);
@@ -648,7 +667,7 @@ pub fn last_lap_style(th: &Theme, flag: telemetry::model::LapFlag) -> (FontId, C
     match flag {
         LapFlag::Fastest => (th.bold(14.0), th.fastest),
         LapFlag::Personal => (th.semi(14.0), th.gain),
-        LapFlag::None => (th.font(W::Medium, 14.0), if th.f1() { th.ink } else { th.ink2 }),
+        LapFlag::None => (th.font(W::Medium, 14.0), if th.broadcast() { th.ink } else { th.ink2 }),
     }
 }
 
@@ -656,7 +675,7 @@ pub fn best_lap_style(th: &Theme, fastest: bool) -> (FontId, Color32) {
     if fastest {
         (th.bold(14.0), th.fastest)
     } else {
-        (th.medium(14.0), if th.f1() { th.ink2 } else { th.ink3 })
+        (th.medium(14.0), if th.broadcast() { th.ink2 } else { th.ink3 })
     }
 }
 

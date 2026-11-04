@@ -197,15 +197,15 @@ impl Widget for Standings {
         // One header row: track and lap on the left, column labels on the right.
         let mut y = panel.body_top;
         let head = Rect::from_min_size(Pos2::new(full.min, y), Vec2::new(full.span(), 30.0));
-        let spacing = if th.f1() { 0.5 } else { 0.0 };
-        if th.f1() {
+        let spacing = if th.broadcast() { 0.5 } else { 0.0 };
+        if th.broadcast() {
             kit::fill(p, head, 0.0, alpha(th.panel_raised, 0.7));
-            kit::fill(p, Rect::from_min_max(Pos2::new(head.left(), head.bottom() - 2.0), head.max), 0.0, th.f1_red);
+            kit::fill(p, Rect::from_min_max(Pos2::new(head.left(), head.bottom() - 2.0), head.max), 0.0, th.accent);
         } else {
             p.hline(head.x_range(), head.bottom() - 0.5, Stroke::new(1.0, th.line));
         }
         let hy = head.center().y - 0.5;
-        let label_font = if th.f1() { th.semi(11.0) } else { th.medium(12.0) };
+        let label_font = if th.broadcast() { th.semi(11.0) } else { th.medium(12.0) };
         let label = |c: Option<usize>, s: &str| {
             if let Some(c) = c {
                 kit::text_sp(p, Pos2::new(x[c].center(), hy), Align2::CENTER_CENTER, &th.caps(s), label_font.clone(), th.ink3, spacing);
@@ -218,8 +218,8 @@ impl Widget for Standings {
         label(c_last, "Last");
         label(c_best, "Best");
         label(c_rate, "Rate");
-        let mut title = vec![seg(session.map(|s| s.track_name.as_str()).filter(|s| !s.is_empty()).unwrap_or("Standings"), if th.f1() { th.heavy(14.0) } else { th.bold(14.0) }, th.ink)];
-        let aside_font = if th.f1() { th.semi(14.0) } else { th.medium(14.0) };
+        let mut title = vec![seg(session.map(|s| s.track_name.as_str()).filter(|s| !s.is_empty()).unwrap_or("Standings"), if th.broadcast() { th.heavy(14.0) } else { th.bold(14.0) }, th.ink)];
+        let aside_font = if th.broadcast() { th.semi(14.0) } else { th.medium(14.0) };
         if let Some(a) = session_aside(field.map(|f| &f.clock)) {
             title.push(seg(format!("   {a}"), aside_font.clone(), th.ink2));
         }
@@ -230,6 +230,15 @@ impl Widget for Standings {
             s.text = th.caps(&s.text);
         }
         let title_room = Rect::from_min_max(Pos2::new(x[0].min + 4.0, head.top()), Pos2::new(x[3].max, head.bottom()));
+        if th.retro() {
+            let tw = kit::width_sp(p, &title[0].text, title[0].font.clone(), spacing).min(title_room.width());
+            kit::retro_tab(p, th, head.left(), head.top(), head.bottom() - 2.0, title_room.left() - head.left() + tw + 10.0);
+            title[0].color = th.panel_solid;
+            // Clear of the tab's slant.
+            if let Some(next) = title.get_mut(1) {
+                next.text.insert_str(0, "   ");
+            }
+        }
         let clip = p.with_clip_rect(title_room);
         kit::segs(&clip, title_room.left(), hy, false, &title, spacing);
         y = head.bottom();
@@ -237,7 +246,7 @@ impl Widget for Standings {
         let rh = th.row_h;
         for (gi, g) in groups.iter().enumerate() {
             let class = hex_or(g.color, th.ink);
-            if gi > 0 && !th.f1() {
+            if gi > 0 && !th.broadcast() {
                 y += 4.0;
             }
             let mine = Some(g.class_id) == player_class;
@@ -251,8 +260,8 @@ impl Widget for Standings {
                 match item {
                     Item::Break => {
                         let ly = y + 5.0;
-                        if th.f1() {
-                            kit::fill(p, Rect::from_min_max(Pos2::new(full.min, ly - 1.0), Pos2::new(full.max, ly + 1.0)), 0.0, th.f1_red);
+                        if th.broadcast() {
+                            kit::fill(p, Rect::from_min_max(Pos2::new(full.min, ly - 1.0), Pos2::new(full.max, ly + 1.0)), 0.0, th.accent);
                         } else {
                             kit::dashed_h(p, egui::Rangef::new(full.min + 10.0, full.max - 10.0), ly, th.line_strong, 1.0, 3.0, 3.0);
                         }
@@ -292,7 +301,7 @@ impl Widget for Standings {
                 }
             }
         }
-        let bottom = y + if th.f1() { 0.0 } else { 3.0 };
+        let bottom = y + if th.broadcast() { 0.0 } else { 3.0 };
         panel.finish(p, th, bottom)
     }
 }
@@ -313,14 +322,14 @@ struct RowCols {
 
 /// The class heading: name, cars and SoF over a wash of the class colour.
 fn class_head(p: &Painter, th: &Theme, full: egui::Rangef, y: f32, g: &Group, class: egui::Color32, sof: Option<i32>) -> f32 {
-    let (h, margin_top, margin_bottom) = if th.f1() { (24.0, 0.0, 0.0) } else { (22.0, 2.0, 1.0) };
+    let (h, margin_top, margin_bottom) = if th.broadcast() { (24.0, 0.0, 0.0) } else { (22.0, 2.0, 1.0) };
     let r = Rect::from_min_size(Pos2::new(full.min, y + margin_top), Vec2::new(full.span(), h));
     let cy = r.center().y;
     let name = if g.name.is_empty() { "Class" } else { g.name };
     let rest = format!("{} cars{}", g.rows.len(), sof.filter(|s| *s > 0).map(|s| format!("   SoF {}", irating(s))).unwrap_or_default());
-    if th.f1() {
+    if th.broadcast() {
         kit::fill(p, r, 0.0, alpha(th.panel_raised, 0.7));
-        kit::fill(p, Rect::from_min_size(r.min, Vec2::new(r.width(), 2.0)), 0.0, th.f1_red);
+        kit::fill(p, Rect::from_min_size(r.min, Vec2::new(r.width(), 2.0)), 0.0, th.accent);
         kit::fill(p, Rect::from_min_size(Pos2::new(r.left() + 9.0, r.top() + 2.0), Vec2::new(3.0, h - 2.0)), 0.0, class);
         let n = kit::text_sp(p, Pos2::new(r.left() + 9.0 + 8.0, cy + 1.0), Align2::LEFT_CENTER, &name.to_uppercase(), th.heavy(12.0), th.ink, 0.5);
         kit::text_sp(p, Pos2::new(n.right() + 12.0, cy + 1.0), Align2::LEFT_CENTER, &rest.to_uppercase(), th.semi(12.0), th.ink3, 0.5);
@@ -423,7 +432,7 @@ fn rate_buttons(p: &Painter, th: &Theme, cx: &Ctx, cx_mid: f32, cy: f32, r: &Sta
             kit::fill(p, rect, 4.0, alpha(th.ink, 0.12));
         }
         // White (the light theme: grey) until picked.
-        let idle = if th.light() { th.ink2 } else { egui::Color32::WHITE };
+        let idle = if th.light() { th.ink2 } else { th.on_fill };
         let color = match (on, rating) {
             (true, Thumb::Up) => th.gain,
             (true, Thumb::Down) => th.loss,

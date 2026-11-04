@@ -157,7 +157,7 @@ impl Widget for RadarBars {
         let car = Rect::from_center_size(Pos2::new(C, C), Vec2::new(CAR_W, CAR_H));
         p.rect_filled(car.expand(3.0), kit::radius(7.0), Color32::from_black_alpha(36));
         p.rect_filled(car.expand(1.5), kit::radius(6.0), Color32::from_black_alpha(60));
-        p.rect_filled(car, kit::radius(4.0), INK);
+        p.rect_filled(car, kit::radius(4.0), th.lit(INK));
         p.rect_stroke(car, kit::radius(4.0), Stroke::new(1.5, OUTLINE), egui::StrokeKind::Middle);
         Vec2::splat(SIZE)
     }

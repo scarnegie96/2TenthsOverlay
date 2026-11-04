@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## Unreleased
+
+- Two new themes in Settings → Appearance. **Night**: dim and warm for night stints and dark rooms, with nearly solid panels, amber text and nothing close to white, and the flag board, radar and tyre colours turned down so they don't glare. **'90s**: yellow and white on deep blue like the TV graphics of the time, with heavy condensed italic type, headings on slanted yellow tabs and positions in yellow and white boxes. Both have their own colour pickers like the other themes.
+
 ## 0.6.2
 
 - Windows: panels on the right and bottom of a screen bigger than 1920x1080 can be clicked, moved, resized and hidden again. The overlay window started at 1920x1080 and was made click-through before it was stretched to the screen, and Windows kept taking the mouse only over that first size, so everything past it fell through to the desktop. The overlay window now starts at its display's size.

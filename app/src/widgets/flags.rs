@@ -198,10 +198,19 @@ impl Widget for Flags {
                 kit::text(p, Pos2::new(w / 2.0, bar.top() + 6.0 + i as f32 * 19.2 + 9.6), Align2::CENTER_CENTER, line, font.clone(), Color32::BLACK);
             }
         }
+        // Night: the whole board turned down.
+        let dim = |p: &Painter, r: Rect| {
+            if th.glow < 1.0 {
+                p.rect_filled(r, kit::radius(8.0), Color32::from_black_alpha(((1.0 - th.glow) * 255.0) as u8));
+            }
+        };
+        dim(p, rect);
         match lapper {
             Some(r) => {
                 let top = size.y + DRIVER_GAP;
-                driver_panel(p, th, Rect::from_min_size(Pos2::new(0.0, top), Vec2::new(w, DRIVER_H)), r);
+                let panel = Rect::from_min_size(Pos2::new(0.0, top), Vec2::new(w, DRIVER_H));
+                driver_panel(p, th, panel, r);
+                dim(p, panel);
                 Vec2::new(w, top + DRIVER_H)
             }
             None => size,

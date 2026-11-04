@@ -116,8 +116,8 @@ fn corner(p: &Painter, th: &Theme, r: Rect, short: &str, c: &TireCorner, units: 
             2 => CornerRadius { nw: 3, sw: 3, ne: 6, se: 6 },
             _ => CornerRadius::same(3),
         };
-        p.rect_filled(cell, cr, heat(t));
-        kit::text(p, cell.center(), Align2::CENTER_CENTER, &format!("{}", js_round(temp(t, units) as f64)), th.bold(14.0), Color32::WHITE);
+        p.rect_filled(cell, cr, th.lit(heat(t)));
+        kit::text(p, cell.center(), Align2::CENTER_CENTER, &format!("{}", js_round(temp(t, units) as f64)), th.bold(14.0), th.on_fill);
     }
     // Tread remaining.
     let wy = r.top() + cell_h + 4.0;

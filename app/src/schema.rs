@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn every_widget_once() {
-        assert_eq!(WIDGETS.len(), 19);
+        assert_eq!(WIDGETS.len(), 18);
         for (i, a) in WIDGETS.iter().enumerate() {
             assert!(WIDGETS[i + 1..].iter().all(|b| b.id != a.id), "{} twice", a.id);
         }

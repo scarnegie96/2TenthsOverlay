@@ -38,15 +38,19 @@ pub enum ThemeId {
     Dark,
     Light,
     F1,
+    Night,
+    Retro,
 }
 
 impl ThemeId {
-    pub const ALL: [ThemeId; 3] = [ThemeId::Dark, ThemeId::Light, ThemeId::F1];
+    pub const ALL: [ThemeId; 5] = [ThemeId::Dark, ThemeId::Light, ThemeId::Night, ThemeId::F1, ThemeId::Retro];
     pub fn key(self) -> &'static str {
         match self {
             ThemeId::Dark => "dark",
             ThemeId::Light => "light",
             ThemeId::F1 => "f1",
+            ThemeId::Night => "night",
+            ThemeId::Retro => "retro",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {

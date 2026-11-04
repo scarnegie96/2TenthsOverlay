@@ -176,7 +176,7 @@ impl Battle {
         let stripe_x = pos.right() + 6.0 + 2.0;
         kit::class_bar(p, th, stripe_x, cy, class);
         let num_x = stripe_x + 2.0 + 6.0;
-        let (num_font, num_color) = if th.f1() { (th.semi(14.0), th.ink3) } else { (th.bold(14.0), th.ink2) };
+        let (num_font, num_color) = if th.broadcast() { (th.semi(14.0), th.ink3) } else { (th.bold(14.0), th.ink2) };
         let list = [seg("#", th.medium(12.0), th.ink3), seg(car.driver.number.clone(), num_font, num_color)];
         let num_w = kit::segs_width(p, &list, 0.0) + 1.0;
         kit::num_cell(p, th, num_x + num_w, cy, &car.driver.number, 14.0);

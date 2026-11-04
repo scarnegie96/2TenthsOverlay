@@ -58,6 +58,8 @@ pub fn theme_label(t: ThemeId) -> &'static str {
         ThemeId::Dark => "Dark",
         ThemeId::Light => "Light",
         ThemeId::F1 => "Box Box",
+        ThemeId::Night => "Night",
+        ThemeId::Retro => "'90s",
     }
 }
 
@@ -88,7 +90,7 @@ pub fn show(ui: &mut Ui, th: &Theme, env: &mut Env<'_>, ed: &mut Editor) {
             ui,
             th,
             "Theme",
-            Some("Light panels can be easier to read over bright tracks and daytime skies. Box Box dresses the panels up like a TV timing tower."),
+            Some("Light panels can be easier to read over bright tracks and daytime skies. Night is dim and warm, for racing in the dark without the overlay glaring. Box Box dresses the panels up like a TV timing tower; '90s like the TV graphics of that era."),
             |ui| {
                 let labels: Vec<String> = ThemeId::ALL.iter().map(|t| theme_label(*t).to_string()).collect();
                 let on = ThemeId::ALL.iter().position(|t| *t == g.theme);

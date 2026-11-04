@@ -31,6 +31,20 @@ layout turns on fewer, and you can place each one wherever you like.
 
 </details>
 
+<details>
+<summary>The same layout in the Night theme</summary>
+
+![Tenths overlay in the Night theme](docs/screenshot-night.png)
+
+</details>
+
+<details>
+<summary>The same layout in the '90s theme</summary>
+
+![Tenths overlay in the '90s theme](docs/screenshot-90s.png)
+
+</details>
+
 ## Features
 
 - **18 widgets**: timing tables, a battle view of the cars around you, a race pace chart, everyone's stints, a lap
@@ -50,8 +64,9 @@ layout turns on fewer, and you can place each one wherever you like.
   button, and export them as files to back up or share.
 - **Any screen size**: widgets are pinned to the nearest screen edge or the
   centre, so a layout made at 1080p lands in the same places at 1440p or 4K.
-- **Three themes**: dark, light, and Box Box (panels styled like a TV timing
-  tower), with a color picker for every color the overlays use, kept
+- **Five themes**: dark, light, Night (dim and warm, for racing in the dark),
+  Box Box (panels styled like a TV timing tower) and '90s (yellow and white on
+  deep blue, like the TV graphics of the time), with a color picker for every color the overlays use, kept
   separately for each theme.
 - **Reference laps and coaching**: import iRacing's `.blap`/`.olap` best laps or
   any lap from an `.ibt` telemetry file, then compare against it live with the
@@ -551,15 +566,23 @@ saved under a name: one for sprints and one for endurance races, say. The theme,
 
 ![Settings: Appearance](docs/settings/appearance.png)
 
-Three themes:
+Five themes:
 
 - **Dark**: dark see-through panels, the default.
 - **Light**: the same panels in a light shade, which can be easier to read over
   bright tracks and daytime skies.
+- **Night**: for night stints and dark rooms. Nearly solid near-black panels so a
+  bright track doesn't shine through, warm amber text with nothing close to
+  white, softer greens and reds, and the flag board, radar and tyre colors
+  turned down so they don't glare.
 - **Box Box**: dressed up like a TV timing tower, with near-black see-through
   panels with square corners, Titillium Web type, a broadcast-red line under
   each heading, positions in white boxes (red outside the top ten, grey in the
   pits), names in bold capitals and straight class stripes.
+- **'90s**: yellow and white on deep blue, like the TV graphics of the time:
+  square panels, heavy condensed italic type, each heading on a slanted yellow
+  tab, positions in boxes (yellow for the podium, white below it) and names in
+  capitals.
 
 Below the theme is a color picker for every color the overlays use: text (main,
 secondary and muted), panels (background, raised surfaces, borders, and the
@@ -839,7 +862,7 @@ app/                  The app (egui)
   src/displays.rs     Monitors, DPI, window placement, click-through
   src/config.rs       config.json (shared with the Tauri version), watched for changes
   src/schema.rs       Every widget's options and defaults
-  src/theme.rs        Dark, light and Box Box, and custom colours
+  src/theme.rs        The five themes, and custom colours
   src/kit.rs          Shared drawing: panels, cells, badges, chips
   src/widgets/        One file per widget
   src/logic/          Maths from the web front end, with its checks as tests

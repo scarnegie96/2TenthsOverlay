@@ -11,7 +11,7 @@
 //!   tenths-egui --offline         no data at all (empty states)
 //!   tenths-egui --edit            start in edit mode (drag the panels)
 //!   tenths-egui --config <path>   another config.json than the Tauri app's
-//!   tenths-egui --theme f1        dark, light or f1, over the config's
+//!   tenths-egui --theme f1        dark, light, night, f1 or retro, over the config's
 //!   tenths-egui --imperial        imperial units, over the config's
 //!   tenths-egui --glow            Windows: draw with OpenGL instead of DirectX 12 (wgpu), if that misbehaves
 //!   tenths-egui --high-gpu        Windows (DirectX 12): draw on the high-performance GPU instead of the low-power one

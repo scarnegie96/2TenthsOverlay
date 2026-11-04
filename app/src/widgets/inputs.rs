@@ -235,11 +235,11 @@ fn panel_bg(p: &Painter, th: &Theme, r: Rect, ghost: bool, flipped: bool) {
         } else {
             vec![r.left_bottom(), r.left_top(), r.right_top(), r.right_bottom()]
         };
-        if !th.f1() {
+        if !th.broadcast() {
             p.add(Shape::line(pts, Stroke::new(1.0, th.line)));
         }
         p.rect_filled(edge, round, th.fastest);
-    } else if th.f1() {
+    } else if th.broadcast() {
         let sh = egui::epaint::Shadow { offset: [0, 2], blur: 12, spread: 0, color: Color32::from_black_alpha(89) };
         p.add(sh.as_shape(r, CornerRadius::ZERO));
         p.rect_filled(r, 0.0, th.panel);

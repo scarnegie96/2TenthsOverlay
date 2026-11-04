@@ -30,7 +30,7 @@ from scipy import ndimage
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = Path(os.environ.get("TENTHS_SHOT_DOCS", ROOT / "docs"))
 # The theme for the widget and settings pictures (the overviews always do all three):
-# TENTHS_SHOT_THEME=light or f1, with TENTHS_SHOT_DOCS pointing somewhere else, for a full set in another theme.
+# TENTHS_SHOT_THEME=light, night, f1 or retro, with TENTHS_SHOT_DOCS pointing somewhere else, for a full set in another theme.
 THEME = os.environ.get("TENTHS_SHOT_THEME", "dark")
 BIN = Path(os.environ.get("TENTHS_BIN", ROOT / "target" / "fast" / "tenths"))
 
@@ -138,7 +138,7 @@ def bbox(alpha, region):
 
 def overview(tmp):
     print("overviews")
-    for theme, name in [("dark", "screenshot.png"), ("light", "screenshot-light.png"), ("f1", "screenshot-boxbox.png")]:
+    for theme, name in [("dark", "screenshot.png"), ("light", "screenshot-light.png"), ("night", "screenshot-night.png"), ("f1", "screenshot-boxbox.png"), ("retro", "screenshot-90s.png")]:
         out = tmp / f"overview-{theme}.png"
         run(config(SHOWCASE, theme), out)
         save(composite(out), name)

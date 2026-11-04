@@ -71,13 +71,13 @@ impl Widget for Radar {
             } else if d < CAR_LEN * 2.2 {
                 th.attention
             } else if class_colors {
-                hex_or(&c.class_color, FAR)
+                th.lit(hex_or(&c.class_color, FAR))
             } else {
-                FAR
+                th.lit(FAR)
             };
             mark(car_rect(c.side as f32, c.dist), fill);
         }
-        mark(car_rect(0.0, 0.0), INK);
+        mark(car_rect(0.0, 0.0), th.lit(INK));
 
         // Distance readouts are for the cars in line with us, not the ones alongside.
         let in_line = cars.iter().filter(|c| c.side == 0);
