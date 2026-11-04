@@ -184,9 +184,9 @@ pub const SPECS: &[WidgetSpec] = &[
         experimental: false,
         options: &[
             OptionSpec { key: "window", label: "Time shown", help: None, kind: Kind::Select(&[Choice { value: "race", label: "The whole race so far", help: None }, Choice { value: "3", label: "The leader's last 3 laps", help: None }, Choice { value: "5", label: "The leader's last 5 laps", help: None }, Choice { value: "10", label: "The leader's last 10 laps", help: None }, Choice { value: "20", label: "The leader's last 20 laps", help: None }]) },
-            OptionSpec { key: "relative", label: "Relative to you", help: Some("You along the middle and the cars either side of you at their gap to you, instead of everyone against the leader"), kind: Kind::Toggle },
+            OptionSpec { key: "relative", label: "Relative to you", help: Some("You along the middle and the nearest cars on the road either side of you (as on the Relative) at their live gap to you, instead of everyone against the leader"), kind: Kind::Toggle },
             OptionSpec { key: "show", label: "Cars", help: None, kind: Kind::Select(&[Choice { value: "all", label: "Everyone in your class", help: None }, Choice { value: "around", label: "The leader and the cars around you", help: None }]) },
-            OptionSpec { key: "around", label: "Places either side of you", help: Some("When showing the cars around you, or relative to you"), kind: Kind::Number { min: 1.0, max: 10.0, step: 1.0, suffix: None } },
+            OptionSpec { key: "around", label: "Places either side of you", help: Some("When showing the cars around you: by position against the leader, or the nearest on the road relative to you"), kind: Kind::Number { min: 1.0, max: 10.0, step: 1.0, suffix: None } },
             OptionSpec { key: "maxGap", label: "Gap scale", help: Some("0 fits everyone shown. A fixed scale keeps far-off cars from squashing the rest; they sit along the bottom"), kind: Kind::Number { min: 0.0, max: 600.0, step: 5.0, suffix: Some("s") } },
             OptionSpec { key: "showTrend", label: "Show gap change per lap", help: Some("Next to each name: how much the gap to the leader changed over the leader's last lap"), kind: Kind::Toggle },
         ],

@@ -232,8 +232,10 @@ mark the leader's laps. The history starts when the race does (or when
 only; off by default.
 
 *Options*: the whole race or the leader's last 3, 5, 10 or 20 laps (5 to
-start with); relative to you instead of the leader (you along the middle, the
-cars either side of you at their gap to you); everyone in your class or just
+start with); relative to you instead of the leader (you along the middle, and the
+nearest cars on the road either side of you, as on the Relative, at their live
+gap to you on track: pass someone and the lines change at once, and the figure
+by each name is how much you gained on them over your last lap); everyone in your class or just
 the leader and the cars around you; a fixed gap scale; and the gap change per
 lap.
 

@@ -4,17 +4,19 @@
 //! sloping down is a car slower than the leader and one rising is catching.
 //! Lap lines mark when the leader started each lap.
 //!
-//! Or, with `relative` on: you're the flat line across the middle and the cars
-//! around you are lines at their gap to you, ahead above and behind below.
+//! Or, with `relative` on: you're the flat line across the middle and the
+//! nearest few cars on the road either side of you (as on the Relative, picked
+//! ten times a second) are lines at their live gap to you on track, ahead above
+//! and behind below.
 
 use egui::{Align2, Color32, Painter, Pos2, Shape, Stroke, Vec2};
-use telemetry::model::CarStatus;
+use telemetry::model::{CarStatus, RelativeRow};
 
 use super::{Ctx, Widget};
 use crate::data::Live;
 use crate::kit::{self, seg};
-use crate::logic::battle::gap_at;
 use crate::logic::race_history::{lap_trend, on_scale, CarTrace, RaceHistory};
+use crate::logic::rel_gaps::{nearest, RelGaps};
 use crate::theme::{alpha, Theme};
 
 const W: f32 = 520.0;
@@ -29,6 +31,8 @@ const LABEL_H: f32 = 13.0;
 #[derive(Default)]
 pub struct RacePace {
     history: RaceHistory,
+    /// Every car's live gap to you on track, for the "Relative to you" view.
+    rel: RelGaps,
     seen: u64,
 }
 
@@ -58,7 +62,9 @@ impl Widget for RacePace {
         self.seen = live.fields;
         let (Some(field), Some(tick)) = (live.field.as_deref(), live.tick.as_deref()) else { return };
         let track = live.session.as_ref().map(|s| s.track_name.as_str()).unwrap_or("");
-        self.history.push_field(field, tick.session_time, &format!("{track}|{}", field.clock.session_type));
+        let key = format!("{track}|{}", field.clock.session_type);
+        self.history.push_field(field, tick.session_time, &key);
+        self.rel.push(&field.relative, tick.session_time, &key);
     }
 
     fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2 {
@@ -100,7 +106,16 @@ impl Widget for RacePace {
             max_gap: o.n("maxGap") as f32,
             show_trend: o.b("showTrend"),
         };
-        if !(relative && chart_relative(p, th, &self.history, &opts, Pos2::new(10.0, top))) {
+        let rel_rows = field.map(|f| f.relative.as_slice()).unwrap_or(&[]);
+        // A lap's time, for the change over a lap: your best (your last may have been a stop), else
+        // your last, else the session's estimate.
+        let lap = {
+            let me = rel_rows.iter().find(|r| r.is_player);
+            let est = cx.live.session.as_ref().map(|s| s.est_lap_time);
+            [me.and_then(|m| m.laps.best_lap), me.and_then(|m| m.laps.last_lap), est].into_iter().flatten().find(|t| *t > 1.0).unwrap_or(0.0)
+        };
+        let now = cx.live.tick.as_deref().map(|t| t.session_time).unwrap_or(self.history.now);
+        if !(relative && chart_relative(p, th, &self.history, &self.rel, rel_rows, lap, now, &opts, Pos2::new(10.0, top))) {
             chart(p, th, &self.history, &opts, Pos2::new(10.0, top));
         }
         panel.finish(p, th, top + H + 8.0)
@@ -281,31 +296,22 @@ fn chart(p: &Painter, th: &Theme, h: &RaceHistory, o: &Opts, origin: Pos2) {
     }
 }
 
-/// A car's gap to you at session time `t` (negative while it's ahead), from both cars' histories.
-fn to_you(me: &CarTrace, c: &CarTrace, t: f64) -> Option<f32> {
-    let them = if c.position == 1 { Some(0.0) } else { gap_at(&c.points, t) };
-    let mine = if me.position == 1 { Some(0.0) } else { gap_at(&me.points, t) };
-    Some((them? - mine?) as f32)
-}
-
-/// The chart relative to you: you along the middle, the `around` cars either side of you in
-/// your class above (ahead) and below (behind) at their gap to you. False when you aren't in the
-/// history, so the caller draws the usual chart.
-fn chart_relative(p: &Painter, th: &Theme, h: &RaceHistory, o: &Opts, origin: Pos2) -> bool {
+/// The chart relative to you: you along the middle, and the `around` nearest cars on the road
+/// either side of you right now (as on the Relative) at their live gap to you on track over the
+/// time shown, ahead above and behind below. False when you aren't on the Relative, so the
+/// caller draws the usual chart.
+#[allow(clippy::too_many_arguments)]
+fn chart_relative(p: &Painter, th: &Theme, h: &RaceHistory, rel: &RelGaps, rows: &[RelativeRow], lap: f32, now: f64, o: &Opts, origin: Pos2) -> bool {
     let pt = |x: f32, y: f32| Pos2::new(origin.x + x, origin.y + y);
     let (x0, x1, y0, y1) = (PAD_LEFT, W - PAD_RIGHT, PAD_TOP, H - PAD_BOTTOM);
-    let Some(me) = h.cars.values().find(|c| c.is_player) else { return false };
+    let Some(me) = rows.iter().find(|r| r.is_player) else { return false };
     let Some(start) = h.start else { return false };
-    let mut cars: Vec<&CarTrace> = h
-        .cars
-        .values()
-        .filter(|c| c.class_id == me.class_id && !c.is_player && c.laps_down == me.laps_down && (c.position - me.position).abs() <= o.around)
-        .collect();
-    cars.sort_by_key(|c| c.position);
+    let (ahead, behind) = nearest(rows, o.around.max(1) as usize);
+    let cars: Vec<&RelativeRow> = ahead.iter().chain(behind.iter()).copied().collect();
 
-    // Time window, as in the usual chart.
-    let marks = h.laps.get(&me.class_id).map(|m| m.as_slice()).unwrap_or(&[]);
-    let t_end = h.now;
+    // Time window, as in the usual chart (your class leader's laps).
+    let marks = h.laps.get(&me.driver.class_id).map(|m| m.as_slice()).unwrap_or(&[]);
+    let t_end = now.max(h.now);
     let mut t_start = start;
     if let Ok(n) = o.window.parse::<usize>() {
         if n > 0 && marks.len() >= n {
@@ -315,30 +321,37 @@ fn chart_relative(p: &Painter, th: &Theme, h: &RaceHistory, o: &Opts, origin: Po
     let span = (t_end - t_start).max(1.0);
     let x_at = |t: f64| x0 + ((t - t_start) / span) as f32 * (x1 - x0);
 
-    // Each car's line: its gap to you at each of its points in the window, then now.
-    let lines: Vec<(&CarTrace, Vec<(f64, f32)>, Option<f32>)> = cars
+    // Each car's line over the window, ending at its gap now: ahead above you (labelled "−", as
+    // the Relative counts a car ahead), behind below.
+    let lines: Vec<(&RelativeRow, Vec<Vec<(f64, f32)>>)> = cars
         .iter()
         .map(|c| {
-            let mut pts: Vec<(f64, f32)> = c.points.chunks_exact(2).filter(|q| q[0] as f64 >= t_start).filter_map(|q| Some((q[0] as f64, to_you(me, c, q[0] as f64)?))).collect();
-            let now = if c.status == CarStatus::Out { None } else { Some(if c.position == 1 { 0.0 } else { c.gap } - if me.position == 1 { 0.0 } else { me.gap }) };
-            if let Some(v) = now {
-                pts.push((c.t, v));
+            let mut runs = rel.runs(c.driver.car_idx, t_start);
+            let live = (t_end, c.gap);
+            // Joined on to the latest stretch, unless the gap has jumped since (wrapped round).
+            let joins = runs.last().and_then(|run| run.last()).is_some_and(|(_, g)| (g - c.gap).abs() < 5.0);
+            if joins {
+                if let Some(run) = runs.last_mut() {
+                    run.push(live);
+                }
+            } else {
+                runs.push(vec![live]);
             }
-            (*c, pts, now)
+            (*c, runs)
         })
         .collect();
 
     // Scale: the biggest gap shown either way, or the fixed one.
-    let most = lines.iter().flat_map(|(_, pts, _)| pts.iter().map(|(_, v)| v.abs())).fold(0f32, f32::max);
+    let most = lines.iter().flat_map(|(_, runs)| runs.iter().flatten().map(|(_, g)| g.abs())).fold(0f32, f32::max);
     let max = if o.max_gap > 0.0 { o.max_gap } else { 2f32.max(most * 1.08) };
     let mid = (y0 + y1) / 2.0;
-    let y_at = |v: f32| mid + (v.clamp(-max, max) / max) * (y1 - y0) / 2.0;
+    let y_at = |gap: f32| mid - (gap.clamp(-max, max) / max) * (y1 - y0) / 2.0;
 
     // Grid: you in the middle, gap lines either side.
     let step = nice_step(max);
     let mut g = step;
     while g <= max {
-        for (v, label) in [(-g, format!("−{g}s")), (g, format!("+{g}s"))] {
+        for (v, label) in [(g, format!("−{g}s")), (-g, format!("+{g}s"))] {
             let y = y_at(v).round() + 0.5;
             p.line_segment([pt(x0, y), pt(x1, y)], Stroke::new(1.0, th.grid));
             kit::text(p, pt(x0 - 6.0, y), Align2::RIGHT_CENTER, &label, th.medium(10.0), th.ink3);
@@ -356,19 +369,19 @@ fn chart_relative(p: &Painter, th: &Theme, h: &RaceHistory, o: &Opts, origin: Po
         }
     }
 
-    for (c, pts, _) in &lines {
-        let line: Vec<Pos2> = pts.iter().map(|(t, v)| pt(x_at(*t).max(x0), y_at(*v))).collect();
-        if line.len() < 2 {
-            continue;
+    for (_, runs) in &lines {
+        for run in runs {
+            let line: Vec<Pos2> = run.iter().map(|(t, g)| pt(x_at(*t).max(x0), y_at(*g))).collect();
+            if line.len() >= 2 {
+                p.add(Shape::line(line, Stroke::new(1.4, alpha(th.ink2, 0.55))));
+            }
         }
-        let stroke = Stroke::new(1.4, alpha(th.ink2, if c.status == CarStatus::Out { 0.25 } else { 0.55 }));
-        p.add(Shape::line(line, stroke));
     }
     p.line_segment([pt(x0, mid), pt(x1, mid)], Stroke::new(2.5, th.attention));
 
     // Names on the right at each car's gap to you now, nudged apart; you in the middle.
-    let mut labels: Vec<(Option<&CarTrace>, f32, Option<f32>)> = lines.iter().filter(|(_, _, now)| now.is_some()).map(|(c, _, now)| (Some(*c), y_at(now.unwrap_or(0.0)), *now)).collect();
-    labels.push((None, mid, Some(0.0)));
+    let mut labels: Vec<(Option<&RelativeRow>, f32)> = cars.iter().map(|c| (Some(*c), y_at(c.gap))).collect();
+    labels.push((None, mid));
     labels.sort_by(|a, b| a.1.total_cmp(&b.1));
     for i in 1..labels.len() {
         labels[i].1 = labels[i].1.max(labels[i - 1].1 + LABEL_H);
@@ -383,37 +396,40 @@ fn chart_relative(p: &Painter, th: &Theme, h: &RaceHistory, o: &Opts, origin: Po
             }
         }
     }
-    let my_trend = lap_trend(h, me);
-    for (c, ly, now) in &labels {
+    for (c, ly) in &labels {
         let ly = ly.max(6.0);
-        let dot = y_at(now.unwrap_or(0.0));
-        let (pos, name, color) = match c {
-            Some(c) => (c.position, if c.abbrev.is_empty() { &c.name } else { &c.abbrev }, th.ink2),
-            None => (me.position, if me.abbrev.is_empty() { &me.name } else { &me.abbrev }, th.attention),
+        let r = c.unwrap_or(me);
+        let dot = y_at(if c.is_some() { r.gap } else { 0.0 });
+        // Coloured like the Relative: lapping, lapped, or you.
+        let color = match c {
+            None => th.attention,
+            Some(c) if c.lap_status > 0 => th.lapping,
+            Some(c) if c.lap_status < 0 => th.lapped,
+            Some(_) => th.ink2,
         };
         p.circle_filled(pt(x1, dot), if c.is_none() { 3.5 } else { 2.5 }, color);
         p.line_segment([pt(x1 + 4.0, dot), pt(x1 + 10.0, ly)], Stroke::new(1.0, alpha(color, 0.4)));
-        let label = format!("{pos} {name}");
+        let name = if r.driver.abbrev.is_empty() { &r.driver.name } else { &r.driver.abbrev };
+        let label = if r.class_position > 0 { format!("{} {name}", r.class_position) } else { name.to_string() };
         let label = if label.chars().count() > 15 { format!("{}…", label.chars().take(14).collect::<String>()) } else { label };
         kit::text(p, pt(x1 + 13.0, ly), Align2::LEFT_CENTER, &label, if c.is_none() { th.bold(11.0) } else { th.semi(11.0) }, color);
         let right = pt(W - 2.0, ly);
         let font = th.medium(11.0);
         let Some(c) = c else { continue };
-        let gap_text = match now {
-            Some(v) if *v < 0.0 => format!("−{}", fmt_gap(v.abs())),
-            Some(v) => format!("+{}", fmt_gap(*v)),
-            None => "Out".to_string(),
+        let gap_text = if c.on_pit_road {
+            "PIT".to_string()
+        } else if c.gap >= 0.0 {
+            format!("−{}", fmt_gap(c.gap))
+        } else {
+            format!("+{}", fmt_gap(-c.gap))
         };
-        // How the gap to you changed over the leader's last lap: green when it went your way
-        // (the car ahead coming back, the one behind dropping away), red the other way.
-        let trend = match (o.show_trend && now.is_some(), lap_trend(h, c), my_trend) {
-            (true, Some(a), Some(b)) => Some(a - b),
-            _ => None,
-        };
-        match trend {
-            Some(t) if t.abs() >= 0.05 => {
-                let col: Color32 = if t > 0.0 { th.gain } else { th.loss };
-                kit::text(p, right, Align2::RIGHT_CENTER, &format!("{}{:.1}", if t > 0.0 { "▼" } else { "▲" }, t.abs()), font.clone(), col);
+        // How much you gained on them over your last lap's time: green when it went your way (the
+        // car ahead coming back, the one behind dropping away), red the other way.
+        let gained = if o.show_trend { rel.gained(c.driver.car_idx, c.gap, t_end, lap) } else { None };
+        match gained {
+            Some(d) if d.abs() >= 0.05 => {
+                let col: Color32 = if d > 0.0 { th.gain } else { th.loss };
+                kit::text(p, right, Align2::RIGHT_CENTER, &format!("{}{:.1}", if d > 0.0 { "▼" } else { "▲" }, d.abs()), font.clone(), col);
                 kit::text(p, pt(W - 34.0, ly), Align2::RIGHT_CENTER, &gap_text, font, th.ink3);
             }
             _ => {
