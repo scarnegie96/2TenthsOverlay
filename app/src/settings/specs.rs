@@ -258,7 +258,7 @@ pub const SPECS: &[WidgetSpec] = &[
     },
     WidgetSpec {
         id: "battle",
-        description: "The cars just ahead of and behind you in your class: the gap to each, how much it changes per lap, their latest sector times and last and best laps against yours, tyres and stops.",
+        description: "The car directly ahead of you and directly behind you on the road, as on the Relative, changing the moment you pass or are passed: the live gap to each, how much it changes per lap, their latest sector times and last and best laps against yours, tyres and stops.",
         experimental: false,
         options: &[
             OptionSpec { key: "trendLaps", label: "Change per lap measured over", help: None, kind: Kind::Number { min: 1.0, max: 10.0, step: 1.0, suffix: Some("laps") } },

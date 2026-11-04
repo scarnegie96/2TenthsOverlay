@@ -464,17 +464,19 @@ the empty board stays visible, and whether the blue-flag driver box shows.
 
 ![Battle widget](docs/widgets/battle.png)
 
-The cars just ahead of and behind you in your class, ahead on top, with your
-class position in the corner. Who that is follows the race live, from where
-everyone is on track ten times a second: pass someone, or get passed, and the
-panel switches to your new neighbours straight away rather than when iRacing's
-positions next update at a timing line. Every car's gap, laps and sectors are
-kept all along, so the new comparison is complete from the moment it appears.
-For each car:
+The car directly ahead of you and the car directly behind you on the road, as
+on the Relative, ahead on top, with your live class position in the corner.
+It's whoever is next to you on track right now, whatever their class or lap,
+picked ten times a second: pass someone and they drop to the bottom straight
+away, with the next car up the road at the top. Cars on pit road are skipped
+unless you're on it too. Every car's gap, laps and sectors are kept all along,
+so the new comparison is complete from the moment it appears. For each car:
 
-- the gap now (or how many laps apart), and how much it has changed per lap
-  over the last few laps (green when it's going your way: the car ahead coming
-  back to you, or the car behind dropping away; red the other way);
+- the live gap on track, as on the Relative, and how much it has changed per
+  lap over the last few laps (green when it's going your way: the car ahead
+  coming back to you, or the car behind dropping away; red the other way);
+- their live class position, and whether they're a lap ahead of or behind you
+  or in the pits;
 - their times through the last three sectors, with the difference to yours
   under each (red where they were faster, green where slower). "Last" is as
   seen by whichever of you is behind on track, so you've both been through
@@ -487,7 +489,9 @@ For each car:
 - their tyres and how many laps they've done on them (a + when the set went on
   before 2Tenths saw it), and their pit stops with yours in brackets.
 
-An amber edge marks a car within two seconds. In races only. Off by default.
+An amber edge marks a car within two seconds. The change per lap and **Lap**
+are for a car racing you in your class on the same lap; for anyone else they
+show a dash. In races only. Off by default.
 
 *Options*: how many laps the change per lap is measured over, and whether to
 show the sector times, the lap times and the tyres and stops.

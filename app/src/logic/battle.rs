@@ -3,8 +3,6 @@
 //! Gaps come from the race history: every car's gap to its class leader over
 //! time, so the gap between two cars at any moment is the difference of theirs.
 
-use telemetry::model::StandingRow;
-
 /// A car's gap to its class leader over time, as flat pairs: t0, g0, t1, g1...
 pub type Trace = [f32];
 
@@ -88,30 +86,6 @@ pub fn trend(me: &Trace, other: &Trace, now: f64, lap_time: f64, laps: u32) -> O
     Some(Trend { closing_per_lap: (then.abs() - gap_now.abs()) / n, laps: n as u32 })
 }
 
-/// Where a car is round the race, for `laps_between`.
-#[derive(Debug, Clone, Copy)]
-pub struct Place {
-    pub lap: i32,
-    pub lap_pct: f32,
-    pub laps_down: i32,
-}
-
-impl From<&StandingRow> for Place {
-    fn from(r: &StandingRow) -> Self {
-        Self { lap: r.lap, lap_pct: r.lap_pct, laps_down: r.laps_down }
-    }
-}
-
-/// Whole laps between two cars on the road, from where each is round the lap.
-/// (Not the difference of their laps down to the leader: those are each
-/// rounded down, so cars a fraction of a lap apart can differ by one.)
-pub fn laps_between(a: Place, b: Place) -> i32 {
-    if a.lap_pct < 0.0 || b.lap_pct < 0.0 {
-        return (a.laps_down - b.laps_down).abs();
-    }
-    ((a.lap as f64 + a.lap_pct as f64) - (b.lap as f64 + b.lap_pct as f64)).abs().floor() as i32
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,14 +150,5 @@ mod tests {
         let (me, ahead) = traces();
         assert!(trend(&me, &ahead, 1000.0, 0.0, 3).is_none());
         assert!(trend(&me, &ahead, 1000.0, 100.0, 0).is_none());
-    }
-
-    #[test]
-    fn laps_apart_comes_from_where_the_cars_are() {
-        let row = |lap, lap_pct, laps_down| Place { lap, lap_pct, laps_down };
-        // Leader 1.2 laps ahead of me and 0.9 ahead of the car in front: one lap down vs none, but 0.3 laps apart.
-        assert_eq!(laps_between(row(10, 0.6, 0), row(10, 0.3, 1)), 0, "cars a fraction of a lap apart aren't a lap apart");
-        assert_eq!(laps_between(row(11, 0.5, 0), row(10, 0.3, 1)), 1, "a car a lap and a bit ahead is a lap apart");
-        assert_eq!(laps_between(row(10, -1.0, 0), row(9, 0.2, 2)), 2, "off track falls back to laps down");
     }
 }
