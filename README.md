@@ -22,7 +22,7 @@ updates itself to it from its own **Update** button. The Tauri version is kept
 as it was in [`archive/tauri/`](archive/tauri) and on the `archive/tauri`
 branch.
 
-Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. 
+Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. If you find a problem or have suggestions open an Issue.
 
 ![Every 2Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
 
