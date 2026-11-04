@@ -1,6 +1,6 @@
 <img src="docs/icon.png" width="96" alt="2Tenths icon: a purple decimal point and a white italic 2">
 
-# 2Tenths (Very Early and Active Development)
+# 2Tenths (In Active Development)
 
 iRacing overlays you own. 2Tenths is a native Windows app, written in Rust and
 drawn with [egui](https://github.com/emilk/egui), that reads the iRacing SDK
