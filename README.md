@@ -465,7 +465,12 @@ the empty board stays visible, and whether the blue-flag driver box shows.
 ![Battle widget](docs/widgets/battle.png)
 
 The cars just ahead of and behind you in your class, ahead on top, with your
-class position in the corner. For each car:
+class position in the corner. Who that is follows the race live, from where
+everyone is on track ten times a second: pass someone, or get passed, and the
+panel switches to your new neighbours straight away rather than when iRacing's
+positions next update at a timing line. Every car's gap, laps and sectors are
+kept all along, so the new comparison is complete from the moment it appears.
+For each car:
 
 - the gap now (or how many laps apart), and how much it has changed per lap
   over the last few laps (green when it's going your way: the car ahead coming

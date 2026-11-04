@@ -1,5 +1,7 @@
 //! Battle (`src/widgets/Battle.tsx`): the cars directly ahead of and behind you
-//! in your class (ahead on top). For each, the gap now, how much it changes per
+//! in your class right now (ahead on top), from where everyone is on track ten
+//! times a second, so an overtake swaps who's compared straight away instead of
+//! when iRacing's positions next update at a timing line. For each, the gap now, how much it changes per
 //! lap, their times through the last three sectors and how much the gap has
 //! changed so far this lap, their last and best laps against yours, their tyres
 //! and stops. Only what the timing shows: no predictions.
@@ -7,7 +9,7 @@
 use std::collections::HashMap;
 
 use egui::{Align, Align2, Painter, Pos2, Rangef, Rect, Stroke, Vec2};
-use telemetry::model::StandingRow;
+use telemetry::model::{FieldPayload, StandingRow};
 use telemetry::stints::CarStints;
 
 use super::{Ctx, Widget};
@@ -57,6 +59,10 @@ struct Shared<'a> {
     show_tyres: bool,
     /// Where each sector starts, as a fraction of the lap.
     sector_starts: &'a [f32],
+    /// A lap's time, to count whole laps between cars.
+    pace: f32,
+    /// Your class position right now.
+    my_pos: i32,
 }
 
 impl Widget for Battle {
@@ -69,7 +75,8 @@ impl Widget for Battle {
         let track = live.session.as_ref().map(|s| s.track_name.as_str()).unwrap_or("");
         self.history.push_field(field, tick.session_time, &format!("{track}|{}", field.clock.session_type));
         if let Some(me) = field.standings.iter().find(|r| r.is_player) {
-            self.lap_mark(me, &field.standings);
+            let gaps = race_gaps(field, me);
+            self.lap_mark(me, &gaps);
         }
     }
 
@@ -88,11 +95,13 @@ impl Widget for Battle {
             return panel.finish(p, th, bottom);
         };
 
-        let mut cls: Vec<&StandingRow> = rows.iter().filter(|r| r.driver.class_id == me.driver.class_id && r.position > 0).collect();
-        cls.sort_by_key(|r| r.class_position);
-        let at = cls.iter().position(|r| r.is_player);
-        let ahead = at.filter(|a| *a > 0).map(|a| cls[a - 1]);
-        let behind = at.filter(|a| a + 1 < cls.len()).map(|a| cls[a + 1]);
+        // Who's directly ahead and behind in class right now, by the live race gap to you.
+        let gaps = race_gaps(field, me);
+        let class_cars = || rows.iter().filter(|r| !r.is_player && r.driver.class_id == me.driver.class_id).filter_map(|r| Some((r, *gaps.get(&r.driver.car_idx)?)));
+        let ahead = class_cars().filter(|(_, g)| *g > 0.0).min_by(|a, b| a.1.total_cmp(&b.1));
+        let behind = class_cars().filter(|(_, g)| *g <= 0.0).max_by(|a, b| a.1.total_cmp(&b.1));
+        // Your class position right now: one more than the cars ahead of you.
+        let my_pos = if gaps.is_empty() { me.class_position } else { 1 + class_cars().filter(|(_, g)| *g > 0.0).count() as i32 };
 
         let o = cx.o;
         let shared = Shared {
@@ -107,12 +116,19 @@ impl Widget for Battle {
             show_laps: o.b("showLaps"),
             show_tyres: o.b("showTyres"),
             sector_starts: cx.live.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]),
+            pace: lap_pace(me),
+            my_pos,
         };
 
-        let aside: Vec<_> = if me.class_position > 0 { vec![seg(format!("P{}", me.class_position), kit::aside_font(th), th.ink2)] } else { Vec::new() };
+        let aside: Vec<_> = if my_pos > 0 { vec![seg(format!("P{my_pos}"), kit::aside_font(th), th.ink2)] } else { Vec::new() };
         let panel = kit::Panel::begin(p, th, W, Some("Battle"), &aside);
         let mut y = panel.body_top;
         for (k, (side, car)) in [(Side::Ahead, ahead), (Side::Behind, behind)].into_iter().enumerate() {
+            let pos = match side {
+                Side::Ahead => my_pos - 1,
+                Side::Behind => my_pos + 1,
+            };
+            let car = car.map(|(r, g)| (r, g, pos));
             if k > 0 {
                 p.hline(panel.x(), y + 0.5, Stroke::new(1.0, th.line));
                 y += 1.0;
@@ -123,10 +139,52 @@ impl Widget for Battle {
     }
 }
 
-/// A car's gap to you on track: seconds, positive when it's behind you.
-fn gap_to_me(car: &StandingRow, me: &StandingRow) -> Option<f32> {
-    let live = |r: &StandingRow| if r.class_position == 1 { Some(0.0) } else { r.live_gap };
-    Some(live(car)? - live(me)?)
+/// A lap's time for counting laps between cars: your best, else your last, else none.
+fn lap_pace(me: &StandingRow) -> f32 {
+    me.laps.best_lap.or(me.laps.last_lap).filter(|t| *t > 1.0).unwrap_or(0.0)
+}
+
+/// Every car's race gap to you right now, by car: seconds, positive when it's ahead of you in the
+/// race, including whole laps. From the Relative's live gap on track (time, both ways round to
+/// half a lap) plus the laps between you; past a lap either way, the lap counts come from where
+/// each car is in the race. Cars not on track (in the garage, not yet joined) have none.
+fn race_gaps(field: &FieldPayload, me: &StandingRow) -> HashMap<i32, f32> {
+    let pace = lap_pace(me);
+    let mine = me.lap as f32 + me.lap_pct.max(0.0);
+    let by_car: HashMap<i32, &StandingRow> = field.standings.iter().map(|r| (r.driver.car_idx, r)).collect();
+    field
+        .relative
+        .iter()
+        .filter(|r| !r.is_player && r.status != telemetry::model::CarStatus::Out)
+        .filter_map(|r| {
+            let row = by_car.get(&r.driver.car_idx)?;
+            if row.lap_pct < 0.0 {
+                return None;
+            }
+            // Where they are on track from you, as a fraction of a lap (±half), the way the
+            // Relative counts its whole laps (`lap_status`, one either way) from.
+            let mut on_track = row.lap_pct - me.lap_pct;
+            on_track -= on_track.round();
+            // The Relative's time gap wraps at half a lap by time rather than distance: near half a
+            // lap apart the two can disagree, so put the time on the same side as the distance.
+            let mut gap = r.gap;
+            if pace > 1.0 {
+                if on_track > 0.0 && gap < 0.0 {
+                    gap += pace;
+                } else if on_track < 0.0 && gap > 0.0 {
+                    gap -= pace;
+                }
+            }
+            // Past a lap either way, whole laps from race progress.
+            let laps = if r.lap_status.abs() < 1 || pace <= 1.0 {
+                r.lap_status as f32
+            } else {
+                let theirs = row.lap as f32 + row.lap_pct;
+                ((theirs - mine) - on_track).round()
+            };
+            Some((r.driver.car_idx, gap + laps * pace))
+        })
+        .collect()
 }
 
 /// The sector a lap fraction is in, given where each sector starts.
@@ -145,45 +203,39 @@ fn latest_sectors(n: usize, current: usize) -> Vec<usize> {
 
 impl Battle {
     /// When your lap changes, remembers every car's gap to you, to measure this lap's change from.
-    fn lap_mark(&mut self, me: &StandingRow, rows: &[StandingRow]) {
-        if me.lap <= 0 || self.my_lap == Some(me.lap) {
+    /// When your lap changes, remembers every car's gap to you, to measure this lap's change from.
+    /// A car that wasn't on track then gets its first gap once it is.
+    fn lap_mark(&mut self, me: &StandingRow, gaps: &HashMap<i32, f32>) {
+        if me.lap <= 0 {
             return;
         }
-        self.my_lap = Some(me.lap);
-        self.lap_start = rows.iter().filter(|r| !r.is_player).filter_map(|r| Some((r.driver.car_idx, gap_to_me(r, me)?))).collect();
+        if self.my_lap != Some(me.lap) {
+            self.my_lap = Some(me.lap);
+            self.lap_start.clear();
+        }
+        for (car, g) in gaps {
+            self.lap_start.entry(*car).or_insert(-g);
+        }
     }
 
-    /// How much the gap to `car` has changed since your lap began: seconds, positive when you
-    /// gained on it (like a sector difference: their time minus yours).
-    fn lap_change(&self, car: &StandingRow, me: &StandingRow) -> Option<f32> {
+    /// How much the gap to the car has changed since your lap began, from its race gap `now`:
+    /// seconds, positive when you gained on it (like a sector difference: their time minus yours).
+    fn lap_change(&self, car: &StandingRow, now: f32) -> Option<f32> {
         let start = self.lap_start.get(&car.driver.car_idx)?;
-        let d = gap_to_me(car, me)? - start;
+        let d = -now - start;
         (d.abs() < LAP_CHANGE_MAX).then_some(d)
     }
 
     /// One section from `top`; returns its height.
     #[allow(clippy::too_many_arguments)]
-    fn opponent(&self, p: &Painter, th: &Theme, panel: &kit::Panel, top: f32, side: Side, car: Option<&StandingRow>, s: &Shared) -> f32 {
-        let Some(car) = car else { return 30.0 };
+    fn opponent(&self, p: &Painter, th: &Theme, panel: &kit::Panel, top: f32, side: Side, car: Option<(&StandingRow, f32, i32)>, s: &Shared) -> f32 {
+        let Some((car, race_gap, live_pos)) = car else { return 30.0 };
         let me = s.me;
 
-        // The gap now: on the same lap, from where the cars are on track (live, like the Relative);
-        // otherwise, or when either isn't on track, from iRacing's timing.
-        let g = |r: &StandingRow| if r.class_position == 1 { Some(0.0) } else { r.gap };
-        let live = |r: &StandingRow| if r.class_position == 1 { Some(0.0) } else { r.live_gap };
-        // Laps apart: from the live gaps when there are both (the lap counters tick a moment after
-        // the line, which made a car crossing it look a lap away), else from the lap counters.
-        // (At your best lap's pace: your last lap may have been a stop.)
-        let pace = me.laps.best_lap.or(me.laps.last_lap).unwrap_or(0.0);
-        let laps_apart = match (live(car), live(me)) {
-            (Some(a), Some(b)) if pace > 1.0 => ((a - b).abs() / pace).floor() as i32,
-            _ => laps_between(Place::from(car), Place::from(me)),
-        };
-        let gap_now = match (live(car), live(me), g(car), g(me)) {
-            (Some(a), Some(b), _, _) if laps_apart == 0 => Some((a - b).abs()),
-            (_, _, Some(a), Some(b)) => Some((a - b).abs()),
-            _ => None,
-        };
+        // The gap now, live, and whole laps apart (at your best lap's pace: your last lap may have
+        // been a stop). Without a lap time yet, laps from iRacing's lap counters.
+        let laps_apart = if s.pace > 1.0 { (race_gap.abs() / s.pace).floor() as i32 } else { laps_between(Place::from(car), Place::from(me)) };
+        let gap_now = Some(race_gap.abs());
 
         // How the gap changes per lap, from the race history.
         let empty: Vec<f32> = Vec::new();
@@ -232,7 +284,7 @@ impl Battle {
 
         // Who: position, class stripe, number, name, iRating.
         let cy = top + 6.0 + 10.0;
-        let pos = kit::text(p, Pos2::new(left, cy), Align2::LEFT_CENTER, &format!("P{}", car.class_position), th.bold(14.0), th.ink);
+        let pos = kit::text(p, Pos2::new(left, cy), Align2::LEFT_CENTER, &format!("P{}", if s.my_pos > 0 { live_pos } else { car.class_position }), th.bold(14.0), th.ink);
         let stripe_x = pos.right() + 6.0 + 2.0;
         kit::class_bar(p, th, stripe_x, cy, class);
         let num_x = stripe_x + 2.0 + 6.0;
@@ -276,7 +328,7 @@ impl Battle {
             }
         }
         if s.show_sectors {
-            let lap = if laps_apart == 0 { self.lap_change(car, me) } else { None };
+            let lap = if laps_apart == 0 { self.lap_change(car, race_gap) } else { None };
             sectors(p, th, sectors_x, main_top, &shown, &car.sectors, &me.sectors, lap);
         }
 
@@ -396,6 +448,56 @@ fn sector_time(t: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The demo race, sampled like the app does (every 0.1 s): the cars picked as ahead and behind
+    /// are the ones iRacing ranks next to you whenever nobody is near a timing line, and their gaps
+    /// move smoothly rather than jumping.
+    #[test]
+    fn opponents_follow_the_race_live() {
+        let mut demo = telemetry::demo::DemoSource::new();
+        let mut engine = telemetry::engine::Engine::new();
+        let (mut agree, mut checked, mut worst_jump) = (0, 0, 0.0f32);
+        let mut last: Option<(i32, f32)> = None;
+        for step in 0..(60 * 60 * 6) {
+            let frame = demo.step(1.0 / 60.0).clone();
+            if let Some(text) = demo.take_session_yaml() {
+                engine.set_session(telemetry::session::parse(&text).unwrap());
+            }
+            engine.tick(&frame);
+            if step % 6 != 0 {
+                continue;
+            }
+            let field = engine.field(&frame);
+            let Some(me) = field.standings.iter().find(|r| r.is_player) else { continue };
+            if me.lap < 2 || lap_pace(me) <= 1.0 {
+                continue;
+            }
+            let gaps = race_gaps(&field, me);
+            let class: Vec<_> = field.standings.iter().filter(|r| !r.is_player && r.driver.class_id == me.driver.class_id).filter_map(|r| Some((r, *gaps.get(&r.driver.car_idx)?))).collect();
+            let ahead = class.iter().filter(|(_, g)| *g > 0.0).min_by(|a, b| a.1.total_cmp(&b.1));
+            // Away from the line (where iRacing's positions lag), every car not side by side with
+            // you (a pass in progress, which iRacing only ranks at the next line) is on the same side
+            // of you as iRacing ranks it.
+            let near_line = |pct: f32| !(0.05..0.95).contains(&pct);
+            if !near_line(me.lap_pct) {
+                for (r, g) in class.iter().filter(|(r, g)| g.abs() > 0.5 && !near_line(r.lap_pct) && r.class_position > 0) {
+                    checked += 1;
+                    if (*g > 0.0) == (r.class_position < me.class_position) {
+                        agree += 1;
+                    }
+                }
+            }
+            if let Some((car, g)) = ahead {
+                if let Some((_, pg)) = last.filter(|(c, _)| *c == car.driver.car_idx) {
+                    worst_jump = worst_jump.max((g - pg).abs());
+                }
+                last = Some((car.driver.car_idx, *g));
+            }
+        }
+        assert!(checked > 100, "only {checked} samples");
+        assert!(agree as f32 >= checked as f32 * 0.98, "live order matched iRacing's in {agree} of {checked}");
+        assert!(worst_jump < 1.0, "the gap ahead jumped by {worst_jump} s in 0.1 s");
+    }
 
     #[test]
     fn the_three_sectors_before_this_one() {

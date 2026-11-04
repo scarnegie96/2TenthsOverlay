@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## Unreleased
+
+- Battle: the cars ahead and behind are picked live, from where everyone is on track (ten times a second), not from iRacing's positions, which only change as cars cross timing lines. After an overtake the panel compares you with your new neighbours straight away, and the position in its corner and beside each car is the live one too. The Lap figure works for any car you end up next to, since every car's gap at the start of your lap is kept.
+
 ## 0.6.4
 
 - Tenths is now **2Tenths**, with a new icon: ".2", two tenths of a second, the point in the fastest-lap purple. The name shows in the tray, Settings, the installer, the Start menu and Apps. Nothing moves: it installs to the same folder, keeps the same settings, and updates from earlier versions as before (an old "Tenths" Start menu or desktop shortcut is replaced by a "2Tenths" one).
