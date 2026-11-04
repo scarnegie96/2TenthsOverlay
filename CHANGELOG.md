@@ -6,6 +6,7 @@ when you bump the version.
 
 ## Unreleased
 
+- Battle: shows only the last three sectors (the three just finished by whichever of you is behind on track, so you've both driven them) instead of every sector, and next to them **Lap**: how much the gap has changed so far this lap, live, back to 0 each time you start a new lap.
 - Two new themes in Settings → Appearance. **Night**: dim and warm for night stints and dark rooms, with nearly solid panels, amber text and nothing close to white, and the flag board, radar and tyre colours turned down so they don't glare. **'90s**: yellow and white on deep blue like the TV graphics of the time, with heavy condensed italic type, headings on slanted yellow tabs and positions in yellow and white boxes. Both have their own colour pickers like the other themes.
 
 ## 0.6.2

@@ -1,7 +1,10 @@
 //! Battle (`src/widgets/Battle.tsx`): the cars directly ahead of and behind you
 //! in your class (ahead on top). For each, the gap now, how much it changes per
-//! lap, their latest sector times and last and best laps against yours, their
-//! tyres and stops. Only what the timing shows: no predictions.
+//! lap, their times through the last three sectors and how much the gap has
+//! changed so far this lap, their last and best laps against yours, their tyres
+//! and stops. Only what the timing shows: no predictions.
+
+use std::collections::HashMap;
 
 use egui::{Align, Align2, Painter, Pos2, Rangef, Rect, Stroke, Vec2};
 use telemetry::model::StandingRow;
@@ -20,14 +23,20 @@ const W: f32 = 360.0;
 const NEAR_S: f32 = 2.0;
 /// The figures column's width; the sector times use the rest of the row.
 const FIGURES_W: f32 = 112.0;
-/// Each sector's cell is at least this wide; more sectors than fit wrap onto another row.
-const SECTOR_MIN_W: f32 = 56.0;
 const SECTOR_ROW_H: f32 = 34.0;
+/// How many of the latest sectors are shown.
+const SECTORS_SHOWN: usize = 3;
+/// A change in gap this big within one lap is a lap counted differently, not driving.
+const LAP_CHANGE_MAX: f32 = 30.0;
 
 #[derive(Default)]
 pub struct Battle {
     history: RaceHistory,
     seen: u64,
+    /// Your lap the baselines below are from.
+    my_lap: Option<i32>,
+    /// Each car's gap to you (seconds, positive when behind you) as your lap began.
+    lap_start: HashMap<i32, f32>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -46,6 +55,8 @@ struct Shared<'a> {
     show_sectors: bool,
     show_laps: bool,
     show_tyres: bool,
+    /// Where each sector starts, as a fraction of the lap.
+    sector_starts: &'a [f32],
 }
 
 impl Widget for Battle {
@@ -57,6 +68,9 @@ impl Widget for Battle {
         let (Some(field), Some(tick)) = (live.field.as_deref(), live.tick.as_deref()) else { return };
         let track = live.session.as_ref().map(|s| s.track_name.as_str()).unwrap_or("");
         self.history.push_field(field, tick.session_time, &format!("{track}|{}", field.clock.session_type));
+        if let Some(me) = field.standings.iter().find(|r| r.is_player) {
+            self.lap_mark(me, &field.standings);
+        }
     }
 
     fn draw(&mut self, p: &Painter, cx: &Ctx) -> Vec2 {
@@ -92,6 +106,7 @@ impl Widget for Battle {
             show_sectors: o.b("showSectors"),
             show_laps: o.b("showLaps"),
             show_tyres: o.b("showTyres"),
+            sector_starts: cx.live.session.as_ref().map(|s| s.sectors.as_slice()).unwrap_or(&[]),
         };
 
         let aside: Vec<_> = if me.class_position > 0 { vec![seg(format!("P{}", me.class_position), kit::aside_font(th), th.ink2)] } else { Vec::new() };
@@ -108,7 +123,44 @@ impl Widget for Battle {
     }
 }
 
+/// A car's gap to you on track: seconds, positive when it's behind you.
+fn gap_to_me(car: &StandingRow, me: &StandingRow) -> Option<f32> {
+    let live = |r: &StandingRow| if r.class_position == 1 { Some(0.0) } else { r.live_gap };
+    Some(live(car)? - live(me)?)
+}
+
+/// The sector a lap fraction is in, given where each sector starts.
+fn sector_at(starts: &[f32], pct: f32) -> usize {
+    starts.iter().rposition(|s| *s <= pct).unwrap_or(0)
+}
+
+/// The last `SECTORS_SHOWN` sectors finished before sector `current`, oldest first (all of
+/// them, in order, when the track has no more than that).
+fn latest_sectors(n: usize, current: usize) -> Vec<usize> {
+    if n <= SECTORS_SHOWN {
+        return (0..n).collect();
+    }
+    (1..=SECTORS_SHOWN).rev().map(|back| (current + n - back) % n).collect()
+}
+
 impl Battle {
+    /// When your lap changes, remembers every car's gap to you, to measure this lap's change from.
+    fn lap_mark(&mut self, me: &StandingRow, rows: &[StandingRow]) {
+        if me.lap <= 0 || self.my_lap == Some(me.lap) {
+            return;
+        }
+        self.my_lap = Some(me.lap);
+        self.lap_start = rows.iter().filter(|r| !r.is_player).filter_map(|r| Some((r.driver.car_idx, gap_to_me(r, me)?))).collect();
+    }
+
+    /// How much the gap to `car` has changed since your lap began: seconds, positive when you
+    /// gained on it (like a sector difference: their time minus yours).
+    fn lap_change(&self, car: &StandingRow, me: &StandingRow) -> Option<f32> {
+        let start = self.lap_start.get(&car.driver.car_idx)?;
+        let d = gap_to_me(car, me)? - start;
+        (d.abs() < LAP_CHANGE_MAX).then_some(d)
+    }
+
     /// One section from `top`; returns its height.
     #[allow(clippy::too_many_arguments)]
     fn opponent(&self, p: &Painter, th: &Theme, panel: &kit::Panel, top: f32, side: Side, car: Option<&StandingRow>, s: &Shared) -> f32 {
@@ -157,12 +209,20 @@ impl Battle {
         let facts = s.show_laps || s.show_tyres;
         let left = panel.x().min + 3.0 + 8.0;
         let right = panel.x().max - 10.0;
-        // Sector times beside the figures, in as many rows as they need.
-        let n_sectors = if s.show_sectors { car.sectors.len().max(me.sectors.len()) } else { 0 };
+        // The last three sectors beside the figures, then this lap so far. "Last" is as seen by
+        // whichever of you is behind on track, so both of you have been through them.
+        let n_all = car.sectors.len().max(me.sectors.len());
+        let shown: Vec<usize> = if s.show_sectors && n_all > 0 {
+            let trailing = match side {
+                Side::Ahead => me,
+                Side::Behind => car,
+            };
+            latest_sectors(n_all, sector_at(s.sector_starts, trailing.lap_pct))
+        } else {
+            Vec::new()
+        };
         let sectors_x = Rangef::new(left + FIGURES_W, right);
-        let per_row = ((sectors_x.span() / SECTOR_MIN_W).floor() as usize).max(1);
-        let sector_rows = n_sectors.div_ceil(per_row);
-        let main_h = 46f32.max(sector_rows as f32 * SECTOR_ROW_H);
+        let main_h = 46f32.max(if s.show_sectors { SECTOR_ROW_H } else { 0.0 });
         let height = 6.0 + 20.0 + 3.0 + main_h + if facts { 3.0 + 16.0 } else { 0.0 } + 6.0;
         let near = gap_now.is_some_and(|g| g < NEAR_S) && laps_apart == 0;
         if near {
@@ -215,8 +275,9 @@ impl Battle {
                 kit::text(p, Pos2::new(r.right() + 2.0, rate_y), Align2::LEFT_CENTER, "/lap", th.medium(11.0), th.ink3);
             }
         }
-        if n_sectors > 0 {
-            sectors(p, th, sectors_x, main_top, per_row, &car.sectors, &me.sectors, n_sectors);
+        if s.show_sectors {
+            let lap = if laps_apart == 0 { self.lap_change(car, me) } else { None };
+            sectors(p, th, sectors_x, main_top, &shown, &car.sectors, &me.sectors, lap);
         }
 
         // Facts: last and best laps against yours, tyre, stops.
@@ -274,16 +335,26 @@ impl Battle {
     }
 }
 
-/// Their latest time through each sector, and below it the difference to yours: red where they
-/// were faster than you, green where slower. `per_row` cells to a row across `x`, from `top`.
+/// Red where they were faster than you, green where slower (`d` is their time minus yours).
+fn diff_color(th: &Theme, d: f64) -> egui::Color32 {
+    if d < -0.0005 {
+        th.loss
+    } else if d > 0.0005 {
+        th.gain
+    } else {
+        th.ink2
+    }
+}
+
+/// Their time through each of the `shown` sectors with the difference to yours under it, then a
+/// last cell, "Lap": how much the gap has changed since your lap began (live, back to 0 each
+/// lap). One row across `x` from `top`.
 #[allow(clippy::too_many_arguments)]
-fn sectors(p: &Painter, th: &Theme, x: Rangef, top: f32, per_row: usize, theirs: &[Option<f32>], mine: &[Option<f32>], n: usize) {
-    let cols = per_row.min(n).max(1);
-    let cell_w = x.span() / cols as f32;
-    for k in 0..n {
-        let (row, col) = (k / cols, k % cols);
+fn sectors(p: &Painter, th: &Theme, x: Rangef, top: f32, shown: &[usize], theirs: &[Option<f32>], mine: &[Option<f32>], lap: Option<f32>) {
+    let cell_w = x.span() / (shown.len() + 1) as f32;
+    let y = top;
+    for (col, &k) in shown.iter().enumerate() {
         let cx = x.min + cell_w * (col as f32 + 0.5);
-        let y = top + row as f32 * SECTOR_ROW_H;
         let t = theirs.get(k).copied().flatten();
         let m = mine.get(k).copied().flatten();
         kit::text(p, Pos2::new(cx, y + 6.0), Align2::CENTER_CENTER, &format!("S{}", k + 1), th.medium(10.0), th.ink3);
@@ -291,14 +362,23 @@ fn sectors(p: &Painter, th: &Theme, x: Rangef, top: f32, per_row: usize, theirs:
         kit::text(p, Pos2::new(cx, y + 18.0), Align2::CENTER_CENTER, &time, th.semi(12.5), th.ink);
         if let (Some(t), Some(m)) = (t, m) {
             let d = (t - m) as f64;
-            let color = if d < -0.0005 {
-                th.loss
-            } else if d > 0.0005 {
-                th.gain
-            } else {
-                th.ink2
-            };
-            kit::text(p, Pos2::new(cx, y + 29.0), Align2::CENTER_CENTER, &signed(d, 2), th.semi(11.0), color);
+            kit::text(p, Pos2::new(cx, y + 29.0), Align2::CENTER_CENTER, &signed(d, 2), th.semi(11.0), diff_color(th, d));
+        }
+    }
+    // This lap so far, set apart by a thin rule.
+    let left = x.min + cell_w * shown.len() as f32;
+    let cx = left + cell_w / 2.0;
+    if !shown.is_empty() {
+        p.vline(left, Rangef::new(y + 2.0, y + 32.0), Stroke::new(1.0, th.line));
+    }
+    kit::text(p, Pos2::new(cx, y + 6.0), Align2::CENTER_CENTER, "Lap", th.medium(10.0), th.ink3);
+    match lap {
+        Some(d) => {
+            let d = d as f64;
+            kit::text(p, Pos2::new(cx, y + 22.0), Align2::CENTER_CENTER, &signed(d, 2), th.bold(15.0), diff_color(th, d));
+        }
+        None => {
+            kit::text(p, Pos2::new(cx, y + 22.0), Align2::CENTER_CENTER, "–", th.bold(15.0), th.ink2);
         }
     }
 }
@@ -316,6 +396,20 @@ fn sector_time(t: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_three_sectors_before_this_one() {
+        assert_eq!(latest_sectors(7, 0), vec![4, 5, 6]);
+        assert_eq!(latest_sectors(7, 2), vec![6, 0, 1]);
+        assert_eq!(latest_sectors(7, 5), vec![2, 3, 4]);
+        assert_eq!(latest_sectors(3, 1), vec![0, 1, 2]);
+        assert_eq!(latest_sectors(2, 1), vec![0, 1]);
+        let starts = [0.0, 0.3, 0.7];
+        assert_eq!(sector_at(&starts, 0.1), 0);
+        assert_eq!(sector_at(&starts, 0.3), 1);
+        assert_eq!(sector_at(&starts, 0.95), 2);
+        assert_eq!(sector_at(&[], 0.5), 0);
+    }
 
     #[test]
     fn sector_times_read_like_lap_times() {

@@ -262,7 +262,7 @@ pub const SPECS: &[WidgetSpec] = &[
         experimental: false,
         options: &[
             OptionSpec { key: "trendLaps", label: "Change per lap measured over", help: None, kind: Kind::Number { min: 1.0, max: 10.0, step: 1.0, suffix: Some("laps") } },
-            OptionSpec { key: "showSectors", label: "Show sector times", help: Some("Their latest time through each sector, and the difference to yours: red where they were faster, green where slower"), kind: Kind::Toggle },
+            OptionSpec { key: "showSectors", label: "Show sector times", help: Some("Their times through the last three sectors with the difference to yours (red where they were faster, green where slower), and how much the gap has changed so far this lap"), kind: Kind::Toggle },
             OptionSpec { key: "showLaps", label: "Show last and best laps", help: None, kind: Kind::Toggle },
             OptionSpec { key: "showTyres", label: "Show tyres and stops", help: None, kind: Kind::Toggle },
         ],

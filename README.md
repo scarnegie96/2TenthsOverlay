@@ -458,8 +458,12 @@ class position in the corner. For each car:
 - the gap now (or how many laps apart), and how much it has changed per lap
   over the last few laps (green when it's going your way: the car ahead coming
   back to you, or the car behind dropping away; red the other way);
-- their latest time through each sector, with the difference to yours under it
-  (red where they were faster, green where slower);
+- their times through the last three sectors, with the difference to yours
+  under each (red where they were faster, green where slower). "Last" is as
+  seen by whichever of you is behind on track, so you've both been through
+  them;
+- **Lap**: how much the gap has changed so far this lap, live, back to 0 each
+  time you start a lap (the same colors: green when you've gained on them);
 - their iRating;
 - their last (L) and best (B) laps, each with the difference to yours (green
   when theirs was slower);
