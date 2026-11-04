@@ -499,6 +499,52 @@ mod tests {
         assert!(worst_jump < 1.0, "the gap ahead jumped by {worst_jump} s in 0.1 s");
     }
 
+    /// An overtake iRacing hasn't ranked yet (positions only change at timing lines): the car you
+    /// just passed, still ranked ahead of you, is behind you on track, so it's the car behind and
+    /// the next one up is the car ahead, at once.
+    #[test]
+    fn a_pass_switches_ahead_and_behind_before_iracing_ranks_it() {
+        let mut demo = telemetry::demo::DemoSource::new();
+        let mut engine = telemetry::engine::Engine::new();
+        let mut field = None;
+        for step in 0..(60 * 60 * 3) {
+            let frame = demo.step(1.0 / 60.0).clone();
+            if let Some(text) = demo.take_session_yaml() {
+                engine.set_session(telemetry::session::parse(&text).unwrap());
+            }
+            engine.tick(&frame);
+            if step % 6 == 0 {
+                field = Some(engine.field(&frame));
+            }
+        }
+        let mut field = field.unwrap();
+        let me = field.standings.iter().find(|r| r.is_player).unwrap().clone();
+        let pick = |field: &FieldPayload, me: &StandingRow| {
+            let gaps = race_gaps(field, me);
+            let class: Vec<_> = field.standings.iter().filter(|r| !r.is_player && r.driver.class_id == me.driver.class_id).filter_map(|r| Some((r.driver.car_idx, r.class_position, *gaps.get(&r.driver.car_idx)?))).collect();
+            let ahead = class.iter().filter(|c| c.2 > 0.0).min_by(|a, b| a.2.total_cmp(&b.2)).map(|c| c.0);
+            let behind = class.iter().filter(|c| c.2 <= 0.0).max_by(|a, b| a.2.total_cmp(&b.2)).map(|c| c.0);
+            (ahead, behind)
+        };
+        let (ahead, _) = pick(&field, &me);
+        let passed = ahead.expect("a car ahead in the demo");
+        let ranked = field.standings.iter().find(|r| r.driver.car_idx == passed).unwrap().class_position;
+        assert!(ranked < me.class_position, "iRacing ranks it ahead of you");
+        // You pass it: it's now behind you on track (1 s, a little further back), and iRacing
+        // still ranks it ahead.
+        let row = field.relative.iter_mut().find(|r| r.driver.car_idx == passed).unwrap();
+        row.gap = -1.0;
+        row.lap_status = 0;
+        let s = field.standings.iter_mut().find(|r| r.driver.car_idx == passed).unwrap();
+        s.lap_pct = (me.lap_pct - 0.01).rem_euclid(1.0);
+        let (now_ahead, now_behind) = pick(&field, &me);
+        assert!(race_gaps(&field, &me)[&passed] < 0.0, "behind you now");
+        assert_ne!(now_ahead, Some(passed));
+        assert!(now_ahead.is_some() || ranked == 1, "the next car up is the one ahead");
+        // The demo has a car side by side with you, so the car behind is whichever is nearer.
+        assert!(now_behind.is_some());
+    }
+
     #[test]
     fn the_three_sectors_before_this_one() {
         assert_eq!(latest_sectors(7, 0), vec![4, 5, 6]);
