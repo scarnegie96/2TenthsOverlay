@@ -1,6 +1,6 @@
 [package]
 name = "tenths"
-version = "0.6.5"
+version = "0.6.6"
 edition = "2021"
 description = "Tenths: an iRacing overlay drawn natively with egui"
 publish = false

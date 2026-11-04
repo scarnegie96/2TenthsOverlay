@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.6.6
+
+- Battle shows the car directly ahead of you and directly behind you on the road, as on the Relative, with the live gap on track to each. Before, it showed the nearest cars in your class by race order, so a lapped car or another class right beside you never appeared, and the car "ahead" could be well up the road. Now it's whoever is next to you on track, whatever their class or lap (marked "+1 lap" or "−1 lap" as on the Relative), and cars on pit road are skipped unless you're on it too. The change per lap and Lap are shown for cars racing you in your class on the same lap.
+
 ## 0.6.5
 
 - Edit layout: the layout name in the bar is black on its light box, so it's readable in every theme.
