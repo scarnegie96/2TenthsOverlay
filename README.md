@@ -6,9 +6,17 @@ directly and draws a set of configurable widgets over the sim: no
 subscriptions, no third-party services, and every line of it is yours to change.
 
 It runs as one small program with each widget in its own small window over the game, so iRacing gives up as little
-as possible to it. The previous version, a Tauri app with the widgets drawn as
-web pages, is kept in [`archive/tauri/`](archive/tauri) and on the
-`archive/tauri` branch.
+as possible to it.
+
+**From 0.6 on, Tenths is a new app.** Versions up to 0.4.13 were built with
+Tauri, with every widget drawn as a web page. That used a lot more memory, kept
+growing over a long session and cost noticeable frame rate in iRacing. 0.6 is
+a rewrite of the same app in Rust and egui, drawn natively: same widgets, same
+settings window, same keys, a fraction of the memory and CPU. Your settings,
+layouts, laps, ratings and race reports carry straight over, and a 0.4 install
+updates itself to it from its own **Update** button. The Tauri version is kept
+as it was in [`archive/tauri/`](archive/tauri) and on the `archive/tauri`
+branch.
 
 Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. 
 
@@ -522,7 +530,7 @@ them; there's no Save button.
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
 with its current key), Check for updates (it says
-"Update to 0.5.1…" once a newer version is found) and Quit Tenths. Starting Tenths again while it's
+"Update to x.y.z…" once a newer version is found) and Quit Tenths. Starting Tenths again while it's
 running opens its settings window. Closing the settings window only hides
 it; Tenths keeps running until you quit it from the tray.
 
@@ -704,24 +712,27 @@ A reference is only used when its track and layout match the session.
 Releases page and run it. It installs for your user only (no administrator
 rights, in `%LOCALAPPDATA%\Tenths`) with a Start menu shortcut, and appears in
 Windows' Apps list for uninstalling; uninstalling leaves your settings and laps
-alone. If you have a 0.4 (Tauri) version installed, its own **Update** button
-brings you to this one, replacing it in place, and everything you set up
-carries over. The installer takes `/S` (no windows), `/P` (progress only) and
+alone. The installer takes `/S` (no windows), `/P` (progress only) and
 `/R` (start Tenths afterwards).
 
-There are no releases of this version yet. Until then every push to
-`development` builds it on GitHub: open **Actions → Windows build**, pick the
-latest run and download **tenths-windows** (one file, `tenths.exe`, no
-installer: put it anywhere and run it) or **tenths-installer-unsigned** (the
-installer, to try the install; it isn't signed, so an installed Tenths won't
-take it as an update).
+**Coming from 0.4 (the Tauri version)?** Press **Update** in its Settings →
+About (or just run the new installer). It replaces the old app in place, in
+the same folder with the same shortcut and uninstall entry, and keeps
+everything you set up. Nothing needs uninstalling first.
+
+**Test builds:** every push to `development` builds Tenths on GitHub. Open
+**Actions → Windows build**, pick the latest run and download
+**tenths-windows** (one file, `tenths.exe`, no installer: put it anywhere and
+run it) or **tenths-installer-unsigned** (the installer, to try the install;
+it isn't signed, so an installed Tenths won't take it as an update).
 
 In iRacing, set the display mode to **borderless windowed**. No overlay can draw
 over exclusive fullscreen.
 
 It reads and writes the same settings, layouts, laps, ratings and race reports
-as the Tauri version (below), so everything you set up there carries over.
-Don't run both at once: they use the same keys.
+as the 0.4 Tauri version (below), so everything you set up there carries over.
+If you build the archived version yourself, don't run both at once: they use
+the same keys.
 
 | Option | Does |
 | ------ | ---- |
@@ -806,7 +817,7 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 
 If `config.json` can't be read, Tenths keeps it as
 `config.corrupt-<date>.json`, starts with default settings and says so in
-Settings. These are the same files the Tauri version used.
+Settings. These are the same files the 0.4 Tauri version used.
 
 ## Working on it from a Mac or Linux
 

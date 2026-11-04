@@ -40,8 +40,8 @@ use crate::shell::Request;
 
 /// The updater's public key: base64 of a minisign public key file (`plugins.updater.pubkey` in the Tauri app's `tauri.conf.json`).
 pub const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1OTY4NDQzNUMxQUI2RTcKUldUbnRocGNRNFNXNVNsRkdtaVZTeTNPL09RcjR3UFE3T0RSQlN5SmtmTTM2S1htY3RuWVVKakQK";
-/// The newest release's `latest.json`, the same URL the Tauri app reads.
-pub const ENDPOINT: &str = "https://github.com/scarnegie96/Tenths-iRacing-Overlay/releases/latest/download/latest.json";
+/// The newest release's `latest.json`. (The 0.4 Tauri app reads the repository's old name, which GitHub redirects here.)
+pub const ENDPOINT: &str = "https://github.com/scarnegie96/2TenthsOverlay/releases/latest/download/latest.json";
 /// This build's version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
