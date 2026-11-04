@@ -43,11 +43,11 @@ impl Tray {
         let next = MenuItem::new("Next layout", true, None);
         // Relabelled "Update to 0.x.y…" when a check finds one (`set_update_text`).
         let update = MenuItem::new("Check for updates", true, None);
-        let quit = MenuItem::new("Quit Tenths", true, None);
+        let quit = MenuItem::new("Quit 2Tenths", true, None);
         let menu = Menu::new();
         menu.append_items(&[&open, &edit, &toggle, &next, &PredefinedMenuItem::separator(), &update, &quit]).map_err(|e| e.to_string())?;
         let tray = TrayIconBuilder::new()
-            .with_tooltip("Tenths")
+            .with_tooltip("2Tenths")
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(false)
             .with_icon(icon()?)

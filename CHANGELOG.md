@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## Unreleased
+
+- Tenths is now **2Tenths**, with a new icon: ".2", two tenths of a second, the point in the fastest-lap purple. The name shows in the tray, Settings, the installer, the Start menu and Apps. Nothing moves: it installs to the same folder, keeps the same settings, and updates from earlier versions as before (an old "Tenths" Start menu or desktop shortcut is replaced by a "2Tenths" one).
+
 ## 0.6.3
 
 - Updates are looked for under the project's new name on GitHub (2TenthsOverlay). The old address still redirects, so earlier versions keep finding updates too.

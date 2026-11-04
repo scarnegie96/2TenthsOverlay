@@ -119,12 +119,12 @@ impl State {
             for (i, p) in list.iter().enumerate() {
                 self.row(ui, th, env, ed, tx, p, i, active.as_deref() == Some(&p.id), &label_of);
             }
-            ui::field(ui, th, "Import a layout", Some("A layout file exported from Tenths, on this PC or someone else's."), |ui| {
+            ui::field(ui, th, "Import a layout", Some("A layout file exported from 2Tenths, on this PC or someone else's."), |ui| {
                 if ui::button(ui, th, "Import…", Look::Normal).clicked() {
                     let tx = tx.clone();
                     let ctx = ui.ctx().clone();
                     std::thread::spawn(move || {
-                        let p = rfd::FileDialog::new().add_filter("Tenths layout", &["json"]).pick_file();
+                        let p = rfd::FileDialog::new().add_filter("2Tenths layout", &["json"]).pick_file();
                         let _ = tx.send(Msg::ImportLayout(p));
                         ctx.request_repaint();
                     });
@@ -139,7 +139,7 @@ impl State {
         ui::note(
             ui,
             th,
-            &format!("Switch with {next} for the next layout, or each layout's own key from its number (change them under Controls). Layouts are saved as files in the Tenths settings folder, under layouts."),
+            &format!("Switch with {next} for the next layout, or each layout's own key from its number (change them under Controls). Layouts are saved as files in the 2Tenths settings folder, under layouts."),
         );
     }
 
@@ -246,7 +246,7 @@ impl State {
             Some(Act::Export) => {
                 let (id, name, tx, ctx) = (p.id.clone(), p.name.clone(), tx.clone(), ui.ctx().clone());
                 std::thread::spawn(move || {
-                    let file = rfd::FileDialog::new().set_file_name(format!("{name}.layout.json")).add_filter("Tenths layout", &["json"]).save_file();
+                    let file = rfd::FileDialog::new().set_file_name(format!("{name}.layout.json")).add_filter("2Tenths layout", &["json"]).save_file();
                     let _ = tx.send(Msg::ExportLayout(id, file));
                     ctx.request_repaint();
                 });

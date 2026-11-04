@@ -321,6 +321,10 @@ impl Theme {
         };
         FontId::new(size, FontFamily::Name(name.into()))
     }
+    /// The brand mark's heavy italic (Barlow Condensed Black Italic), in every theme.
+    pub fn brand_font(&self, size: f32) -> FontId {
+        FontId::new(size, FontFamily::Name(CONDENSED_900I.into()))
+    }
     pub fn medium(&self, size: f32) -> FontId {
         self.font(W::Medium, size)
     }

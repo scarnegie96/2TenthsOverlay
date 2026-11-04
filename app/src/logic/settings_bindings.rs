@@ -268,7 +268,7 @@ pub fn warning(id: &str, all: &[(&'static Action, Binding)], connected: Option<&
         notes.push(format!("Same button as {}", a.label.to_lowercase()));
     }
     if b.key.as_ref().is_some_and(bare_key) {
-        notes.push("Without Ctrl, Alt or Shift, this key stops working in other programs while Tenths runs".into());
+        notes.push("Without Ctrl, Alt or Shift, this key stops working in other programs while 2Tenths runs".into());
     }
     if let Some(bb) = &b.button {
         notes.push(format!("On {}{}", bb.name, if unplugged { ", not plugged in" } else { "" }));

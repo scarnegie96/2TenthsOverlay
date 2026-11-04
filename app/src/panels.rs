@@ -41,9 +41,9 @@ use crate::theme::Theme;
 use crate::widgets::ClickAction;
 use crate::{App, PRIMARY_TITLE};
 
-/// The window's title (the Windows code finds it by this): "Tenths · relative".
+/// The window's title (the Windows code finds it by this): "2Tenths · relative".
 pub fn title(id: &str) -> String {
-    format!("Tenths · {id}")
+    format!("2Tenths · {id}")
 }
 
 pub fn viewport_id(id: &str) -> ViewportId {
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn titles_and_ids_are_per_panel() {
-        assert_eq!(title("relative"), "Tenths · relative");
+        assert_eq!(title("relative"), "2Tenths · relative");
         assert_ne!(viewport_id("relative"), viewport_id("standings"));
         assert_eq!(viewport_id("relative"), viewport_id("relative"));
     }

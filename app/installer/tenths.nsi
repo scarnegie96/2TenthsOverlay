@@ -1,4 +1,4 @@
-; Tenths installer (NSIS 3, Unicode).
+; 2Tenths installer (NSIS 3, Unicode).
 ;
 ;   makensis /DVERSION=0.5.0 /DEXE=target/release/tenths.exe app/installer/tenths.nsi
 ;
@@ -11,13 +11,15 @@
 ;   * per user, no administrator rights: files in $LOCALAPPDATA\Tenths (an
 ;     earlier choice of folder is kept: it is read from the uninstall entry);
 ;   * the program is tenths.exe, with the uninstaller next to it;
-;   * the Start menu shortcut is $SMPROGRAMS\Tenths.lnk;
+;   * the uninstall entry's key stays "Tenths" (below), though it's shown as 2Tenths;
+;   * the Start menu shortcut is $SMPROGRAMS\2Tenths.lnk (an old Tenths.lnk is
+;     replaced by it);
 ;   * the uninstall entry is HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Tenths.
 ;
 ; Switches (the Tauri updater runs "<installer> /P /UPDATE /R /ARGS <command line>"):
 ;   /S       silent: no windows at all (NSIS's own switch)
 ;   /P       passive: only the progress window, no questions
-;   /R       start Tenths when the install is done (silent and passive; the
+;   /R       start 2Tenths when the install is done (silent and passive; the
 ;            last page has a "Run Tenths" box otherwise)
 ;   /UPDATE  accepted and ignored
 ;   /ARGS …  accepted and ignored (everything after it is left alone)
@@ -44,23 +46,26 @@ ManifestDPIAware true
   !define ICON "..\assets\icons\icon.ico"
 !endif
 !ifndef OUTFILE
-  !define OUTFILE "Tenths_${VERSION}_x64-setup.exe"
+  !define OUTFILE "2Tenths_${VERSION}_x64-setup.exe"
 !endif
 
+; PRODUCT names the install folder and the uninstall entry, as the Tauri build had them, so
+; updates land on top of existing installs. DISPLAY is the name people see.
 !define PRODUCT "Tenths"
+!define DISPLAY "2Tenths"
 !define MAINBINARY "tenths.exe"
 !define PUBLISHER "Scott Carnegie"
-!define URL "https://github.com/scarnegie96/Tenths-iRacing-Overlay"
+!define URL "https://github.com/scarnegie96/2TenthsOverlay"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}"
 
-Name "${PRODUCT}"
+Name "${DISPLAY}"
 OutFile "${OUTFILE}"
-BrandingText "${PRODUCT} ${VERSION}"
+BrandingText "${DISPLAY} ${VERSION}"
 InstallDir "$LOCALAPPDATA\${PRODUCT}"
 
 VIProductVersion "${VERSION_NUM}"
-VIAddVersionKey "ProductName" "${PRODUCT}"
-VIAddVersionKey "FileDescription" "${PRODUCT} installer"
+VIAddVersionKey "ProductName" "${DISPLAY}"
+VIAddVersionKey "FileDescription" "${DISPLAY} installer"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "Copyright (C) 2026 ${PUBLISHER}"
@@ -86,7 +91,7 @@ Var RunAfter
 
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !define MUI_FINISHPAGE_RUN
-!define MUI_FINISHPAGE_RUN_TEXT "Run ${PRODUCT}"
+!define MUI_FINISHPAGE_RUN_TEXT "Run ${DISPLAY}"
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp
 !define MUI_FINISHPAGE_SHOWREADME ""
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Create a desktop shortcut"
@@ -113,7 +118,7 @@ Function LaunchApp
 FunctionEnd
 
 Function CreateDesktopShortcut
-  CreateShortCut "$DESKTOP\${PRODUCT}.lnk" "$INSTDIR\${MAINBINARY}"
+  CreateShortCut "$DESKTOP\${DISPLAY}.lnk" "$INSTDIR\${MAINBINARY}"
 FunctionEnd
 
 ; Reads the switches before /ARGS (everything after /ARGS belongs to the app being updated).
@@ -206,15 +211,20 @@ Section "Install"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Start menu (and the desktop, when it has one already: it is kept pointing here).
-  CreateShortCut "$SMPROGRAMS\${PRODUCT}.lnk" "$INSTDIR\${MAINBINARY}"
+  ; The shortcuts were called Tenths before the rename: those are replaced.
+  Delete "$SMPROGRAMS\${PRODUCT}.lnk"
+  CreateShortCut "$SMPROGRAMS\${DISPLAY}.lnk" "$INSTDIR\${MAINBINARY}"
   ${If} ${FileExists} "$DESKTOP\${PRODUCT}.lnk"
-    CreateShortCut "$DESKTOP\${PRODUCT}.lnk" "$INSTDIR\${MAINBINARY}"
+    Delete "$DESKTOP\${PRODUCT}.lnk"
+    CreateShortCut "$DESKTOP\${DISPLAY}.lnk" "$INSTDIR\${MAINBINARY}"
+  ${ElseIf} ${FileExists} "$DESKTOP\${DISPLAY}.lnk"
+    CreateShortCut "$DESKTOP\${DISPLAY}.lnk" "$INSTDIR\${MAINBINARY}"
   ${EndIf}
 
   ; Apps & features.
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
-  WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${PRODUCT}"
+  WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${DISPLAY}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$\"$INSTDIR\${MAINBINARY}$\""
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "${PUBLISHER}"
@@ -237,6 +247,8 @@ Section "Uninstall"
   Delete "$INSTDIR\uninstall.exe"
   ; Only if nothing else is in it.
   RMDir "$INSTDIR"
+  Delete "$SMPROGRAMS\${DISPLAY}.lnk"
+  Delete "$DESKTOP\${DISPLAY}.lnk"
   Delete "$SMPROGRAMS\${PRODUCT}.lnk"
   Delete "$DESKTOP\${PRODUCT}.lnk"
   DeleteRegKey HKCU "${UNINSTKEY}"

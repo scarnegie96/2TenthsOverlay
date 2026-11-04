@@ -75,12 +75,12 @@ fn new_id(dir: &Path, name: &str) -> String {
 }
 
 fn parse(text: &str) -> Result<Profile, String> {
-    let p: Profile = serde_json::from_str(text).map_err(|_| "That isn't a Tenths layout file.".to_string())?;
+    let p: Profile = serde_json::from_str(text).map_err(|_| "That isn't a 2Tenths layout file.".to_string())?;
     if p.format != FORMAT {
-        return Err("That isn't a Tenths layout file.".into());
+        return Err("That isn't a 2Tenths layout file.".into());
     }
     if p.version > VERSION {
-        return Err("That layout is from a newer version of Tenths.".into());
+        return Err("That layout is from a newer version of 2Tenths.".into());
     }
     if !p.widgets.is_object() {
         return Err("That layout file has no widgets in it.".into());

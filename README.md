@@ -1,6 +1,8 @@
-# Tenths (Very Early and Active Development)
+<img src="docs/icon.png" width="96" alt="2Tenths icon: a purple decimal point and a white italic 2">
 
-iRacing overlays you own. Tenths is a native Windows app, written in Rust and
+# 2Tenths (Very Early and Active Development)
+
+iRacing overlays you own. 2Tenths is a native Windows app, written in Rust and
 drawn with [egui](https://github.com/emilk/egui), that reads the iRacing SDK
 directly and draws a set of configurable widgets over the sim: no
 subscriptions, no third-party services, and every line of it is yours to change.
@@ -8,7 +10,9 @@ subscriptions, no third-party services, and every line of it is yours to change.
 It runs as one small program with each widget in its own small window over the game, so iRacing gives up as little
 as possible to it.
 
-**From 0.6 on, Tenths is a new app.** Versions up to 0.4.13 were built with
+*2Tenths used to be called Tenths: same app, same settings, new name.*
+
+**From 0.6 on, 2Tenths is a new app.** Versions up to 0.4.13 were built with
 Tauri, with every widget drawn as a web page. That used a lot more memory, kept
 growing over a long session and cost noticeable frame rate in iRacing. 0.6 is
 a rewrite of the same app in Rust and egui, drawn natively: same widgets, same
@@ -20,7 +24,7 @@ branch.
 
 Note: This is in active development, progressing quickly. I am trying to provide a free, open-source but still useful tool. There may (read: will) be bugs. 
 
-![Every Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
+![Every 2Tenths widget at once in the demo race, on a 2560x1440 screen](docs/screenshot.png)
 
 All 18 widgets at once, in the demo race on a 2560×1440 screen. The default
 layout turns on fewer, and you can place each one wherever you like.
@@ -28,28 +32,28 @@ layout turns on fewer, and you can place each one wherever you like.
 <details>
 <summary>The same layout in the light theme</summary>
 
-![Tenths overlay in the light theme](docs/screenshot-light.png)
+![2Tenths overlay in the light theme](docs/screenshot-light.png)
 
 </details>
 
 <details>
 <summary>The same layout in the Box Box theme</summary>
 
-![Tenths overlay in the Box Box theme](docs/screenshot-boxbox.png)
+![2Tenths overlay in the Box Box theme](docs/screenshot-boxbox.png)
 
 </details>
 
 <details>
 <summary>The same layout in the Night theme</summary>
 
-![Tenths overlay in the Night theme](docs/screenshot-night.png)
+![2Tenths overlay in the Night theme](docs/screenshot-night.png)
 
 </details>
 
 <details>
 <summary>The same layout in the '90s theme</summary>
 
-![Tenths overlay in the '90s theme](docs/screenshot-90s.png)
+![2Tenths overlay in the '90s theme](docs/screenshot-90s.png)
 
 </details>
 
@@ -166,7 +170,7 @@ practice and qualifying, and its row fades.
 **Rejoin after pit** (races): once a few pit stops have been timed this session, a
 dashed line in your class shows where you'd come out if you pitted now: the
 position, how far behind the car ahead you'd be and how far ahead of the car
-behind. Tenths times every car's stops (pit entry to exit, minus the time
+behind. 2Tenths times every car's stops (pit entry to exit, minus the time
 the same stretch takes at racing speed) and uses your class's average, so
 nothing shows until at least two real stops in your class have been timed.
 Drive-throughs, tows, resets to the pits and unusually long or short stops are
@@ -203,7 +207,7 @@ highlighted.
 Compare against your best lap, optimal lap (best sectors), session best,
 session optimal, last lap, or an imported reference lap. Best and optimal are
 your all-time ones in practice and this session's in qualifying and races.
-Where iRacing gives no delta (it doesn't in races), Tenths works it out from
+Where iRacing gives no delta (it doesn't in races), 2Tenths works it out from
 your own laps this session.
 
 *Options*: comparison lap, iRacing's sectors or 4–30 equal mini sectors, last
@@ -224,7 +228,7 @@ car's position, gap and how much the gap changed over the leader's last lap
 (green when it's catching, red when it's dropping back). Lapped and retired
 cars run along the bottom so they don't squash everyone else. Dotted lines
 mark the leader's laps. The history starts when the race does (or when
-Tenths starts, if that's later) and is kept while the widget is hidden. Races
+2Tenths starts, if that's later) and is kept while the widget is hidden. Races
 only; off by default.
 
 *Options*: the whole race or the leader's last 3, 5, 10 or 20 laps (5 to
@@ -246,7 +250,7 @@ yellow, hards light), with its length in laps written on it and a tick at
 every stop, so you can see who's due in, who's gone long and who's switched
 to wets. A ✕ marks a car that retired.
 
-iRacing doesn't publish stints, so Tenths works them out from each car's
+iRacing doesn't publish stints, so 2Tenths works them out from each car's
 pit-lane visits and laps, from when it first sees the session. A stint it
 only saw part of is faded and its length shown as "≥". It can't tell whether
 another car changed tyres at a stop, only what compound it's on, so a
@@ -403,7 +407,7 @@ take `Ctrl+Shift+T` and the rest from other programs the rest of the time. Each
 row shows its key, or its wheel button if it has one, and lights it up for a
 moment when you press it. Off by default.
 
-**Auto fuel to finish.** With it on, Tenths keeps iRacing's fuel amount at
+**Auto fuel to finish.** With it on, 2Tenths keeps iRacing's fuel amount at
 what you need to finish (from the Fuel widget, with its safety margin),
 updating it as the estimate changes, so whenever you box the amount is already
 right. It only changes the amount when it's a litre or more out, at most every
@@ -412,7 +416,7 @@ Changing the fuel with more or less, or unticking everything, pauses it (AUTO
 goes grey) so it doesn't fight you; the fuel key or the Auto fuel key picks it
 back up.
 
-This is Tenths' own, using the same commands as the keys. iRacing also has an
+This is 2Tenths' own, using the same commands as the keys. iRacing also has an
 AutoFuel of its own (the checkbox in the fuel black box, or the `#autofuel`
 chat command), which plans from its own fuel data; use one or the other.
 
@@ -476,7 +480,7 @@ class position in the corner. For each car:
 - their last (L) and best (B) laps, each with the difference to yours (green
   when theirs was slower);
 - their tyres and how many laps they've done on them (a + when the set went on
-  before Tenths saw it), and their pit stops with yours in brackets.
+  before 2Tenths saw it), and their pit stops with yours in brackets.
 
 An amber edge marks a car within two seconds. In races only. Off by default.
 
@@ -511,7 +515,7 @@ first; open one for the whole race:
 
 Only recorded data is shown. A lap time is the time between two recorded
 crossings of the line, a position is the order cars crossed the line, and a
-gap is the difference between two crossing times; laps Tenths didn't see (the
+gap is the difference between two crossing times; laps 2Tenths didn't see (the
 first after it started, or after a car retired) are left out, not estimated.
 Your inputs aren't kept. Reports are JSON files in `reports\` (below), so
 they're yours to keep, share or delete.
@@ -520,7 +524,7 @@ they're yours to keep, share or delete.
 
 ## The app
 
-Tenths runs in the background with an icon in the system tray. Each widget
+2Tenths runs in the background with an icon in the system tray. Each widget
 is its own small transparent window over the game that lets every click
 through to iRacing; while you edit the layout, each monitor gets one
 full-screen overlay instead, for dragging. The **settings** window is where
@@ -530,9 +534,9 @@ them; there's no Save button.
 The **tray icon** opens the settings window with a left click. Its right-click
 menu has Open settings, Edit layout, Show / hide overlays and Next layout (each
 with its current key), Check for updates (it says
-"Update to x.y.z…" once a newer version is found) and Quit Tenths. Starting Tenths again while it's
+"Update to x.y.z…" once a newer version is found) and Quit 2Tenths. Starting 2Tenths again while it's
 running opens its settings window. Closing the settings window only hides
-it; Tenths keeps running until you quit it from the tray.
+it; 2Tenths keeps running until you quit it from the tray.
 
 Along the top of the settings window are the connection status (Waiting for
 iRacing, Connected to iRacing, or Demo race running), **Hide overlays** and
@@ -625,16 +629,16 @@ Settings, or waiting 15 seconds. Nothing else fires while it's waiting, so you
 can choose a key that's already in use. Two identical button boxes are told
 apart by the USB port they're in. It warns when two actions share
 a key or button, when a key has no Ctrl, Alt or Shift (it would stop working in
-other programs while Tenths runs; F13 to F24 are fine, since keyboards don't
+other programs while 2Tenths runs; F13 to F24 are fine, since keyboards don't
 have them), and when a bound controller isn't plugged in. The top of the page
-lists the controllers Tenths can see. **Restore defaults** puts back the
+lists the controllers 2Tenths can see. **Restore defaults** puts back the
 `Ctrl+Shift` keys and clears every button.
 
 Controller buttons are read with Windows Raw Input, so they work while iRacing
 has the focus, and every button counts, not just the first 32. A hat switch
 (the d-pad on most wheels) works as four buttons. Buttons are remembered by the
 device's hardware id, so they keep working on another USB port. To see which
-controllers Tenths finds, run
+controllers 2Tenths finds, run
 `cargo test -p tenths list_controllers -- --ignored --nocapture`.
 
 ### Widget pages
@@ -659,16 +663,16 @@ the Delta, Coach and Inputs widgets compare you with (see below).
 ### About and updates
 
 The About page shows the version and checks for a newer one: a little after
-Tenths starts and then every six hours (switch that off with **Check
+2Tenths starts and then every six hours (switch that off with **Check
 automatically**), or when you press **Check now**. When there is one, the page
 lists what's new, About gets a dot in the list, and the tray item changes to
-"Update to x.y.z…". Nothing installs until you press **Update to x.y.z**: Tenths
+"Update to x.y.z…". Nothing installs until you press **Update to x.y.z**: 2Tenths
 downloads the installer, checks its signature against the key the releases are
 signed with (anything that doesn't match is refused), runs it and closes; the
-installer puts the new version in the same place and opens Tenths again. Your
+installer puts the new version in the same place and opens 2Tenths again. Your
 settings, layouts, laps and reports aren't touched.
 
-Updates come from this project's GitHub releases. If Tenths says it couldn't
+Updates come from this project's GitHub releases. If 2Tenths says it couldn't
 check, the usual reasons are no internet connection or no public release yet.
 
 ## Reference laps
@@ -688,7 +692,7 @@ A reference is only used when its track and layout match the session.
 
 - iRacing only updates tire temperatures and wear while your car is in its pit
   box. On track, the Tires widget shows the reading from your last stop.
-- Low fuel is worked out by Tenths: under 2 laps of fuel, or under 8% of the
+- Low fuel is worked out by 2Tenths: under 2 laps of fuel, or under 8% of the
   tank before there's a per-lap figure.
 - Gauges a car doesn't model read "–", and so does brake bias on cars without
   an adjustable bias.
@@ -702,29 +706,29 @@ A reference is only used when its track and layout match the session.
   all-time optimal in iRacing's own lap files.
 - A lap counts as clean when you stay on track, off pit road and pick up no
   incidents. Only clean laps count for session and personal bests. Lap times
-  are iRacing's own, or Tenths' timing if iRacing doesn't report one.
+  are iRacing's own, or 2Tenths' timing if iRacing doesn't report one.
 - In team events, the Session panel counts the team's incidents, since that's
   what the limit applies to.
 
 ## Install and run (Windows)
 
-**Releases:** download `Tenths_<version>_x64-setup.exe` from the project's
+**Releases:** download `2Tenths_<version>_x64-setup.exe` from the project's
 Releases page and run it. It installs for your user only (no administrator
 rights, in `%LOCALAPPDATA%\Tenths`) with a Start menu shortcut, and appears in
 Windows' Apps list for uninstalling; uninstalling leaves your settings and laps
 alone. The installer takes `/S` (no windows), `/P` (progress only) and
-`/R` (start Tenths afterwards).
+`/R` (start 2Tenths afterwards).
 
 **Coming from 0.4 (the Tauri version)?** Press **Update** in its Settings →
 About (or just run the new installer). It replaces the old app in place, in
 the same folder with the same shortcut and uninstall entry, and keeps
 everything you set up. Nothing needs uninstalling first.
 
-**Test builds:** every push to `development` builds Tenths on GitHub. Open
+**Test builds:** every push to `development` builds 2Tenths on GitHub. Open
 **Actions → Windows build**, pick the latest run and download
 **tenths-windows** (one file, `tenths.exe`, no installer: put it anywhere and
 run it) or **tenths-installer-unsigned** (the installer, to try the install;
-it isn't signed, so an installed Tenths won't take it as an update).
+it isn't signed, so an installed 2Tenths won't take it as an update).
 
 In iRacing, set the display mode to **borderless windowed**. No overlay can draw
 over exclusive fullscreen.
@@ -752,8 +756,8 @@ the same keys.
 2. Then:
 
 ```powershell
-git clone https://github.com/scarnegie96/Tenths-iRacing-Overlay.git
-cd Tenths-iRacing-Overlay
+git clone https://github.com/scarnegie96/2TenthsOverlay.git
+cd 2TenthsOverlay
 git switch development
 cargo run --release -p tenths -- --demo     # build and run on the demo race
 cargo build --release -p tenths             # target\release\tenths.exe
@@ -815,7 +819,7 @@ Everything is in `%APPDATA%\dev.tenths.overlay\`:
 | `driver-ratings.json` | Your thumbs up or down on other drivers, by iRacing id |
 | `reports\`      | Race reports, one `.json` file per race |
 
-If `config.json` can't be read, Tenths keeps it as
+If `config.json` can't be read, 2Tenths keeps it as
 `config.corrupt-<date>.json`, starts with default settings and says so in
 Settings. These are the same files the 0.4 Tauri version used.
 
@@ -910,7 +914,7 @@ once they've had more testing.
   any viewer can (no login, and it can't post), shows names in their Twitch
   colours and emotes as pictures, hides messages after a while so the panel
   goes quiet when chat does, and removes anything a moderator deletes.
-- **OBS stream window**: an ordinary window, "Tenths stream", drawing your
+- **OBS stream window**: an ordinary window, "2Tenths stream", drawing your
   widgets where your layout has them on a plain green, magenta, black or grey
   background, for OBS's Window Capture with a Chroma Key filter. Unlike
   capturing the screen, it keeps working while iRacing covers it. It would have
@@ -919,7 +923,7 @@ once they've had more testing.
 
 ## License
 
-Tenths is free software: you can redistribute it and change it under the terms
+2Tenths is free software: you can redistribute it and change it under the terms
 of the [GNU General Public License](LICENSE) as published by the Free Software
 Foundation, either version 3 of the License or (at your option) any later
 version. In short: use it, change it and share it as you like, and if you share
@@ -929,5 +933,5 @@ warranty.
 The bundled fonts, Barlow Semi Condensed and Titillium Web, are under the SIL
 Open Font License 1.1.
 
-Tenths isn't affiliated with or endorsed by iRacing.com Motorsport Simulations,
+2Tenths isn't affiliated with or endorsed by iRacing.com Motorsport Simulations,
 LLC. iRacing is their trademark.

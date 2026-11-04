@@ -1,4 +1,4 @@
-# Builds the installer: dist\Tenths_<version>_x64-setup.exe, from a release build of tenths.exe.
+# Builds the installer: dist\2Tenths_<version>_x64-setup.exe, from a release build of tenths.exe.
 #
 #   cargo build --release -p tenths
 #   powershell -File app\installer\build.ps1
@@ -36,7 +36,7 @@ if (-not $makensis) {
 # The four-number file version Windows wants: 0.5.0 -> 0.5.0.0 (a pre-release suffix is dropped).
 $num = ($Version -split '-')[0] + ".0"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-$out = Join-Path (Resolve-Path $OutDir).Path "Tenths_${Version}_x64-setup.exe"
+$out = Join-Path (Resolve-Path $OutDir).Path "2Tenths_${Version}_x64-setup.exe"
 
 & $makensis /V2 "/DVERSION=$Version" "/DVERSION_NUM=$num" "/DEXE=$((Resolve-Path $Exe).Path)" "/DICON=$root\app\assets\icons\icon.ico" "/DOUTFILE=$out" "app\installer\tenths.nsi"
 if ($LASTEXITCODE -ne 0) { throw "makensis failed ($LASTEXITCODE)" }

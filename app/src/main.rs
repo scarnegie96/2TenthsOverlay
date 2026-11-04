@@ -186,7 +186,7 @@ fn main() -> eframe::Result {
     let listener = if single {
         match shell::instance::claim() {
             shell::instance::Instance::AlreadyRunning => {
-                println!("Tenths is already running: asked it to open Settings.");
+                println!("2Tenths is already running: asked it to open Settings.");
                 return Ok(());
             }
             shell::instance::Instance::First(l) => Some(l),
@@ -1058,14 +1058,14 @@ fn kill_now() -> ! {
     std::process::exit(0)
 }
 
-const PRIMARY_TITLE: &str = "Tenths";
+const PRIMARY_TITLE: &str = "2Tenths";
 /// How much faster than real time `--warmup` runs the demo race.
 const WARMUP_SPEED: u32 = 10;
 /// Seconds the layout toast is up.
 const TOAST_S: f64 = 1.8;
 
 fn overlay_title(d: &displays::Display) -> String {
-    format!("Tenths overlay {}", d.number)
+    format!("2Tenths overlay {}", d.number)
 }
 
 /// A secondary display's overlay window, set up like the primary one in main().

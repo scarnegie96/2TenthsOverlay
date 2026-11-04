@@ -1,6 +1,6 @@
 # app/
 
-The Tenths app, drawn natively with [egui](https://github.com/emilk/egui) on
+The 2Tenths app, drawn natively with [egui](https://github.com/emilk/egui) on
 the telemetry core in `crates/telemetry`. How to run, build and use it is in
 the [main README](../README.md); this file covers how it's put together.
 

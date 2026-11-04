@@ -15,7 +15,7 @@
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-use egui::{Color32, Margin, RichText, Sense, Stroke, Ui, Vec2, ViewportBuilder, ViewportId};
+use egui::{Margin, RichText, Sense, Stroke, Ui, Vec2, ViewportBuilder, ViewportId};
 use telemetry::runner::RunnerControl;
 
 use crate::config::{self, General, Store};
@@ -197,7 +197,7 @@ impl SettingsWindow {
         }
         let th = Theme::build(env.general.theme, env.general.colors.get(&env.general.theme));
         let builder = ViewportBuilder::default()
-            .with_title("Tenths settings")
+            .with_title("2Tenths settings")
             .with_inner_size([1100.0, std::env::var("TENTHS_SETTINGS_HEIGHT").ok().and_then(|v| v.parse().ok()).unwrap_or(780.0)])
             .with_min_inner_size([760.0, 480.0]);
         let id = ViewportId::from_hash_of(ID);
@@ -269,7 +269,7 @@ impl SettingsWindow {
     fn pane_body(&mut self, ui: &mut Ui, th: &Theme, env: &mut Env<'_>) {
         // The settings file couldn't be read at start, so Tenths started fresh.
         if let Some(kept) = env.shell.config_notice.as_deref().filter(|_| !self.notice_closed) {
-            let msg = format!("Your settings file couldn't be read, so Tenths started fresh. The old file was kept as {kept}.");
+            let msg = format!("Your settings file couldn't be read, so 2Tenths started fresh. The old file was kept as {kept}.");
             if ui::notice(ui, th, &msg, true) {
                 self.notice_closed = true;
             }
@@ -412,22 +412,23 @@ impl SettingsWindow {
     }
 }
 
-/// The brand mark: three slanted bars, the last one in the accent colour.
+/// The brand mark, as on the app icon: ".2", a slanted decimal point in the fastest-lap colour
+/// and a heavy italic 2.
 fn brand(ui: &mut Ui, th: &Theme) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(28.0, 28.0), Sense::hover());
-    let s = rect.width() / 64.0;
-    let skew = (-14.0f32).to_radians().tan();
-    let bar = |x: f32, y: f32, w: f32, h: f32, color: Color32| {
-        // `skewX(-14) translate(9 0)` in a 64 box.
-        let pt = |px: f32, py: f32| egui::pos2(rect.left() + ((px + 9.0) + skew * (py - 0.0) * 1.0) * s, rect.top() + py * s);
-        let pts = vec![pt(x, y), pt(x + w, y), pt(x + w, y + h), pt(x, y + h)];
-        ui.painter().add(egui::Shape::convex_polygon(pts, color, Stroke::NONE));
-    };
-    bar(14.0, 17.0, 8.0, 30.0, th.ink);
-    bar(27.0, 17.0, 8.0, 30.0, th.ink);
-    bar(40.0, 33.0, 8.0, 14.0, th.fastest);
-    ui.add_space(2.0);
-    ui.label(RichText::new("Tenths").font(th.bold(20.0)).color(th.ink));
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(26.0, 28.0), Sense::hover());
+    let p = ui.painter();
+    let base = rect.bottom() - 4.0;
+    let (dot, lean) = (5.5, 1.6);
+    let x = rect.left() + 1.0;
+    let pts = vec![egui::pos2(x + lean, base - dot), egui::pos2(x + dot + lean, base - dot), egui::pos2(x + dot, base), egui::pos2(x, base)];
+    p.add(egui::Shape::convex_polygon(pts, th.fastest, Stroke::NONE));
+    let font = th.brand_font(29.0);
+    let g = p.layout_no_wrap("2".into(), font, th.ink);
+    // Sit the 2 on the dot's baseline (its glyph ends about 80% of the way down the line).
+    let top = base - g.size().y * 0.80;
+    p.galley(egui::pos2(x + dot + 1.5, top), g, th.ink);
+    ui.add_space(4.0);
+    ui.label(RichText::new("2Tenths").font(th.bold(20.0)).color(th.ink));
 }
 
 /// `widget::OptionField`'s write: a JSON number that is a whole number when it is one.

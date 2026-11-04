@@ -23,7 +23,7 @@ fn update_line(s: &Status, now: u64) -> String {
         Phase::Checking => "Looking for a newer version…".into(),
         Phase::Downloading { done, total } => format!("Downloading the update… {}", updates::progress_text(done, total)),
         Phase::Verifying => "Checking the download…".into(),
-        Phase::Launching => "Starting the installer. Tenths closes and opens again in a moment.".into(),
+        Phase::Launching => "Starting the installer. 2Tenths closes and opens again in a moment.".into(),
         Phase::Idle => match (&s.available, s.last_checked) {
             (Some(r), _) => match &r.published {
                 Some(d) => format!("Version {} is available (published {d}).", r.version),
@@ -39,8 +39,8 @@ pub fn show(ui: &mut Ui, th: &Theme, env: &mut Env<'_>, ed: &mut Editor) {
     ui::title(ui, th, "About", None);
     let auto = ed.raw["general"]["checkUpdates"].as_bool().unwrap_or(true);
     let status = env.updates.status();
-    ui::section(ui, th, "Tenths", |ui| {
-        ui::field(ui, th, "Version", Some("The native build of Tenths, drawn with egui."), |ui| {
+    ui::section(ui, th, "2Tenths", |ui| {
+        ui::field(ui, th, "Version", Some("The native build of 2Tenths, drawn with egui."), |ui| {
             ui.label(ui::text(th, VERSION, 16.0, th.ink));
         });
         ui::field(ui, th, "Updates", Some(&update_line(&status, updates::now())), |ui| {
@@ -70,7 +70,7 @@ pub fn show(ui: &mut Ui, th: &Theme, env: &mut Env<'_>, ed: &mut Editor) {
             ui.add_space(8.0);
             ui.add(egui::Label::new(ui::text(th, e, 14.0, th.loss)).wrap());
         }
-        ui::field(ui, th, "Check automatically", Some("A little after Tenths starts, then every six hours. Nothing installs until you say so."), |ui| {
+        ui::field(ui, th, "Check automatically", Some("A little after 2Tenths starts, then every six hours. Nothing installs until you say so."), |ui| {
             let mut on = auto;
             if ui::toggle(ui, th, &mut on).changed() {
                 ed.set(env.store, &["general", "checkUpdates"], json!(on));

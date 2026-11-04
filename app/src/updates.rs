@@ -117,7 +117,7 @@ pub fn verify(public_key: &str, signature: &str, bytes: &[u8], expected_version:
     };
     let key = minisign_verify::PublicKey::decode(&text(public_key, "update key")?).map_err(|_| "The update key isn't valid.".to_string())?;
     let sig = minisign_verify::Signature::decode(&text(signature, "update signature")?).map_err(|_| "The update's signature isn't valid.".to_string())?;
-    key.verify(bytes, &sig, false).map_err(|_| "The download doesn't match its signature, so it isn't from the Tenths release key.".to_string())?;
+    key.verify(bytes, &sig, false).map_err(|_| "The download doesn't match its signature, so it isn't from the 2Tenths release key.".to_string())?;
     // The trusted comment is `key:value` pairs separated by tabs; it must name this version.
     match sig.trusted_comment().split('\t').find_map(|p| p.strip_prefix("version:")) {
         Some(v) if v == expected_version => Ok(()),
@@ -136,7 +136,7 @@ fn agent() -> ureq::Agent {
     ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(15))
         .timeout_read(Duration::from_secs(60))
-        .user_agent(&format!("Tenths/{VERSION}"))
+        .user_agent(&format!("2Tenths/{VERSION}"))
         .build()
 }
 

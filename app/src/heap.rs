@@ -34,7 +34,7 @@ mod on {
     pub fn start(file: &str) {
         let profiler = dhat::Profiler::builder().file_name(file).build();
         *PROFILER.lock().unwrap() = Some(Holder(profiler));
-        eprintln!("[heap] profiling every allocation; {file} is written when Tenths quits (--bench N quits after N seconds)");
+        eprintln!("[heap] profiling every allocation; {file} is written when 2Tenths quits (--bench N quits after N seconds)");
     }
 
     /// The live heap: "now 52.3 MB in 41,210 blocks, peak 61.0 MB". None unless profiling.

@@ -37,7 +37,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tenths-installer-unsigned
-          path: dist/Tenths_*_x64-setup.exe
+          path: dist/2Tenths_*_x64-setup.exe
           retention-days: 30
       - name: Test
         run: cargo test --release -p tenths -p telemetry -p tenths-release
