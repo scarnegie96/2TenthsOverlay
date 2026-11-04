@@ -10,6 +10,8 @@ subscriptions, no third-party services, and every line of it is yours to change.
 It runs as one small program with each widget in its own small window over the game, so iRacing gives up as little
 as possible to it.
 
+Everything here has been developed in about 4 days. Any bugs or requested features can be added quickly.
+
 *2Tenths used to be called Tenths: same app, same settings, new name.*
 
 **From 0.6 on, 2Tenths is a new app.** Versions up to 0.4.13 were built with
