@@ -962,10 +962,24 @@ impl App {
                             }
                             // The saved layout to switch to; changes save into the active one.
                             let hover = if active.is_some() { "Changes save into this layout" } else { "Save layouts in Settings → Layouts" };
+                            // A light box with black text in every state (idle, hovered, open), so
+                            // the name reads in any theme.
+                            let combo = ui.scope(|ui| {
+                            let v = ui.visuals_mut();
+                            let box_fill = egui::Color32::from_rgb(0xe9, 0xec, 0xf0);
+                            for w in [&mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
+                                w.bg_fill = box_fill;
+                                w.weak_bg_fill = box_fill;
+                                w.fg_stroke = Stroke::new(1.5, egui::Color32::BLACK);
+                            }
+                            v.widgets.hovered.weak_bg_fill = egui::Color32::WHITE;
+                            v.widgets.hovered.bg_fill = egui::Color32::WHITE;
                             egui::ComboBox::from_id_salt(("edit-layout", &d.key))
-                                .selected_text(egui::RichText::new(&active_name).font(th.semi(15.0)).color(th.ink))
+                                .selected_text(egui::RichText::new(&active_name).font(th.semi(15.0)).color(egui::Color32::BLACK))
                                 .width(160.0)
                                 .show_ui(ui, |ui| {
+                                    // The list itself in the app's own colours, not the box's.
+                                    *ui.visuals_mut() = ui.ctx().global_style().visuals.clone();
                                     for p in &self.layouts.list {
                                         let picked = active.as_deref() == Some(p.id.as_str());
                                         let label = egui::RichText::new(&p.name).font(th.semi(15.0));
@@ -978,7 +992,8 @@ impl App {
                                     }
                                 })
                                 .response
-                                .on_hover_text(hover);
+                            });
+                            combo.inner.on_hover_text(hover);
                             let label = format!("Widgets {enabled}/{}", schema::WIDGETS.len());
                             if ui.add(button(&label, th.panel_raised, th.ink)).clicked() {
                                 picker_click = true;
