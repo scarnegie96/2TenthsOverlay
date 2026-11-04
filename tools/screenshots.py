@@ -121,7 +121,7 @@ def save(img, name):
     path = DOCS / name
     path.parent.mkdir(parents=True, exist_ok=True)
     img.convert("RGB").save(path, optimize=True)
-    print("  ", path.relative_to(ROOT))
+    print("  ", path.relative_to(ROOT) if path.is_relative_to(ROOT) else path)
 
 
 def bbox(alpha, region):
