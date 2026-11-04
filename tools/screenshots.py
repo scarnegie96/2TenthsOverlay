@@ -28,7 +28,10 @@ from PIL import Image
 from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parent.parent
-DOCS = ROOT / "docs"
+DOCS = Path(os.environ.get("TENTHS_SHOT_DOCS", ROOT / "docs"))
+# The theme for the widget and settings pictures (the overviews always do all three):
+# TENTHS_SHOT_THEME=light or f1, with TENTHS_SHOT_DOCS pointing somewhere else, for a full set in another theme.
+THEME = os.environ.get("TENTHS_SHOT_THEME", "dark")
 BIN = Path(os.environ.get("TENTHS_BIN", ROOT / "target" / "fast" / "tenths"))
 
 # Demo race seconds to fast-forward, and when to take the picture: the
@@ -181,7 +184,7 @@ def widgets(tmp, only_wheels=False):
             layout[wid] = (qx + 100, qy + 100 + top.get(wid, 0))
             for i, o in opts.items():
                 extra.setdefault(i, {}).update(o)
-        cfg = config(layout, "dark", scale=2.0, extra=extra)
+        cfg = config(layout, THEME, scale=2.0, extra=extra)
         out = tmp / f"widgets-{k}.png"
         run(cfg, out, size=(W, H))
         alpha = np.array(Image.open(out).convert("RGBA"))[..., 3]
@@ -196,7 +199,7 @@ def widgets(tmp, only_wheels=False):
     if not only_wheels and (not only or "flags" in only):
         # The flag board under a blue flag, with the driver panel for the car behind.
         out = tmp / "flags-blue.png"
-        run(config({"flags": (100, 100)}, "dark", scale=2.0, extra={"flags": {"alwaysShow": True}}), out, size=(W // 2, H // 2), flag=32)
+        run(config({"flags": (100, 100)}, THEME, scale=2.0, extra={"flags": {"alwaysShow": True}}), out, size=(W // 2, H // 2), flag=32)
         alpha = np.array(Image.open(out).convert("RGBA"))[..., 3]
         box = bbox(alpha, (0, 0, W // 2, H // 2))
         if box:
@@ -220,7 +223,7 @@ def widgets(tmp, only_wheels=False):
         return
     # Standings with the thumbs shown after the flag.
     out = tmp / "rate.png"
-    run(config({"standings": (50, 50)}, "dark", scale=2.0), out, size=(W // 2, H // 2), env={"TENTHS_EGUI_VOTING": "1"})
+    run(config({"standings": (50, 50)}, THEME, scale=2.0), out, size=(W // 2, H // 2), env={"TENTHS_EGUI_VOTING": "1"})
     alpha = np.array(Image.open(out).convert("RGBA"))[..., 3]
     box = bbox(alpha, (0, 0, W // 2, H // 2))
     if box:
@@ -244,7 +247,7 @@ def settings(tmp):
              ("races", "races.png", ["--report", report])]
     for pane, name, more in panes:
         out = tmp / f"settings-{name}"
-        run(config(SHOWCASE, "dark"), out, size=(1600, 1200), args=["--settings", "--pane", pane, *more],
+        run(config(SHOWCASE, THEME), out, size=(1600, 1200), args=["--settings", "--pane", pane, *more],
             env={"DATA_DIR": str(data)}, warmup=0, shot_after=6)
         alpha = np.array(Image.open(out).convert("RGBA"))[..., 3]
         box = bbox(alpha, (0, 0, 1600, 1200))
