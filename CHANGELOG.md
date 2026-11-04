@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes, which Tenths shows in
 Settings → About when it offers the update. Add a section like the ones below
 when you bump the version.
 
+## 0.6.7
+
+- Race pace, "Relative to you": the cars shown are the nearest on the road either side of you, as on the Relative (whatever their class or lap), picked ten times a second, and each line is that car's live gap to you on track. Before, they were the cars a few class positions either side of you, with gaps built from the timing, so they only changed as positions did. Every car's gap is kept all along, so a car that becomes your neighbour shows its whole line straight away. The figure by each name is how much you gained on them over your last lap.
+
 ## 0.6.6
 
 - Battle shows the car directly ahead of you and directly behind you on the road, as on the Relative, with the live gap on track to each. Before, it showed the nearest cars in your class by race order, so a lapped car or another class right beside you never appeared, and the car "ahead" could be well up the road. Now it's whoever is next to you on track, whatever their class or lap (marked "+1 lap" or "−1 lap" as on the Relative), and cars on pit road are skipped unless you're on it too. The change per lap and Lap are shown for cars racing you in your class on the same lap.
